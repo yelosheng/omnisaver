@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container">
     <div class="row justify-content-center">
-        <div class="{% if tweet.is_article %}col-12 col-xl-8 col-lg-10{% else %}col-12 col-lg-9{% endif %}">
+        <div class="{% if tweet.is_article %}col-12 col-xl-7 col-lg-9{% else %}col-12 col-lg-8{% endif %}">
             <div class="tweet-container{% if tweet.is_article %} is-article{% endif %}">
                 <!-- Tweet header -->
                 <div class="tweet-header">
@@ -88,9 +88,17 @@
                 <!-- Tweet info -->
                 <div class="tweet-footer">
                     <div class="tweet-time">{{ tweet.processed_at | format_datetime }}</div>
-                    {% if tweet.media_count > 0 %}
-                    <div class="media-count">{{ tweet.media_count }} media files</div>
-                    {% endif %}
+                    <div class="media-count">
+                        {% if tweet.content_type in ('tweet', 'article') %}
+                        <svg viewBox="0 0 24 24" style="width:1.1rem;height:1.1rem;fill:#000;vertical-align:middle;" xmlns="http://www.w3.org/2000/svg"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.91-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        {% elif tweet.content_type == 'youtube' %}
+                        <i class="bi bi-youtube" style="color:#ff0000;font-size:1.1rem;vertical-align:middle;"></i>
+                        {% elif tweet.content_type == 'xhs' %}
+                        <img src="/static/xhs.ico" style="width:1.1rem;height:1.1rem;object-fit:contain;vertical-align:middle;">
+                        {% elif tweet.content_type == 'wechat' %}
+                        <svg viewBox="0 0 24 24" style="width:1.1rem;height:1.1rem;fill:#07C160;vertical-align:middle;" xmlns="http://www.w3.org/2000/svg"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.295.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.832.4c.282 0 .55-.012.825-.035-.751-2.547.229-5.233 2.566-7.054C13.116 7.55 16.002 6.67 18.88 6.99c-.63-2.722-3.477-4.802-7.189-4.802H8.69zm-1.9 3.58a.96.96 0 0 1 .96.96.96.96 0 0 1-.96.96.96.96 0 0 1-.96-.96.96.96 0 0 1 .96-.96zm5.047 0a.96.96 0 0 1 .96.96.96.96 0 0 1-.96.96.96.96 0 0 1-.96-.96.96.96 0 0 1 .96-.96zm6.657 2.8c-4.274 0-7.46 2.866-7.46 6.37 0 3.5 3.186 6.37 7.46 6.37.736 0 1.458-.1 2.14-.29a.609.609 0 0 1 .523.07l1.44.844a.25.25 0 0 0 .124.04c.122 0 .222-.1.222-.22a.4.4 0 0 0-.036-.16l-.296-1.118a.44.44 0 0 1 .16-.5C22.967 19.17 24 17.565 24 15.738c0-3.504-3.187-6.37-7.505-6.37zm-2.74 3.217a.72.72 0 0 1 .72.72.72.72 0 0 1-.72.72.72.72 0 0 1-.72-.72.72.72 0 0 1 .72-.72zm5.48 0a.72.72 0 0 1 .72.72.72.72 0 0 1-.72.72.72.72 0 0 1-.72-.72.72.72 0 0 1 .72-.72z"/></svg>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
