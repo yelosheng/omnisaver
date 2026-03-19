@@ -149,6 +149,9 @@ logs/
 
 # Downloaded media files
 saved_tweets/
+saved_xhs/
+saved_wechat/
+saved_youtube/
 temp_media/
 downloads/
 media/
