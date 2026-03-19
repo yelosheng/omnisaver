@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Task Queue - Twitter Saver{% endblock %}
+
+{% block content %}
+
+<!-- Error detail modal -->
+<div class="modal fade" id="error-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="error-modal-title">Error</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <pre id="error-modal-body" style="white-space:pre-wrap;word-break:break-all;user-select:text;font-size:13px;background:#f8f9fa;padding:12px;border-radius:6px;max-height:400px;overflow-y:auto;"></pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('error-modal-body').textContent).then(()=>showToast('Copied','success'))">
+          <i class="bi bi-clipboard"></i> Copy
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-list-task"></i> Task Queue</h2>
+    <div>
+        <select class="form-select" id="status-filter" style="width: auto; display: inline-block;">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="retrying">Retrying</option>
+        </select>
+        <button class="btn btn-outline-primary ms-2" onclick="loadTasks()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="loading" class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading tasks...</span>
+            </div>
+        </div>
+
+        <div id="tasks-container" style="display: none;">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th style="width:100px;max-width:100px">Author</th>
+                            <th>URL</th>
+                            <th style="min-width:160px">Status</th>
+                            <th>Created</th>
+                            <th>Processed</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasks-tbody"></tbody>
+                </table>
+            </div>
+
+            <nav aria-label="Task pagination">
+                <ul class="pagination justify-content-center" id="pagination"></ul>
+            </nav>
+        </div>
+
+        <div id="no-tasks" class="text-center py-4" style="display: none;">
+            <i class="bi bi-inbox" style="font-size: 3rem; color: #6c757d;"></i>
+            <p class="text-muted mt-2">No tasks</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPage = 1;
+    const perPage = 20;
+    const _errorMessages = {};
+
+    // ── Load & render ────────────────────────────────────────────────────────
+
+    function loadTasks(page = 1) {
+        const statusFilter = document.getElementById('status-filter').value;
+        const loading = document.getElementById('loading');
+        const container = document.getElementById('tasks-container');
+        const noTasks = document.getElementById('no-tasks');
+
+        loading.style.display = 'block';
+        container.style.display = 'none';
+        noTasks.style.display = 'none';
+
+        // "retrying" is a client-side filter: fetch failed tasks, then filter by retry_count > 0
+        const apiStatus = statusFilter === 'retrying' ? 'failed' : statusFilter;
+        const params = new URLSearchParams({ page, per_page: perPage });
+        if (apiStatus) params.append('status', apiStatus);
+
+        fetch(`/api/tasks?${params}`)
+            .then(r => r.json())
+            .then(data => {
+                loading.style.display = 'none';
+
+                let tasks = data.tasks;
+                if (statusFilter === 'retrying') {
+                    tasks = tasks.filter(t => (t.retry_count || 0) > 0);
+                }
+
+                if (tasks.length === 0) {
+                    noTasks.style.display = 'block';
+                    return;
+                }
+
+                container.style.display = 'block';
+                renderTasks(tasks);
+                if (statusFilter !== 'retrying') {
+                    renderPagination(data.page, data.pages, data.total);
+                } else {
+                    document.getElementById('pagination').innerHTML = '';
+                }
+                currentPage = page;
+            })
+            .catch(err => {
+                console.error(err);
+                loading.style.display = 'none';
+                showToast('Failed to load tasks', 'error');
+            });
+    }
+
+    function renderTasks(tasks) {
+        const tbody = document.getElementById('tasks-tbody');
+        tbody.innerHTML = '';
+
+        tasks.forEach(task => {
+            const row = document.createElement('tr');
+            const retryCount = task.retry_count || 0;
+            const maxRetries = task.max_retries || 3;
+            const isRetrying = task.status === 'failed' && retryCount > 0;
+
+            // Status cell
+            const statusLabels = { pending: 'Pending', processing: 'Processing', completed: 'Completed', failed: 'Failed' };
+            const statusText = statusLabels[task.status] || task.status;
+            let statusHtml = `<span class="status-${task.status}"><i class="bi bi-circle-fill"></i> ${statusText}</span>`;
+            if (isRetrying) {
+                const retryLabel = retryCount >= maxRetries
+                    ? `<span class="text-danger">Max retries reached (${retryCount}/${maxRetries})</span>`
+                    : `<span class="text-warning"><i class="bi bi-arrow-clockwise"></i> Retry ${retryCount}/${maxRetries}</span>`;
+                const nextRetry = task.next_retry_time
+                    ? `<br><small class="text-muted">Next: ${task.next_retry_time}</small>`
+                    : '';
+                statusHtml += `<br>${retryLabel}${nextRetry}`;
+            }
+
+            // Content info
+            let contentInfo = '-';
+            if (task.author_username && task.tweet_id) {
+                const username = `@${task.author_username}`;
+                const thread = task.is_thread ? ` <small class="text-muted">(${task.tweet_count})</small>` : '';
+                contentInfo = `<span style="display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${username}">${username}</span>${thread}`;
+            }
+
+            // Actions
+            let actions = '<div class="btn-group">';
+            if (task.status === 'completed') {
+                const viewUrl = task.share_slug ? `/view/${task.share_slug}` : `/view/${task.id}`;
+                actions += `<a href="${viewUrl}" class="btn btn-sm btn-outline-primary" target="_blank" title="View"><i class="bi bi-eye"></i></a>`;
+            } else if (task.status === 'failed') {
+                _errorMessages[task.id] = task.error_message || 'Unknown error';
+                actions += `<button class="btn btn-sm btn-outline-warning" onclick="showError(${task.id})" title="Show error"><i class="bi bi-exclamation-triangle"></i></button>`;
+                if (retryCount < maxRetries) {
+                    actions += `<button class="btn btn-sm btn-outline-success" onclick="retryNow(${task.id}, this)" title="Retry now"><i class="bi bi-play-fill"></i></button>`;
+                }
+                if (retryCount > 0) {
+                    actions += `<button class="btn btn-sm btn-outline-secondary" onclick="resetRetries(${task.id}, this)" title="Reset retry counter"><i class="bi bi-arrow-counterclockwise"></i></button>`;
+                }
+            }
+            actions += `<button class="btn btn-sm btn-outline-danger" onclick="deleteTask(${task.id}, this)" title="Delete"><i class="bi bi-trash"></i></button>`;
+            actions += '</div>';
+
+            const urlDisplay = task.url && task.url.length > 50 ? task.url.substring(0, 50) + '…' : (task.url || '-');
+
+            row.innerHTML = `
+                <td>${task.id}</td>
+                <td>${contentInfo}</td>
+                <td><a href="${task.url || '#'}" target="_blank" class="text-decoration-none">${urlDisplay}</a></td>
+                <td>${statusHtml}</td>
+                <td>${task.created_at || '-'}</td>
+                <td>${task.processed_at || '-'}</td>
+                <td>${actions}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // ── Pagination ────────────────────────────────────────────────────────────
+
+    function renderPagination(cur, total, totalItems) {
+        const pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+        if (total <= 1) return;
+
+        const add = (label, page, disabled, active) => {
+            const li = document.createElement('li');
+            li.className = `page-item${disabled ? ' disabled' : ''}${active ? ' active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" onclick="loadTasks(${page})">${label}</a>`;
+            pagination.appendChild(li);
+        };
+
+        add('Previous', cur - 1, cur === 1);
+        const start = Math.max(1, cur - 2), end = Math.min(total, cur + 2);
+        if (start > 1) { add('1', 1); if (start > 2) add('…', cur, true); }
+        for (let i = start; i <= end; i++) add(i, i, false, i === cur);
+        if (end < total) { if (end < total - 1) add('…', cur, true); add(total, total); }
+        add('Next', cur + 1, cur === total);
+    }
+
+    // ── Actions ───────────────────────────────────────────────────────────────
+
+    function showError(taskId) {
+        document.getElementById('error-modal-title').textContent = `Task #${taskId} Error`;
+        document.getElementById('error-modal-body').textContent = _errorMessages[taskId] || 'Unknown error';
+        new bootstrap.Modal(document.getElementById('error-modal')).show();
+    }
+
+    function btnSpinner(btn) {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        btn.disabled = true;
+        return () => { btn.innerHTML = orig; btn.disabled = false; };
+    }
+
+    function retryNow(taskId, btn) {
+        const restore = btnSpinner(btn);
+        fetch(`/api/retry-now/${taskId}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                showToast(data.message, data.success ? 'success' : 'error');
+                if (data.success) loadTasks(currentPage); else restore();
+            })
+            .catch(() => { showToast('Retry request failed', 'error'); restore(); });
+    }
+
+    function resetRetries(taskId, btn) {
+        const restore = btnSpinner(btn);
+        fetch(`/api/reset-retries/${taskId}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                showToast(data.message, data.success ? 'success' : 'error');
+                if (data.success) loadTasks(currentPage); else restore();
+            })
+            .catch(() => { showToast('Reset request failed', 'error'); restore(); });
+    }
+
+    function deleteTask(taskId, btn) {
+        const restore = btnSpinner(btn);
+        fetch(`/delete/${taskId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Task deleted', 'success');
+                    loadTasks(currentPage);
+                } else {
+                    showToast(data.message || 'Delete failed', 'error');
+                    restore();
+                }
+            })
+            .catch(() => { showToast('Delete request failed', 'error'); restore(); });
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+
+    document.getElementById('status-filter').addEventListener('change', () => loadTasks(1));
+    loadTasks();
+
+    setInterval(() => {
+        if (currentPage === 1 && !document.getElementById('status-filter').value) loadTasks(1);
+    }, 5000);
+</script>
+{% endblock %}

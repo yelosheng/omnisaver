@@ -1,0 +1,821 @@
+{% extends "base.html" %}
+
+{% block title %}Saved Tweets - Twitter Saver{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-archive"></i> Saved Tweets</h2>
+    <div class="d-flex align-items-center gap-2">
+        <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+            <button type="button" class="btn btn-outline-secondary" id="btn-infinite"
+                    onclick="setViewMode('infinite')" title="Infinite Scroll">
+                <i class="bi bi-arrow-down-circle"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btn-paginated"
+                    onclick="setViewMode('paginated')" title="Pagination">
+                <i class="bi bi-file-earmark-text"></i>
+            </button>
+        </div>
+        <select id="per-page-select" class="form-select form-select-sm" style="width:80px;"
+                onchange="setPerPage(parseInt(this.value))" title="Items per page">
+            {% for n in range(3, 100, 3) %}
+            <option value="{{ n }}">{{ n }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn-outline-primary btn-sm" onclick="reloadSaved()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Search bar -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="input-group">
+            <input type="text" id="search-input" class="form-control" placeholder="Search tweets or authors..."
+                onkeypress="handleSearchKeyPress(event)">
+            <button class="btn btn-primary" onclick="performSearch()">
+                <i class="bi bi-search"></i> <span class="d-none d-sm-inline">Search</span>
+            </button>
+        </div>
+        <div id="search-status" class="mt-2 hidden">
+            <small class="text-muted">
+                <span id="search-results-info"></span>
+                <button class="btn btn-link btn-sm p-0 ms-2" onclick="clearSearch()">Clear</button>
+            </small>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="loading" class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <div id="saved-container" class="hidden">
+            <div class="row" id="saved-grid">
+                <!-- Tweet cards will be dynamically loaded here -->
+            </div>
+
+            <!-- Lazy loading indicator -->
+            <div id="lazy-loading" class="text-center py-4 hidden">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Loading more...</span>
+                </div>
+                <p class="text-muted mt-2 mb-0">Loading more...</p>
+            </div>
+
+            <!-- All loaded indicator -->
+            <div id="no-more-data" class="text-center py-4 hidden">
+                <i class="bi bi-check-circle text-success"></i>
+                <p class="text-muted mt-2 mb-0">All tweets loaded</p>
+            </div>
+
+            <!-- Pagination controls -->
+            <div id="pagination-controls" class="d-flex justify-content-center align-items-center mt-3 gap-1 hidden flex-wrap">
+                <button class="btn btn-outline-secondary btn-sm" id="btn-first" onclick="goToPage(1)" title="First page">
+                    <i class="bi bi-chevron-double-left"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-prev10" onclick="goToPage(currentPage - 10)" title="Back 10 pages">
+                    <i class="bi bi-chevron-left"></i>10
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-prev" onclick="goToPage(currentPage - 1)" title="Previous page">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <div class="d-flex align-items-center gap-1">
+                    <input type="number" id="page-input" class="form-control form-control-sm text-center" style="width:62px;"
+                           min="1" onkeydown="if(event.key==='Enter') goToInputPage()">
+                    <span class="text-muted small">/ <span id="page-total">1</span></span>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-next" onclick="goToPage(currentPage + 1)" title="Next page">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-next10" onclick="goToPage(currentPage + 10)" title="Forward 10 pages">
+                    10<i class="bi bi-chevron-right"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-last" onclick="goToPage(totalPages)" title="Last page">
+                    <i class="bi bi-chevron-double-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="no-saved" class="text-center py-4 hidden">
+            <i class="bi bi-archive large-icon"></i>
+            <p class="text-muted mt-2">No saved tweets</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    /* Notification styles */
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        min-width: 300px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    }
+
+    .notification.show {
+        transform: translateX(0);
+    }
+
+    .notification-success {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+
+    .notification-error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+
+    .notification-content {
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .notification-content i {
+        font-size: 16px;
+    }
+
+    /* Delete button loading state */
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .spinner-border-sm {
+        width: 0.875rem;
+        height: 0.875rem;
+    }
+
+    /* Card delete animation */
+    .col-md-6 {
+        transition: opacity 0.3s ease;
+    }
+
+    /* Delete button hover effect */
+    .btn-outline-danger:hover {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: #fff;
+    }
+
+    /* User avatar styles - consistent with tweet detail page */
+    .user-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #f7f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+
+    .user-avatar i {
+        font-size: 24px;
+        color: #657786;
+    }
+
+    /* Avatar image styles - copied directly from tweet detail page */
+    .avatar-image {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    /* User info styles - consistent with tweet detail page */
+    .user-info {
+        flex: 1;
+    }
+
+    .display-name {
+        font-weight: bold;
+        font-size: 15px;
+        color: #14171a;
+        line-height: 1.2;
+    }
+
+    .username {
+        font-size: 14px;
+        color: #657786;
+        line-height: 1.2;
+    }
+
+    /* Tweet preview styles */
+    .tweet-preview {
+        border-left: 3px solid #1da1f2;
+        padding-left: 12px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        padding: 8px 12px;
+    }
+
+    .tweet-preview p {
+        font-size: 14px;
+        line-height: 1.4;
+        margin-bottom: 0;
+        color: #14171a;
+    }
+
+    /* Small avatar container styles */
+    .avatar-small {
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        max-width: 24px !important;
+        max-height: 24px !important;
+        border-radius: 50% !important;
+        background: #f7f9fa;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        overflow: hidden !important;
+    }
+
+    .avatar-small i {
+        font-size: 12px !important;
+        color: #657786;
+    }
+
+    /* Small avatar image styles - highest priority */
+    .avatar-image-small,
+    img.avatar-image-small,
+    .avatar-small .avatar-image-small,
+    .card .avatar-small .avatar-image-small,
+    .card .card-body .avatar-small .avatar-image-small {
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        max-width: 24px !important;
+        max-height: 24px !important;
+        border-radius: 50% !important;
+        object-fit: cover !important;
+        display: block !important;
+    }
+
+    /* Generic img tag inside avatar-small container */
+    .avatar-small img,
+    .card .avatar-small img,
+    .card .card-body .avatar-small img {
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        max-width: 24px !important;
+        max-height: 24px !important;
+        border-radius: 50% !important;
+        object-fit: cover !important;
+    }
+
+    /* Placeholder box styles */
+    .placeholder-box {
+        background-color: transparent;
+        border: none;
+        border-radius: 6px;
+        height: 240px;
+        overflow: hidden;
+        position: relative;
+        color: #8b5a6b;
+        font-size: 14px;
+        text-align: center;
+    }
+
+    /* Media preview image styles */
+    .placeholder-box .media-preview {
+        width: 100%;
+        height: 240px;
+        object-fit: cover;
+        border-radius: 6px;
+        display: block;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Generic hidden class */
+    .hidden {
+        display: none;
+    }
+
+    /* Large icon styles */
+    .large-icon {
+        font-size: 3rem;
+        color: #6c757d;
+    }
+
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPage = 1;
+    let perPage = (() => {
+        const v = parseInt(localStorage.getItem('savedPerPage') || '12', 10);
+        return (v >= 3 && v <= 99 && v % 3 === 0) ? v : 12;
+    })();
+    let currentSearchQuery = '';
+    let isLoading = false;
+    let hasMoreData = true;
+    let isInitialLoad = true;
+    let totalPages = 1;
+    let viewMode = localStorage.getItem('savedViewMode') || 'infinite';
+
+    // Helper: show element
+    function showElement(element) {
+        element.classList.remove('hidden');
+    }
+
+    // Helper: hide element
+    function hideElement(element) {
+        element.classList.add('hidden');
+    }
+
+    // --- Per-page setting ---
+
+    function setPerPage(n) {
+        if (n < 3 || n > 99 || n % 3 !== 0) return;
+        perPage = n;
+        localStorage.setItem('savedPerPage', n);
+        currentPage = 1;
+        hasMoreData = true;
+        totalPages = 1;
+        loadSaved(1, currentSearchQuery, false);
+    }
+
+    // --- View mode ---
+
+    function setViewMode(mode) {
+        viewMode = mode;
+        localStorage.setItem('savedViewMode', mode);
+        currentPage = 1;
+        hasMoreData = true;
+        totalPages = 1;
+        applyViewMode();
+        loadSaved(1, currentSearchQuery, false);
+    }
+
+    function applyViewMode() {
+        const btnInfinite = document.getElementById('btn-infinite');
+        const btnPaginated = document.getElementById('btn-paginated');
+        const paginationControls = document.getElementById('pagination-controls');
+        const noMoreData = document.getElementById('no-more-data');
+
+        if (viewMode === 'infinite') {
+            btnInfinite.classList.add('active');
+            btnPaginated.classList.remove('active');
+            hideElement(paginationControls);
+            window.addEventListener('scroll', throttledScrollCheck);
+        } else {
+            btnPaginated.classList.add('active');
+            btnInfinite.classList.remove('active');
+            showElement(paginationControls);
+            hideElement(noMoreData);
+            window.removeEventListener('scroll', throttledScrollCheck);
+        }
+    }
+
+    function updatePaginationControls() {
+        if (viewMode !== 'paginated') return;
+        const has = totalPages > 0;
+        const atFirst = !has || currentPage <= 1;
+        const atLast  = !has || currentPage >= totalPages;
+        document.getElementById('btn-first').disabled  = atFirst;
+        document.getElementById('btn-prev10').disabled = atFirst;
+        document.getElementById('btn-prev').disabled   = atFirst;
+        document.getElementById('btn-next').disabled   = atLast;
+        document.getElementById('btn-next10').disabled = atLast;
+        document.getElementById('btn-last').disabled   = atLast;
+        document.getElementById('page-input').value    = has ? currentPage : '';
+        document.getElementById('page-total').textContent = has ? totalPages : '0';
+    }
+
+    function goToPage(page) {
+        page = Math.max(1, Math.min(totalPages, Math.round(page)));
+        if (page === currentPage) return;
+        loadSaved(page, currentSearchQuery, false);
+        window.scrollTo(0, 0);
+    }
+
+    function goToInputPage() {
+        const val = parseInt(document.getElementById('page-input').value, 10);
+        if (!isNaN(val)) goToPage(val);
+    }
+
+    function reloadSaved() {
+        currentPage = 1;
+        hasMoreData = true;
+        totalPages = 1;
+        loadSaved(1, currentSearchQuery, false);
+    }
+
+    // --- End view mode ---
+
+    // Load saved tweets list
+    function loadSaved(page = 1, searchQuery = '', append = false) {
+        // Prevent duplicate loading
+        if (isLoading) return;
+
+        const loading = document.getElementById('loading');
+        const container = document.getElementById('saved-container');
+        const noSaved = document.getElementById('no-saved');
+        const searchStatus = document.getElementById('search-status');
+        const lazyLoading = document.getElementById('lazy-loading');
+        const noMoreData = document.getElementById('no-more-data');
+
+        isLoading = true;
+
+        if (!append) {
+            // Show main loader on first load or search
+            showElement(loading);
+            hideElement(container);
+            hideElement(noSaved);
+            isInitialLoad = true;
+        } else {
+            // Show lazy loader during lazy loading
+            showElement(lazyLoading);
+            hideElement(noMoreData);
+        }
+
+        const params = new URLSearchParams({
+            page: page,
+            per_page: perPage
+        });
+
+        if (searchQuery) {
+            params.append('search', searchQuery);
+        }
+
+        fetch(`/api/saved?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                isLoading = false;
+                hideElement(loading);
+                hideElement(lazyLoading);
+
+                if (data.saved.length === 0) {
+                    if (append) {
+                        // No more data during lazy loading
+                        hasMoreData = false;
+                        showElement(noMoreData);
+                        return;
+                    }
+
+                    // No data on first load
+                    if (searchQuery) {
+                        noSaved.innerHTML = `
+                            <i class="bi bi-search large-icon"></i>
+                            <p class="text-muted mt-2">No tweets matching "${searchQuery}"</p>
+                        `;
+                    } else {
+                        noSaved.innerHTML = `
+                            <i class="bi bi-archive large-icon"></i>
+                            <p class="text-muted mt-2">No saved tweets</p>
+                        `;
+                    }
+                    showElement(noSaved);
+                    if (viewMode === 'paginated') {
+                        hideElement(document.getElementById('pagination-controls'));
+                    }
+                    return;
+                }
+
+                showElement(container);
+
+                if (append) {
+                    // Lazy load: append to existing content
+                    appendSaved(data.saved);
+                } else {
+                    // First load or search: replace content
+                    renderSaved(data.saved);
+                }
+
+                currentPage = page;
+                totalPages = Math.ceil((data.total || 0) / perPage) || 1;
+
+                if (viewMode === 'paginated') {
+                    updatePaginationControls();
+                } else {
+                    // Infinite scroll: check if there is more data
+                    if (data.saved.length < perPage) {
+                        hasMoreData = false;
+                        if (!isInitialLoad) {
+                            showElement(noMoreData);
+                        }
+                    } else {
+                        hasMoreData = true;
+                    }
+                }
+
+                isInitialLoad = false;
+
+                // Update search status display
+                if (searchQuery && !append) {
+                    document.getElementById('search-results-info').textContent = `Found ${data.total} results for "${searchQuery}"`;
+                    showElement(searchStatus);
+                } else if (!searchQuery && !append) {
+                    hideElement(searchStatus);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading saved tweets:', error);
+                isLoading = false;
+                hideElement(loading);
+                hideElement(lazyLoading);
+
+                if (!append) {
+                    showNotification('Failed to load saved tweets', 'error');
+                } else {
+                    showNotification('Failed to load more tweets', 'error');
+                }
+            });
+    }
+
+    // Perform search
+    function performSearch() {
+        const searchInput = document.getElementById('search-input');
+        const searchQuery = searchInput.value.trim();
+        currentSearchQuery = searchQuery;
+        currentPage = 1;
+        hasMoreData = true;
+        hideElement(document.getElementById('no-more-data'));
+        loadSaved(1, searchQuery, false);
+    }
+
+    // Clear search
+    function clearSearch() {
+        document.getElementById('search-input').value = '';
+        currentSearchQuery = '';
+        currentPage = 1;
+        hasMoreData = true;
+        hideElement(document.getElementById('search-status'));
+        hideElement(document.getElementById('no-more-data'));
+        loadSaved(1, '', false);
+    }
+
+
+    // Handle search box Enter key
+    function handleSearchKeyPress(event) {
+        if (event.key === 'Enter') {
+            performSearch();
+        }
+    }
+
+    // Render saved tweets
+    function renderSaved(saved) {
+        const grid = document.getElementById('saved-grid');
+        grid.innerHTML = '';
+        addTweetsToGrid(saved);
+    }
+
+    // Append saved tweets (for lazy loading)
+    function appendSaved(saved) {
+        addTweetsToGrid(saved);
+    }
+
+    // Add tweets to grid
+    function addTweetsToGrid(saved) {
+        const grid = document.getElementById('saved-grid');
+
+        saved.forEach(item => {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4 mb-4';
+
+            // Platform source badge
+            let sourceBadge = '';
+            if (item.content_type === 'xhs') {
+                sourceBadge = `<img src="/static/xhs.ico" title="XiaoHongShu" style="width:22px;height:22px;object-fit:contain;flex-shrink:0;">`;
+            } else if (item.content_type === 'wechat') {
+                sourceBadge = `<svg title="WeChat" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#07C160" style="flex-shrink:0;"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-7.064-6.088v-.034zm-2.545 2.507c.539 0 .975.44.975.982a.978.978 0 0 1-.975.982.978.978 0 0 1-.975-.982c0-.542.436-.982.975-.982zm4.943 0c.539 0 .975.44.975.982a.978.978 0 0 1-.975.982.978.978 0 0 1-.975-.982c0-.542.436-.982.975-.982z"/></svg>`;
+            } else if (item.content_type === 'youtube') {
+                sourceBadge = `<svg title="YouTube" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#FF0000" style="flex-shrink:0;"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`;
+            } else {
+                const label = item.is_thread ? 'Thread' : 'Tweet';
+                sourceBadge = `<svg title="${label}" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#1d9bf0" style="flex-shrink:0;"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`;
+            }
+
+            col.innerHTML = `
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="d-flex align-items-center">
+                                <div class="user-avatar me-3">
+                                    ${item.has_avatar ?
+                    `<img src="${item.avatar_url}" alt="Avatar" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">` :
+                    '<i class="bi bi-person-circle"></i>'
+                }
+                                </div>
+                                <div class="user-info">
+                                    <div class="display-name">${item.author_name || item.author_username}</div>
+                                    ${(item.content_type === 'tweet' || item.content_type === 'article') ? `<div class="username">@${item.author_username}</div>` : ''}
+                                </div>
+                            </div>
+                            <div>
+                                ${sourceBadge}
+                            </div>
+                        </div>
+
+                        <!-- Tweet content preview -->
+                        <div class="tweet-preview mb-3">
+                            <p class="mb-2 text-dark">${item.preview_text || 'Preview unavailable'}</p>
+                        </div>
+
+                        <!-- Placeholder box - only shown when there is an actual media preview -->
+                        ${item.has_media_preview ?
+                    `<div class="placeholder-box mb-3">
+                                <img src="/media/${item.id}/preview" alt="Media preview" class="media-preview" onload="console.log('Image loaded:', this.naturalWidth, 'x', this.naturalHeight, 'Current size:', this.offsetWidth, 'x', this.offsetHeight)">
+                            </div>` :
+                    ''
+                }
+
+                        <div class="mb-3">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i> ${item.processed_at}
+                            </small>
+                        </div>
+
+                        ${item.is_thread ?
+                    `<p class="text-info small"><i class="bi bi-collection"></i> Thread (${item.tweet_count} tweets)</p>` :
+                    ''
+                }
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <a href="/view/${item.share_slug || item.id}" class="btn btn-primary btn-sm me-1" target="_blank">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                <a href="${item.url}" class="btn btn-outline-secondary btn-sm" target="_blank">
+                                    <i class="bi bi-box-arrow-up-right"></i> Original
+                                </a>
+                            </div>
+                            <button class="btn btn-outline-danger btn-sm" onclick="deleteTweetFromList(${item.id}, this)" title="Delete tweet">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            grid.appendChild(col);
+        });
+    }
+
+    // Scroll to load more data
+    function loadMoreData() {
+        if (!hasMoreData || isLoading) return;
+
+        const nextPage = currentPage + 1;
+
+        loadSaved(nextPage, currentSearchQuery, true);
+    }
+
+    // Check whether more data needs to be loaded
+    function checkScrollPosition() {
+        if (!hasMoreData || isLoading) return;
+
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+
+        // Trigger loading when scrolled to within 300px of the bottom
+        if (scrollTop + windowHeight >= documentHeight - 300) {
+            loadMoreData();
+        }
+    }
+
+
+    // Throttle function to prevent scroll events from firing too frequently
+    function throttle(func, delay) {
+        let timeoutId;
+        let lastExecTime = 0;
+        return function (...args) {
+            const currentTime = Date.now();
+
+            if (currentTime - lastExecTime > delay) {
+                func.apply(this, args);
+                lastExecTime = currentTime;
+            } else {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func.apply(this, args);
+                    lastExecTime = Date.now();
+                }, delay - (currentTime - lastExecTime));
+            }
+        };
+    }
+
+    // Delete tweet from list
+    function deleteTweetFromList(taskId, buttonElement) {
+        // if (confirm('Are you sure you want to delete this tweet?\n\nThis cannot be undone, including all media files.')) {
+        if (true) {
+            // Show loading state
+            const originalHTML = buttonElement.innerHTML;
+            buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            buttonElement.disabled = true;
+
+            // Send delete request
+            fetch(`/delete/${taskId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Delete succeeded, show notification and remove card
+                        showNotification('Tweet deleted', 'success');
+
+                        // Find and remove the corresponding card
+                        const card = buttonElement.closest('.col-md-6');
+                        if (card) {
+                            card.style.transition = 'opacity 0.3s ease';
+                            card.style.opacity = '0';
+                            setTimeout(() => {
+                                card.remove();
+                                // Check if page needs to be reloaded (if no tweets remain on current page)
+                                const remainingCards = document.querySelectorAll('#saved-grid .col-md-6, #saved-grid .col-lg-4');
+                                if (remainingCards.length === 0) {
+                                    // Reset state and reload
+                                    currentPage = 1;
+                                    hasMoreData = true;
+                                    loadSaved(1, currentSearchQuery, false);
+                                }
+                            }, 300);
+                        }
+                    } else {
+                        // Delete failed, restore button state
+                        showNotification('Failed to delete tweet: ' + data.message, 'error');
+                        buttonElement.innerHTML = originalHTML;
+                        buttonElement.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Delete request failed:', error);
+                    showNotification('Delete request failed', 'error');
+                    buttonElement.innerHTML = originalHTML;
+                    buttonElement.disabled = false;
+                });
+        }
+    }
+
+    // Show notification message
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+                <span>${message}</span>
+            </div>
+        `;
+
+        document.body.appendChild(notification);
+
+        // Show animation
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 100);
+
+        // Auto hide
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
+        }, 3000);
+    }
+
+    // Initialize scroll event listener
+    const throttledScrollCheck = throttle(checkScrollPosition, 200);
+
+    // Also check scroll position when window is resized
+    window.addEventListener('resize', throttledScrollCheck);
+
+    // Sync per-page select to saved preference
+    document.getElementById('per-page-select').value = perPage;
+
+    // Apply saved view mode preference and initial load
+    applyViewMode();
+    loadSaved();
+</script>
+{% endblock %}

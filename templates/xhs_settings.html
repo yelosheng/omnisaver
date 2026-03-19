@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}XiaoHongShu Settings - Twitter Saver{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-7 mx-auto">
+        <h2 class="mb-4">
+            <img src="/static/xhs.ico" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;" class="me-2">
+            XiaoHongShu Auto-Save
+        </h2>
+
+        <!-- Status card -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-activity"></i> Status</h5>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadStatus()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body" id="status-body">
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    <span class="ms-2">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear"></i> Settings</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3 d-flex align-items-center justify-content-between">
+                    <div>
+                        <strong>Auto-save 我的收藏</strong>
+                        <div class="text-muted small">Periodically scrapes your XiaoHongShu <strong>收藏</strong> (bookmarks) page and saves any new posts.</div>
+                    </div>
+                    <div class="form-check form-switch ms-3">
+                        <input class="form-check-input" type="checkbox" id="toggle-enabled" style="width:3em;height:1.5em;">
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label"><strong>Your XiaoHongShu User ID</strong></label>
+                    <input type="text" class="form-control" id="user-id-input"
+                           placeholder="e.g. 65c4edd7000000000e020b11"
+                           style="max-width:320px; font-family:monospace;">
+                    <div class="text-muted small mt-1">Found in the URL when visiting your profile: <code>xiaohongshu.com/user/profile/<strong>&lt;user_id&gt;</strong></code></div>
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label"><strong>Interval (minutes)</strong></label>
+                    <div class="d-flex align-items-center gap-2" style="max-width:280px;">
+                        <input type="range" class="form-range flex-grow-1" id="interval-range"
+                               min="5" max="240" step="5" value="30" oninput="syncInterval(this.value)">
+                        <input type="number" class="form-control form-control-sm" id="interval-input"
+                               min="5" max="240" step="5" value="30" style="width:80px;"
+                               onchange="syncInterval(this.value, true)">
+                        <span class="text-muted small">min</span>
+                    </div>
+                    <div class="text-muted small mt-1" id="interval-hint">Runs every 30 minutes</div>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveSettings()">
+                    <i class="bi bi-check-lg"></i> Save Settings
+                </button>
+            </div>
+        </div>
+
+        <!-- Manual run card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-play-circle"></i> Manual Run</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Fetch home feed now and save any new posts immediately, regardless of the schedule.</p>
+                <button class="btn btn-success" id="run-now-btn" onclick="runNow()">
+                    <i class="bi bi-play-fill"></i> Run Now
+                </button>
+                <div id="run-result" class="mt-3" style="display:none;"></div>
+            </div>
+        </div>
+
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Note:</strong> Auto-save navigates to your <strong>收藏</strong> page using your stored cookies and saves any bookmarked posts not yet in your archive. Posts already saved are automatically skipped. Make sure your XHS cookies are up to date.
+        </div>
+    </div>
+</div>
+
+<script>
+let currentSettings = {};
+
+async function loadStatus() {
+    const body = document.getElementById('status-body');
+    try {
+        const resp = await fetch('/api/xhs/settings');
+        const s = await resp.json();
+        currentSettings = s;
+
+        document.getElementById('toggle-enabled').checked = s.enabled;
+        document.getElementById('user-id-input').value = s.user_id || '';
+        syncInterval(s.interval_minutes);
+
+        const statusBadge = s.enabled
+            ? `<span class="badge bg-success">Enabled</span>${s.thread_alive ? ' <span class="badge bg-secondary">Running</span>' : ' <span class="badge bg-warning text-dark">Thread not running</span>'}`
+            : `<span class="badge bg-secondary">Disabled</span>`;
+
+        body.innerHTML = `
+            <div class="row g-3">
+                <div class="col-sm-4">
+                    <div class="text-muted small">Status</div>
+                    <div class="mt-1">${statusBadge}</div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="text-muted small">Last run</div>
+                    <div class="mt-1">${s.last_run ? s.last_run.replace('T', ' ').slice(0, 19) : '—'}</div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="text-muted small">Posts saved (last run)</div>
+                    <div class="mt-1">${s.last_count}</div>
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        body.innerHTML = `<div class="text-danger">Failed to load status: ${e.message}</div>`;
+    }
+}
+
+function syncInterval(val, save) {
+    val = Math.max(5, Math.min(240, parseInt(val) || 30));
+    document.getElementById('interval-range').value = val;
+    document.getElementById('interval-input').value = val;
+    const h = val < 60
+        ? `Runs every ${val} minutes`
+        : `Runs every ${(val / 60).toFixed(1).replace('.0', '')} hour(s)`;
+    document.getElementById('interval-hint').textContent = h;
+    if (save) saveSettings();
+}
+
+async function saveSettings() {
+    const enabled = document.getElementById('toggle-enabled').checked;
+    const interval = parseInt(document.getElementById('interval-input').value) || 30;
+    const user_id = document.getElementById('user-id-input').value.trim();
+    try {
+        await fetch('/api/xhs/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled, interval_minutes: interval, user_id})
+        });
+        await loadStatus();
+    } catch (e) {
+        alert('Failed to save settings: ' + e.message);
+    }
+}
+
+async function runNow() {
+    const btn = document.getElementById('run-now-btn');
+    const result = document.getElementById('run-result');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
+    result.style.display = 'none';
+    try {
+        const resp = await fetch('/api/xhs/run-now', {method: 'POST'});
+        const data = await resp.json();
+        result.style.display = 'block';
+        result.innerHTML = `<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-2"></i>${data.message} — check <a href="/saved">Saved</a> for new posts.</div>`;
+        setTimeout(loadStatus, 5000);
+    } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = `<div class="alert alert-danger mb-0">Error: ${e.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-play-fill"></i> Run Now';
+    }
+}
+
+loadStatus();
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Data files (managed via volumes)
+twitter_saver.db
+users.json
+secret_key.txt
+telegram_owner.json
+saved_tweets/
+docker-data/
+
+# Config (mounted separately)
+config.ini
+
+# Logs and debug artifacts
+*.log
+logs/
+screenshots/
+traces/
+article_debug*.html
+debug_screenshot*.png
+error_screenshot*.png
+
+# Docs and plans
+docs/plans/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Claude
+.claude/
+CLAUDE.md

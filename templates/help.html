@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Script - Saver{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <h2 class="mb-4"><i class="bi bi-puzzle"></i> Tampermonkey Script</h2>
+
+        <!-- Installation -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-download"></i> Installation</h5>
+            </div>
+            <div class="card-body">
+                <ol class="mb-3">
+                    <li class="mb-2">
+                        Install <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">Tampermonkey</a> browser extension
+                        <small class="text-muted d-block">Chrome, Firefox, Edge, Safari</small>
+                    </li>
+                    <li class="mb-2">
+                        <a href="/tampermonkey/twitter-saver.user.js" class="btn btn-sm btn-primary">
+                            <i class="bi bi-download"></i> Install Script
+                        </a>
+                        <small class="text-muted d-block mt-1">Tampermonkey will open an installation confirmation page — click <strong>Install</strong></small>
+                    </li>
+                    <li>To update, click the link above again — Tampermonkey will prompt you to overwrite</li>
+                </ol>
+                <div class="alert alert-info mb-0 py-2">
+                    <i class="bi bi-info-circle"></i>
+                    Current version: <strong>v3.8</strong> &nbsp;·&nbsp; Script file: <code>tampermonkey/twitter-saver.user.js</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- Supported Sites -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-globe"></i> Supported Sites</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-bordered mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Site</th>
+                            <th>Where the button appears</th>
+                            <th>What gets saved</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><i class="bi bi-twitter"></i> <strong>Twitter / X</strong></td>
+                            <td>Right end of every tweet's action bar</td>
+                            <td>Tweet text, images, videos</td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-youtube text-danger"></i> <strong>YouTube</strong></td>
+                            <td>
+                                <ul class="mb-0 ps-3">
+                                    <li>Video page — next to Like/Share buttons</li>
+                                    <li>Homepage feed — top-left of each thumbnail (hover)</li>
+                                    <li>3-dot menu on any card — "保存视频" item</li>
+                                </ul>
+                            </td>
+                            <td>Video metadata, thumbnail, transcript</td>
+                        </tr>
+                        <tr>
+                            <td>🔴 <strong>小红书 (XHS)</strong></td>
+                            <td>
+                                <ul class="mb-0 ps-3">
+                                    <li>Note detail page — circular button bottom-right</li>
+                                    <li>Feed cards — top-right of thumbnail (hover)</li>
+                                </ul>
+                            </td>
+                            <td>Note text, images, author info</td>
+                        </tr>
+                        <tr>
+                            <td>🟢 <strong>微信公众号</strong></td>
+                            <td>Inline icon after "原创" badge in the article header</td>
+                            <td>Article full text, images, author</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Configure Backend URL -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear"></i> Configure Backend URL</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2">The script defaults to <code>http://localhost:6201</code>. To change it:</p>
+                <ol class="mb-0">
+                    <li class="mb-1">Click the Tampermonkey icon → find the script</li>
+                    <li class="mb-1">Click <strong>⚙️ 设置后端地址</strong></li>
+                    <li>Enter your address (e.g. <code>http://192.168.1.x:6201</code>) and refresh the page</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Toast notifications -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bell"></i> Toast Notifications</h5>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li><span class="badge bg-success">Green</span> — Saved successfully</li>
+                    <li><span class="badge bg-warning text-dark">Yellow</span> — Already exists in archive</li>
+                    <li><span class="badge bg-danger">Red</span> — Failed — check the service is running or cookies are valid</li>
+                    <li><span class="badge bg-info">Blue</span> — Request in progress</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-chat-square-question"></i> FAQ</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="faqAccordion">
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                Save button not appearing
+                            </button>
+                        </h2>
+                        <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                <ul>
+                                    <li>Confirm Tampermonkey is enabled and the script shows <strong>v3.8</strong></li>
+                                    <li>Refresh the page and wait 1–2 seconds</li>
+                                    <li>Check the browser console (F12) for <code>[XHS-SAVER]</code> / <code>[WECHAT-SAVER]</code> logs</li>
+                                    <li>For XHS note detail button, open a specific note (URL must contain <code>/explore/&lt;id&gt;</code>)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                "Network request failed" error
+                            </button>
+                        </h2>
+                        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                <ul>
+                                    <li>Make sure the service is running</li>
+                                    <li>Update the backend URL via <strong>⚙️ 设置后端地址</strong></li>
+                                    <li>Confirm <code>@connect *</code> is granted in Tampermonkey settings</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                XHS save failed — cookie expired?
+                            </button>
+                        </h2>
+                        <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                Go to <a href="/settings">Settings</a> → <strong>XHS Cookie Refresh</strong>. Export cookies from <a href="https://cookie-editor.cgagnier.ca/" target="_blank">Cookie-Editor</a> while logged in to xiaohongshu.com, paste the JSON, and save.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">
+                                XHS note URL must include xsec_token
+                            </button>
+                        </h2>
+                        <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                The save button captures the full URL including <code>?xsec_token=...</code>, which is required by the XHS API. Make sure you open the note directly (not from a shared short link) so the token is present in the URL bar.
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

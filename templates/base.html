@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Twitter Saver{% endblock %}</title>
+
+    <!-- Favicon - Twitter Bird -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon-128.png') }}">
+
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .status-pending {
+            color: #ffc107;
+        }
+
+        .status-processing {
+            color: #0dcaf0;
+        }
+
+        .status-completed {
+            color: #198754;
+        }
+
+        .status-failed {
+            color: #dc3545;
+        }
+
+        .tweet-content {
+            background-color: #f8f9fa;
+            border-left: 4px solid #1da1f2;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .media-item img,
+        .media-item video {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+        }
+
+        .queue-status {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        /* Spin animation */
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    {% block styles %}{% endblock %}
+</head>
+
+<body>
+    {% if is_logged_in %}
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="bi bi-twitter"></i> Twitter Saver
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('status_page') }}">
+                            <i class="bi bi-speedometer2"></i> Status
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('tasks') }}">
+                            <i class="bi bi-list-task"></i> Queue
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('saved') }}">
+                            <i class="bi bi-archive"></i> Saved
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('debug') }}">
+                            <i class="bi bi-bug"></i> Debug
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('help_page') }}">
+                            <i class="bi bi-puzzle"></i> Script
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('telegram_page') }}">
+                            <i class="bi bi-telegram"></i> Telegram
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">
+                            <i class="bi bi-gear"></i> Settings
+                        </a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center gap-3">
+                    <div id="status-indicator" class="text-light">
+                        <small>
+                            <i id="queue-icon" class="bi bi-list-task"></i>
+                            <span id="queue-size">Queue: 0</span> |
+                            <i id="processing-icon" class="bi bi-pause-circle"></i>
+                            <span id="processing-status">Idle</span>
+                        </small>
+                    </div>
+                    <div class="dropdown">
+                        <a class="nav-link dropdown-toggle text-light" href="#" role="button" id="userDropdown" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('change_password') }}">
+                                    <i class="bi bi-key"></i> Change Password
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('logout') }}">
+                                    <i class="bi bi-box-arrow-right"></i> Logout
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <div class="container {% if is_logged_in %}mt-4{% else %}mt-0{% endif %}">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="toast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">Notifications</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toast-body">
+                <!-- Message content -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Show toast message
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastBody = document.getElementById('toast-body');
+            const toastHeader = toast.querySelector('.toast-header');
+
+            // Set message content
+            toastBody.textContent = message;
+
+            // Set style
+            toast.className = 'toast';
+            if (type === 'success') {
+                toast.classList.add('bg-success', 'text-white');
+            } else if (type === 'error') {
+                toast.classList.add('bg-danger', 'text-white');
+            } else if (type === 'warning') {
+                toast.classList.add('bg-warning');
+            }
+
+            // Show toast
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+
+        // Update status indicator
+        function updateStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    // Update queue count
+                    const queueSize = data.queue_size;
+                    document.getElementById('queue-size').textContent = `Queue: ${queueSize}`;
+
+                    // Update queue icon
+                    const queueIcon = document.getElementById('queue-icon');
+                    if (queueSize > 0) {
+                        queueIcon.className = 'bi bi-hourglass-split';
+                    } else {
+                        queueIcon.className = 'bi bi-check-circle';
+                    }
+
+                    // Update processing status text and icon
+                    const processingIcon = document.getElementById('processing-icon');
+                    if (data.is_processing) {
+                        document.getElementById('processing-status').textContent = 'Processing...';
+                        processingIcon.className = 'bi bi-arrow-repeat';
+                        // Add spin animation
+                        processingIcon.style.animation = 'spin 1s linear infinite';
+                    } else {
+                        document.getElementById('processing-status').textContent = 'Idle';
+                        processingIcon.className = 'bi bi-pause-circle';
+                        processingIcon.style.animation = '';
+                    }
+                })
+                .catch(error => console.error('Error updating status:', error));
+        }
+
+        // Periodically update status
+        setInterval(updateStatus, 2000);
+        updateStatus();
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

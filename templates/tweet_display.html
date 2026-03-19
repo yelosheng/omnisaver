@@ -1,0 +1,834 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Article' if tweet.is_article else 'Tweet' }} - Twitter Saver{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="{% if tweet.is_article %}col-12 col-xl-8 col-lg-10{% else %}col-12 col-lg-9{% endif %}">
+            <div class="tweet-container{% if tweet.is_article %} is-article{% endif %}">
+                <!-- Tweet header -->
+                <div class="tweet-header">
+                    <div class="user-avatar">
+                        {% if tweet.avatar_file %}
+                        <img src="{{ tweet.avatar_file.url }}" alt="User Avatar" class="avatar-image">
+                        {% else %}
+                        <i class="bi bi-person-circle"></i>
+                        {% endif %}
+                    </div>
+                    <div class="user-info">
+                        <div class="display-name">
+                            {{ tweet.author_name }}
+                            {% if tweet.is_article %}
+                            <span class="article-badge"><i class="bi bi-file-text"></i> Article</span>
+                            {% endif %}
+                        </div>
+                        {% if tweet.content_type in ('tweet', 'article') %}<div class="username">@{{ tweet.author_username }}</div>{% endif %}
+                    </div>
+                    <div class="tweet-actions">
+                        <a href="{{ tweet.url }}" target="_blank" class="btn btn-sm btn-outline-primary me-2">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        {% if is_logged_in %}
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteTweet()">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Tweet content -->
+                <div class="tweet-body">
+                    <!-- Reader mode display -->
+                    {% if tweet.html_content %}
+                    <div class="tweet-html" id="html-view">
+                        <div class="html-content">
+                            {{ tweet.html_content | safe }}
+                        </div>
+                        {% if tweet.is_thread %}
+                        <br><span class="thread-badge">Thread ({{ tweet.tweet_count }} tweets)</span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <!-- Text format display (used only when no HTML content is available) -->
+                    <div class="tweet-text" id="text-view">
+                        {{ tweet.text | autolink | nl2br | safe }}
+                        {% if tweet.is_thread %}
+                        <br><span class="thread-badge">Thread ({{ tweet.tweet_count }} tweets)</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if tweet.has_transcript %}
+                    <div style="margin-top:12px;">
+                        <a href="/transcript/{{ tweet.task_id }}" target="_blank"
+                           style="font-size:0.85rem;color:#1a73e8;text-decoration:none;">
+                            <i class="bi bi-file-text"></i> View Transcript
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    <!-- Media files (not shown for articles — images are embedded in the body) -->
+                    {% if tweet.media_files and not tweet.is_article %}
+                    <div class="media-container">
+                        {% for media in tweet.media_files %}
+                        {% if media.type == 'image' %}
+                        <img src="{{ media.url }}" alt="Tweet image" class="media-image">
+                        {% elif media.type == 'video' %}
+                        <video controls class="media-video">
+                            <source src="{{ media.url }}" type="video/mp4">
+                            Your browser does not support video playback.
+                        </video>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Tweet info -->
+                <div class="tweet-footer">
+                    <div class="tweet-time">{{ tweet.processed_at | format_datetime }}</div>
+                    {% if tweet.media_count > 0 %}
+                    <div class="media-count">{{ tweet.media_count }} media files</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        function openOverlay(src) {
+            let scale = 1;
+            const overlay = document.createElement('div');
+            overlay.className = 'image-overlay';
+            overlay.innerHTML = `
+                <div class="overlay-content">
+                    <img src="${src}" class="overlay-image">
+                    <button class="close-btn">×</button>
+                    <div class="zoom-hint">滚轮缩放</div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            const img = overlay.querySelector('.overlay-image');
+            const closeBtn = overlay.querySelector('.close-btn');
+
+            closeBtn.addEventListener('click', () => overlay.remove());
+
+            overlay.addEventListener('click', function (e) {
+                if (e.target === overlay) overlay.remove();
+            });
+
+            overlay.addEventListener('wheel', function (e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.15 : 0.15;
+                scale = Math.min(Math.max(scale + delta, 0.1), 10);
+                img.style.transform = `scale(${scale})`;
+            }, { passive: false });
+
+            function onKeyDown(e) {
+                if (e.key === 'Escape') {
+                    overlay.remove();
+                    document.removeEventListener('keydown', onKeyDown);
+                }
+            }
+            document.addEventListener('keydown', onKeyDown);
+            overlay.addEventListener('remove', () => document.removeEventListener('keydown', onKeyDown));
+        }
+
+        function openVideoOverlay(src) {
+            const overlay = document.createElement('div');
+            overlay.className = 'image-overlay';
+            overlay.innerHTML = `
+                <div class="overlay-content">
+                    <video src="${src}" class="overlay-video" controls autoplay></video>
+                    <button class="close-btn">×</button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            const closeBtn = overlay.querySelector('.close-btn');
+            closeBtn.addEventListener('click', () => overlay.remove());
+            overlay.addEventListener('click', function (e) {
+                if (e.target === overlay) overlay.remove();
+            });
+
+            function onKeyDown(e) {
+                if (e.key === 'Escape') {
+                    overlay.remove();
+                    document.removeEventListener('keydown', onKeyDown);
+                }
+            }
+            document.addEventListener('keydown', onKeyDown);
+        }
+
+        // Enlarge image on click — media section images
+        document.querySelectorAll('.media-image').forEach(img => {
+            img.addEventListener('click', function () {
+                openOverlay(this.src);
+            });
+        });
+
+        // Enlarge video on double-click — media section videos (single click = play/pause)
+        document.querySelectorAll('.media-video').forEach(video => {
+            video.addEventListener('dblclick', function (e) {
+                e.preventDefault();
+                openVideoOverlay(this.querySelector('source')?.src || this.src);
+            });
+        });
+
+        // Enlarge image on click — images embedded in article HTML content
+        document.querySelectorAll('.html-content img').forEach(img => {
+            img.style.cursor = 'pointer';
+            img.addEventListener('click', function (e) {
+                e.preventDefault(); // 阻止父级 <a> 链接跳转
+                openOverlay(this.src);
+            });
+        });
+
+        // Enlarge video on double-click — videos embedded in article HTML content
+        document.querySelectorAll('.html-content video').forEach(video => {
+            video.addEventListener('dblclick', function (e) {
+                e.preventDefault();
+                openVideoOverlay(this.querySelector('source')?.src || this.src);
+            });
+        });
+    });
+
+
+    // Delete tweet function
+    function deleteTweet() {
+        // Show confirmation dialog
+        if (true) {
+            // Use numeric task_id from server (URL may be a slug and cannot be parsed directly)
+            const taskId = {{ task_id }};
+
+        // Show loading state
+        const deleteBtn = document.querySelector('button[onclick="deleteTweet()"]');
+        const originalText = deleteBtn.innerHTML;
+        deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Deleting...';
+        deleteBtn.disabled = true;
+
+        // Send delete request
+        fetch(`/delete/${taskId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Delete succeeded — show success message and redirect
+                    showNotification('Tweet deleted', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/saved';
+                    }, 1500);
+                } else {
+                    // Delete failed — show error message
+                    showNotification('Delete failed: ' + data.message, 'error');
+                    deleteBtn.innerHTML = originalText;
+                    deleteBtn.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Delete request failed:', error);
+                showNotification('Delete request failed, please try again', 'error');
+                deleteBtn.innerHTML = originalText;
+                deleteBtn.disabled = false;
+            });
+    }
+    }
+
+    // Show notification message
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+        <div class="notification-content">
+            <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+            <span>${message}</span>
+        </div>
+    `;
+
+        document.body.appendChild(notification);
+
+        // Show animation
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 100);
+
+        // Auto-hide
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
+        }, 3000);
+    }
+</script>
+
+<style>
+    /* Tweet container */
+    .tweet-container {
+        background: white;
+        border: 1px solid #e1e8ed;
+        border-radius: 16px;
+        margin: 20px 0;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+
+    /* Tweet header */
+    .tweet-header {
+        display: flex;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #f7f9fa;
+    }
+
+    .user-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #f7f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+    }
+
+    .user-avatar i {
+        font-size: 24px;
+        color: #657786;
+    }
+
+    .avatar-image {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    .user-info {
+        flex: 1;
+    }
+
+    .display-name {
+        font-weight: bold;
+        font-size: 15px;
+        color: #14171a;
+    }
+
+    .username {
+        font-size: 15px;
+        color: #657786;
+    }
+
+    .tweet-actions {
+        margin-left: auto;
+    }
+
+    /* Tweet content */
+    .tweet-body {
+        padding: 16px 20px;
+    }
+
+    .tweet-text {
+        font-size: 16px;
+        line-height: 1.5;
+        color: #14171a;
+        margin-bottom: 16px;
+        word-wrap: break-word;
+    }
+
+    .tweet-text a {
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .tweet-text a:hover {
+        text-decoration: underline;
+    }
+
+    .tweet-text .text-primary {
+        color: #1da1f2 !important;
+    }
+
+    .tweet-text .text-info {
+        color: #1da1f2 !important;
+    }
+
+    .tweet-text .text-success {
+        color: #1da1f2 !important;
+    }
+
+    .thread-badge {
+        background: #1da1f2;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+    }
+
+    /* Article badge */
+    .article-badge {
+        background: linear-gradient(135deg, #1da1f2, #0d8ecf);
+        color: white;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 6px;
+        vertical-align: middle;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+
+    /* Wider padding for article containers */
+    .tweet-container.is-article .tweet-body {
+        padding: 24px 28px;
+    }
+
+
+
+    /* HTML content styles */
+    .tweet-html {
+        font-size: 16px;
+        line-height: 1.5;
+        color: #14171a;
+        margin-bottom: 16px;
+        word-wrap: break-word;
+    }
+
+    .html-content {
+        padding: 0;
+        background: none;
+        border: none;
+        border-radius: 0;
+        font-family: inherit;
+        box-shadow: none;
+    }
+
+    /* Article-specific typography */
+    .is-article .html-content {
+        font-size: 17px;
+        line-height: 1.75;
+    }
+
+    .html-content h1 {
+        font-size: 1.75em;
+        font-weight: 700;
+        margin: 1.2em 0 0.6em;
+        color: #0f1419;
+        line-height: 1.3;
+        border-bottom: 2px solid #e1e8ed;
+        padding-bottom: 0.3em;
+    }
+
+    .html-content h2 {
+        font-size: 1.4em;
+        font-weight: 700;
+        margin: 1em 0 0.5em;
+        color: #0f1419;
+        line-height: 1.35;
+    }
+
+    .html-content h3,
+    .html-content h4,
+    .html-content h5,
+    .html-content h6 {
+        font-size: 1.15em;
+        font-weight: 600;
+        margin: 0.8em 0 0.4em;
+        color: #14171a;
+    }
+
+    .html-content blockquote {
+        border-left: 4px solid #1da1f2;
+        margin: 1em 0;
+        padding: 0.5em 1em;
+        background: #f7f9fa;
+        border-radius: 0 8px 8px 0;
+        color: #536471;
+        font-style: italic;
+    }
+
+    .html-content ul,
+    .html-content ol {
+        padding-left: 1.5em;
+        margin: 0.75em 0;
+    }
+
+    .html-content li {
+        margin: 0.4em 0;
+        line-height: 1.65;
+    }
+
+    .html-content code {
+        background: #f0f3f4;
+        padding: 0.15em 0.4em;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #e0245e;
+    }
+
+    .html-content pre {
+        background: #f0f3f4;
+        padding: 1em;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1em 0;
+    }
+
+    .html-content pre code {
+        background: none;
+        padding: 0;
+        color: #14171a;
+    }
+
+    .html-content hr {
+        border: none;
+        border-top: 1px solid #e1e8ed;
+        margin: 1.5em 0;
+    }
+
+    .html-content figure,
+    .html-content img {
+        max-width: 100%;
+        border-radius: 8px;
+        margin: 1em auto;
+        display: block;
+    }
+
+    .html-content a {
+        color: #1da1f2;
+        text-decoration: none;
+    }
+
+    .html-content a:hover {
+        text-decoration: underline;
+    }
+
+    .html-content p {
+        margin-bottom: 12px;
+    }
+
+    .html-content p:last-child {
+        margin-bottom: 0;
+    }
+
+    .html-content span {
+        color: inherit;
+    }
+
+    .html-content strong,
+    .html-content b {
+        font-weight: bold;
+        color: #14171a;
+    }
+
+    .html-content em,
+    .html-content i {
+        font-style: italic;
+    }
+
+    /* Preserve Twitter-style links */
+    .html-content a[href*="twitter.com"],
+    .html-content a[href*="x.com"] {
+        color: #1da1f2;
+        font-weight: 500;
+    }
+
+    /* Hashtag and @mention styles */
+    .html-content a[href*="/hashtag/"],
+    .html-content a[href*="/search?q=%23"] {
+        color: #1da1f2;
+        font-weight: 500;
+    }
+
+    .html-content a[href^="/"] {
+        color: #1da1f2;
+        font-weight: 500;
+    }
+
+    /* Thread HTML display styles */
+    .thread-tweet {
+        margin-bottom: 16px;
+        padding: 12px;
+        border: 1px solid #e1e8ed;
+        border-radius: 8px;
+        background: white;
+    }
+
+    .thread-tweet:last-child {
+        margin-bottom: 0;
+    }
+
+    .thread-number {
+        display: inline-block;
+        background: #1da1f2;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-bottom: 8px;
+    }
+
+    /* Media container */
+    .media-container {
+        margin-top: 12px;
+    }
+
+    .media-image {
+        width: 100%;
+        height: auto;
+        border-radius: 12px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+
+    .media-image:hover {
+        transform: scale(1.02);
+    }
+
+    .media-video {
+        width: 100%;
+        height: auto;
+        border-radius: 12px;
+        margin-bottom: 8px;
+        background: #000;
+    }
+
+    /* Tweet footer */
+    .tweet-footer {
+        padding: 12px 20px;
+        border-top: 1px solid #f7f9fa;
+        background: #f7f9fa;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .tweet-time,
+    .media-count {
+        font-size: 13px;
+        color: #657786;
+    }
+
+    /* Image overlay */
+    .image-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .overlay-content {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+
+    .overlay-image {
+        max-width: 90vw;
+        max-height: 90vh;
+        width: 90vw;
+        height: 90vh;
+        object-fit: contain;
+        border-radius: 4px;
+        transform-origin: center center;
+        transition: transform 0.08s ease-out;
+        user-select: none;
+    }
+
+    .overlay-video {
+        max-width: 90vw;
+        max-height: 90vh;
+        width: 90vw;
+        height: 90vh;
+        object-fit: contain;
+        border-radius: 4px;
+        background: #000;
+    }
+
+    .close-btn {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        z-index: 10000;
+        line-height: 1;
+    }
+
+    .close-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .zoom-hint {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 13px;
+        pointer-events: none;
+        animation: fadeOutHint 2s ease-out 1.5s forwards;
+    }
+
+    @keyframes fadeOutHint {
+        from { opacity: 1; }
+        to { opacity: 0; }
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+        /* Remove Bootstrap container gutters so card fills the screen */
+        .container {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .row {
+            --bs-gutter-x: 0;
+        }
+
+        .tweet-container {
+            margin: 0;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+        }
+
+        .tweet-header,
+        .tweet-footer {
+            padding: 12px 16px;
+        }
+
+        .tweet-body {
+            padding: 12px 16px;
+        }
+
+        .tweet-container.is-article .tweet-body {
+            padding: 16px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+        }
+
+        .user-avatar i {
+            font-size: 20px;
+        }
+    }
+
+    /* Notification message styles */
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        min-width: 300px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    }
+
+    .notification.show {
+        transform: translateX(0);
+    }
+
+    .notification-success {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+
+    .notification-error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+
+    .notification-content {
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .notification-content i {
+        font-size: 16px;
+    }
+
+    /* Delete button loading state */
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .spinner-border-sm {
+        width: 0.875rem;
+        height: 0.875rem;
+    }
+
+    /* Print styles */
+    @media print {
+        .tweet-actions {
+            display: none;
+        }
+
+        .tweet-container {
+            box-shadow: none;
+            border: 2px solid #1da1f2;
+        }
+
+        .media-video {
+            display: none;
+        }
+
+        .media-video::after {
+            content: "[video file]";
+            display: block;
+            padding: 20px;
+            text-align: center;
+            background: #f0f0f0;
+            border-radius: 12px;
+        }
+
+        .notification {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}

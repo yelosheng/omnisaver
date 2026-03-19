@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}Retries - Twitter Saver{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-arrow-clockwise"></i> Retry Management</h2>
+    <button class="btn btn-outline-primary" onclick="loadRetryTasks()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">About the Retry Queue</h6>
+                <p class="card-text small text-muted">
+                    When a tweet download fails, the system automatically schedules a retry. Retries use exponential backoff: 1st retry waits 2 min, 2nd waits 4 min, 3rd waits 8 min, up to a maximum of 60 min.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Actions</h6>
+                <p class="card-text small text-muted">
+                    <strong>Retry Now</strong>: Force an immediate retry, ignoring the scheduled wait time.<br>
+                    <strong>Reset</strong>: Reset the retry counter and requeue the task.<br>
+                    <strong>Delete</strong>: Permanently remove this task.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="loading" class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <div id="retry-container" style="display: none;">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Task ID</th>
+                            <th>Tweet Info</th>
+                            <th>Retry Status</th>
+                            <th>Error</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="retry-tbody">
+                        <!-- Retry tasks will be dynamically loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="no-retries" class="text-center py-4" style="display: none;">
+            <i class="bi bi-check-circle" style="font-size: 3rem; color: #28a745;"></i>
+            <p class="text-muted mt-2">No retry tasks</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.retry-status-ready {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.retry-status-waiting {
+    color: #ffc107;
+}
+
+.retry-status-failed {
+    color: #dc3545;
+}
+
+.retry-status-completed {
+    color: #6c757d;
+}
+
+.btn-sm {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.error-text {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.error-text:hover {
+    white-space: normal;
+    overflow: visible;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadRetryTasks() {
+    const loading = document.getElementById('loading');
+    const container = document.getElementById('retry-container');
+    const noRetries = document.getElementById('no-retries');
+
+    loading.style.display = 'block';
+    container.style.display = 'none';
+    noRetries.style.display = 'none';
+
+    fetch('/api/retry-tasks')
+        .then(response => response.json())
+        .then(data => {
+            loading.style.display = 'none';
+
+            if (data.retry_tasks.length === 0) {
+                noRetries.style.display = 'block';
+                return;
+            }
+
+            container.style.display = 'block';
+            renderRetryTasks(data.retry_tasks);
+        })
+        .catch(error => {
+            console.error('Error loading retry tasks:', error);
+            loading.style.display = 'none';
+            showAlert('Failed to load retry tasks', 'danger');
+        });
+}
+
+function renderRetryTasks(tasks) {
+    const tbody = document.getElementById('retry-tbody');
+    tbody.innerHTML = '';
+
+    tasks.forEach(task => {
+        const row = document.createElement('tr');
+
+        // Status styles
+        let statusClass = '';
+        switch(task.retry_status) {
+            case 'ready': statusClass = 'retry-status-ready'; break;
+            case 'waiting': statusClass = 'retry-status-waiting'; break;
+            case 'failed': statusClass = 'retry-status-failed'; break;
+            case 'completed': statusClass = 'retry-status-completed'; break;
+        }
+
+        // Tweet info
+        const tweetInfo = task.tweet_id ?
+            `${task.author_username || 'Unknown user'} - ${task.tweet_id}` :
+            'Tweet info unknown';
+
+        // Retry progress
+        const retryProgress = `${task.retry_count}/${task.max_retries}`;
+
+        row.innerHTML = `
+            <td>${task.id}</td>
+            <td>
+                <div class="small">
+                    <strong>${tweetInfo}</strong><br>
+                    <a href="${task.url}" target="_blank" class="text-muted">${task.url.substring(0, 50)}...</a>
+                </div>
+            </td>
+            <td>
+                <span class="${statusClass}">${task.retry_status_text}</span><br>
+                <small class="text-muted">Retries: ${retryProgress}</small>
+                ${task.next_retry_time ? `<br><small class="text-muted">Next: ${task.next_retry_time}</small>` : ''}
+            </td>
+            <td>
+                <span class="error-text" title="${task.error_message || 'No error message'}">
+                    ${task.error_message ? task.error_message.substring(0, 50) + '...' : 'No error message'}
+                </span>
+            </td>
+            <td>
+                <small class="text-muted">${task.created_at}</small>
+            </td>
+            <td>
+                <div class="btn-group" role="group">
+                    ${task.retry_status === 'ready' || task.retry_status === 'waiting' ?
+                        `<button class="btn btn-success btn-sm" onclick="retryNow(${task.id})" title="Retry Now">
+                            <i class="bi bi-play-fill"></i>
+                        </button>` : ''
+                    }
+                    <button class="btn btn-warning btn-sm" onclick="resetRetries(${task.id})" title="Reset">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteRetryTask(${task.id})" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+
+        tbody.appendChild(row);
+    });
+}
+
+function retryNow(taskId) {
+    if (!confirm('Retry this task now?')) return;
+
+    fetch(`/api/retry-now/${taskId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            loadRetryTasks();
+        } else {
+            showAlert(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error retrying task:', error);
+        showAlert('Retry request failed', 'danger');
+    });
+}
+
+function resetRetries(taskId) {
+    fetch(`/api/reset-retries/${taskId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            loadRetryTasks();
+        } else {
+            showAlert(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error resetting retries:', error);
+        showAlert('Reset request failed', 'danger');
+    });
+}
+
+function deleteRetryTask(taskId) {
+    if (!confirm('Permanently delete this task? This cannot be undone.')) return;
+
+    fetch(`/api/delete-retry-task/${taskId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            loadRetryTasks();
+        } else {
+            showAlert(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting retry task:', error);
+        showAlert('Delete task failed', 'danger');
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 10000; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    document.body.appendChild(alertDiv);
+
+    // Auto hide
+    setTimeout(() => {
+        alertDiv.classList.remove('show');
+        setTimeout(() => alertDiv.remove(), 300);
+    }, 3000);
+}
+
+// Initial load
+loadRetryTasks();
+
+// Periodic refresh (every 30 seconds)
+setInterval(loadRetryTasks, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Telegram Bot - Twitter Saver{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-7 mx-auto">
+        <h2 class="mb-4"><i class="bi bi-telegram"></i> Telegram Bot</h2>
+
+        <!-- Status card -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-activity"></i> Bot Status</h5>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadStatus()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body" id="status-body">
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    <span class="ms-2 text-muted">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Token configuration card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-key"></i> Bot Token</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Create a bot at <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>
+                    and paste the token here. The bot will start automatically after saving.
+                </p>
+                <div id="token-alert" class="alert d-none"></div>
+                <div class="input-group">
+                    <input type="password" id="token-input" class="form-control font-monospace"
+                           placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ">
+                    <button class="btn btn-outline-secondary" type="button" id="toggle-token"
+                            onclick="toggleTokenVisibility()">
+                        <i class="bi bi-eye" id="toggle-icon"></i>
+                    </button>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="saveToken()">
+                        <i class="bi bi-check-lg"></i> Save & Start Bot
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Owner card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person-lock"></i> Authorized Owner</h5>
+            </div>
+            <div class="card-body" id="owner-body">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Usage card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> How to Use</h5>
+            </div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li class="mb-2">Create a bot via <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> and copy the token</li>
+                    <li class="mb-2">Paste the token above and click <strong>Save &amp; Start Bot</strong></li>
+                    <li class="mb-2">Open your bot in Telegram and send <code>/start</code> — you become the owner</li>
+                    <li class="mb-2">Send or forward any tweet link to the bot to save it</li>
+                    <li>Use <code>/status</code> to check the queue</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function loadStatus() {
+        fetch('/api/telegram/status')
+            .then(r => r.json())
+            .then(data => {
+                renderStatus(data);
+                renderOwner(data.owner);
+            })
+            .catch(() => {
+                document.getElementById('status-body').innerHTML =
+                    '<p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i> Failed to load status</p>';
+            });
+    }
+
+    function renderStatus(data) {
+        let badge, text;
+        if (!data.token_configured) {
+            badge = '<span class="badge bg-secondary">Not Configured</span>';
+            text = 'No bot token set.';
+        } else if (data.running) {
+            badge = '<span class="badge bg-success">Running</span>';
+            text = 'Bot is online and listening for messages.';
+        } else if (data.error) {
+            badge = '<span class="badge bg-danger">Error</span>';
+            text = `<span class="text-danger">${escHtml(data.error)}</span>`;
+        } else {
+            badge = '<span class="badge bg-warning text-dark">Stopped</span>';
+            text = 'Bot is configured but not running.';
+        }
+        document.getElementById('status-body').innerHTML =
+            `<div class="d-flex align-items-center gap-3">${badge}<span>${text}</span></div>`;
+    }
+
+    function renderOwner(owner) {
+        const el = document.getElementById('owner-body');
+        if (!owner) {
+            el.innerHTML = `
+                <p class="text-muted mb-0">
+                    <i class="bi bi-person-dash"></i>
+                    No owner registered yet. Send <code>/start</code> to your bot to register.
+                </p>`;
+            return;
+        }
+        el.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-person-check text-success"></i>
+                    <strong>@${escHtml(owner.username)}</strong>
+                    <span class="text-muted ms-2 small">(ID: ${owner.user_id})</span>
+                    <div class="text-muted small mt-1">Registered: ${escHtml(owner.registered_at.replace('T', ' ').slice(0, 16))}</div>
+                </div>
+                <button class="btn btn-outline-danger btn-sm" onclick="resetOwner()">
+                    <i class="bi bi-person-x"></i> Reset
+                </button>
+            </div>`;
+    }
+
+    function saveToken() {
+        const token = document.getElementById('token-input').value.trim();
+        const alertEl = document.getElementById('token-alert');
+        if (!token) {
+            showAlert(alertEl, 'danger', 'Please enter a bot token.');
+            return;
+        }
+        fetch('/api/telegram/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(alertEl, 'success', '✅ Token saved. Bot is starting…');
+                    document.getElementById('token-input').value = '';
+                    setTimeout(loadStatus, 2000);
+                } else {
+                    showAlert(alertEl, 'danger', data.error || 'Failed to save token.');
+                }
+            })
+            .catch(() => showAlert(alertEl, 'danger', 'Request failed.'));
+    }
+
+    function resetOwner() {
+        if (!confirm('Reset the registered owner? The next person to send /start will become the new owner.')) return;
+        fetch('/api/telegram/reset-owner', { method: 'POST' })
+            .then(r => r.json())
+            .then(() => loadStatus())
+            .catch(() => alert('Reset failed.'));
+    }
+
+    function toggleTokenVisibility() {
+        const input = document.getElementById('token-input');
+        const icon = document.getElementById('toggle-icon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    }
+
+    function showAlert(el, type, msg) {
+        el.className = `alert alert-${type}`;
+        el.textContent = msg;
+        el.classList.remove('d-none');
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // Auto-refresh every 5 seconds
+    loadStatus();
+    setInterval(loadStatus, 5000);
+</script>
+{% endblock %}

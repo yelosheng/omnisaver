@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+
+{% block title %}View Tweet - Twitter Saver{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <!-- Tweet header info -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        {% if task.is_thread %}
+                            <i class="bi bi-collection text-primary"></i> Thread
+                        {% else %}
+                            <i class="bi bi-chat-square-text text-secondary"></i> Tweet
+                        {% endif %}
+                    </h5>
+                    <div>
+                        <a href="{{ task.url }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                            <i class="bi bi-box-arrow-up-right"></i> View Original
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+                            <i class="bi bi-printer"></i> Print
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="avatar-placeholder me-3">
+                                <i class="bi bi-person-circle fs-2 text-muted"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0">{{ task.author_name }}</h6>
+                                <small class="text-muted">@{{ task.author_username }}</small>
+                            </div>
+                        </div>
+                        <p><strong>Tweet ID:</strong> <code>{{ task.tweet_id }}</code></p>
+                        {% if task.is_thread %}
+                            <p><strong>Tweets:</strong> <span class="badge bg-primary">{{ task.tweet_count }}</span></p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Saved:</strong> {{ task.processed_at | format_datetime }}</p>
+                        {% if task.media_count > 0 %}
+                            <p><strong>Media:</strong> <span class="badge bg-success">{{ task.media_count }}</span></p>
+                        {% endif %}
+                        <p><strong>Path:</strong> <small class="text-muted font-monospace">{{ task.save_path }}</small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tweet content display -->
+        {% if metadata.tweets %}
+            {% for tweet in metadata.tweets %}
+            <div class="card mb-4 shadow-sm tweet-card">
+                <div class="card-body">
+                    <!-- Tweet header -->
+                    <div class="d-flex align-items-start mb-3">
+                        <div class="avatar-placeholder me-3">
+                            <i class="bi bi-person-circle fs-4 text-muted"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center">
+                                <h6 class="mb-0 me-2">{{ tweet.author_name }}</h6>
+                                <small class="text-muted me-2">@{{ tweet.author_username }}</small>
+                                <small class="text-muted">{{ tweet.created_at | format_datetime }}</small>
+                                {% if task.is_thread and loop.index > 1 %}
+                                    <span class="badge bg-secondary ms-2">{{ loop.index }}/{{ metadata.tweets|length }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tweet text -->
+                    <div class="tweet-text mb-3">
+                        {{ tweet.text | autolink | nl2br | safe }}
+                    </div>
+                    
+                    <!-- Tweet media - display all media files directly -->
+                    {% if metadata.media_files %}
+                        <div class="tweet-media mb-3">
+                            {% set media_count = metadata.media_files | length %}
+                            <div class="media-grid-{{ 'single' if media_count == 1 else ('double' if media_count == 2 else 'multiple') }}">
+                                {% for media in metadata.media_files %}
+                                    {% if media.media_type == 'photo' %}
+                                        <div class="media-item">
+                                            <img src="/media/{{ task.id }}/{{ media.filename }}"
+                                                 alt="Tweet image"
+                                                 class="img-fluid rounded tweet-image"
+                                                 onclick="openImageModal(this.src, '{{ media.filename }}', '{{ tweet.author_name }}')">
+                                            <div class="media-overlay">
+                                                <a href="/media/{{ task.id }}/{{ media.filename }}"
+                                                   class="btn btn-sm btn-outline-light"
+                                                   download="{{ media.filename }}"
+                                                   title="Download {{ media.filename }}">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    {% elif media.media_type in ['video', 'animated_gif'] %}
+                                        <div class="media-item">
+                                            <video controls class="rounded tweet-video" preload="metadata">
+                                                <source src="/media/{{ task.id }}/{{ media.filename }}" type="video/mp4">
+                                                Your browser does not support video playback.
+                                            </video>
+                                            <div class="media-overlay">
+                                                <a href="/media/{{ task.id }}/{{ media.filename }}"
+                                                   class="btn btn-sm btn-outline-light"
+                                                   download="{{ media.filename }}"
+                                                   title="Download {{ media.filename }}">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <!-- Tweet stats -->
+                    <div class="tweet-stats">
+                        <div class="d-flex text-muted small">
+                            {% if tweet.public_metrics %}
+                                <span class="me-3"><i class="bi bi-heart"></i> {{ tweet.public_metrics.like_count or 0 }}</span>
+                                <span class="me-3"><i class="bi bi-arrow-repeat"></i> {{ tweet.public_metrics.retweet_count or 0 }}</span>
+                                <span class="me-3"><i class="bi bi-chat"></i> {{ tweet.public_metrics.reply_count or 0 }}</span>
+                                <span><i class="bi bi-bookmark"></i> {{ tweet.public_metrics.bookmark_count or 0 }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <!-- No structured data — show raw content -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-file-text"></i> Content</h6>
+                </div>
+                <div class="card-body">
+                    <div class="tweet-content mb-3">{{ content | autolink | nl2br | safe }}</div>
+
+                    <!-- Media files for the no-structured-data fallback -->
+                    {% if metadata.media_files %}
+                        <div class="tweet-media">
+                            {% set media_count = metadata.media_files | length %}
+                            <div class="media-grid-{{ 'single' if media_count == 1 else ('double' if media_count == 2 else 'multiple') }}">
+                                {% for media in metadata.media_files %}
+                                    {% if media.media_type == 'photo' %}
+                                        <div class="media-item">
+                                            <img src="/media/{{ task.id }}/{{ media.filename }}"
+                                                 alt="Tweet image"
+                                                 class="img-fluid rounded tweet-image"
+                                                 onclick="openImageModal(this.src, '{{ media.filename }}', '{{ task.author_name }}')">
+                                            <div class="media-overlay">
+                                                <a href="/media/{{ task.id }}/{{ media.filename }}"
+                                                   class="btn btn-sm btn-outline-light"
+                                                   download="{{ media.filename }}"
+                                                   title="Download {{ media.filename }}">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    {% elif media.media_type in ['video', 'animated_gif'] %}
+                                        <div class="media-item">
+                                            <video controls class="rounded tweet-video" preload="metadata">
+                                                <source src="/media/{{ task.id }}/{{ media.filename }}" type="video/mp4">
+                                                Your browser does not support video playback.
+                                            </video>
+                                            <div class="media-overlay">
+                                                <a href="/media/{{ task.id }}/{{ media.filename }}"
+                                                   class="btn btn-sm btn-outline-light"
+                                                   download="{{ media.filename }}"
+                                                   title="Download {{ media.filename }}">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Metadata -->
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-info-circle"></i> Details
+                    <button type="button" class="btn btn-sm btn-outline-secondary float-end"
+                            onclick="toggleMetadata()">
+                        <i class="bi bi-code"></i> Show/Hide JSON
+                    </button>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="metadata-summary">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Saved:</strong> {{ metadata.saved_at | format_datetime }}</p>
+                            <p><strong>Tweet count:</strong> {{ metadata.tweet_count or 0 }}</p>
+                            <p><strong>Thread:</strong> {{ 'Yes' if metadata.is_thread else 'No' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Media files:</strong> {{ metadata.media_files|length if metadata.media_files else 0 }}</p>
+                            {% if metadata.tweets and metadata.tweets[0] %}
+                                <p><strong>Conversation ID:</strong> <code>{{ metadata.tweets[0].conversation_id }}</code></p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="metadata-json" style="display: none;">
+                    <pre class="bg-light p-3 rounded"><code>{{ metadata | tojsonpretty }}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalTitle">Image Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" class="img-fluid" alt="">
+            </div>
+            <div class="modal-footer">
+                <a id="downloadLink" href="" class="btn btn-primary" download="">
+                    <i class="bi bi-download"></i> Download
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Toggle metadata display
+    function toggleMetadata() {
+        const summary = document.getElementById('metadata-summary');
+        const json = document.getElementById('metadata-json');
+        
+        if (json.style.display === 'none') {
+            summary.style.display = 'none';
+            json.style.display = 'block';
+        } else {
+            summary.style.display = 'block';
+            json.style.display = 'none';
+        }
+    }
+    
+    // Open image modal
+    function openImageModal(src, filename, author) {
+        const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+        document.getElementById('modalImage').src = src;
+        document.getElementById('imageModalTitle').textContent = `${author || 'Tweet'} - ${filename}`;
+        document.getElementById('downloadLink').href = src;
+        document.getElementById('downloadLink').download = filename;
+        modal.show();
+    }
+    
+    // Image lazy loading and error handling
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle image load errors
+        const images = document.querySelectorAll('.tweet-image');
+        images.forEach(img => {
+            img.addEventListener('error', function() {
+                this.style.display = 'none';
+                const placeholder = document.createElement('div');
+                placeholder.className = 'alert alert-warning text-center';
+                placeholder.innerHTML = '<i class="bi bi-image"></i> Image failed to load';
+                this.parentNode.appendChild(placeholder);
+            });
+
+            // Add loading animation
+            img.addEventListener('load', function() {
+                this.style.opacity = '1';
+            });
+        });
+
+        // Handle video load errors
+        const videos = document.querySelectorAll('.tweet-video');
+        videos.forEach(video => {
+            video.addEventListener('error', function() {
+                const placeholder = document.createElement('div');
+                placeholder.className = 'alert alert-warning text-center';
+                placeholder.innerHTML = '<i class="bi bi-play-circle"></i> Video failed to load';
+                this.parentNode.appendChild(placeholder);
+                this.style.display = 'none';
+            });
+        });
+
+        // Add tweet card hover effect
+        const tweetCards = document.querySelectorAll('.tweet-card');
+        tweetCards.forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-2px)';
+                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.12)';
+            });
+
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '';
+            });
+        });
+
+        {% if not metadata %}
+        // Hide metadata section if no metadata present
+        const metadataCard = document.querySelector('.card:last-child');
+        if (metadataCard) {
+            metadataCard.style.display = 'none';
+        }
+        {% endif %}
+    });
+    
+    // Copy tweet link
+    function copyTweetLink() {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            // Show copy success notification
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.textContent = 'Link copied to clipboard';
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        });
+    }
+</script>
+
+<style>
+    /* Tweet card styles */
+    .tweet-card {
+        border: 1px solid #e1e8ed;
+        transition: all 0.2s ease-in-out;
+        background: #fff;
+    }
+    
+    .tweet-card:hover {
+        border-color: #1da1f2;
+    }
+    
+    /* Tweet text styles */
+    .tweet-text {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        color: #14171a;
+        word-wrap: break-word;
+    }
+    
+    .tweet-text a {
+        text-decoration: none;
+        font-weight: 500;
+    }
+    
+    .tweet-text a:hover {
+        text-decoration: underline;
+    }
+    
+    /* Media grid layout */
+    .media-grid-single {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        max-width: 100%;
+    }
+    
+    .media-grid-double {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .media-grid-multiple {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 8px;
+    }
+    
+    .media-item {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    /* Media overlay styles */
+    .media-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    
+    .media-item:hover .media-overlay {
+        opacity: 1;
+    }
+    
+    /* Tweet image styles */
+    .tweet-image {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        opacity: 1;
+        max-height: 400px;
+        max-width: 100%;
+        height: auto;
+        width: auto;
+        object-fit: contain;
+    }
+    
+    .tweet-image:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Tweet video styles */
+    .tweet-video {
+        max-height: 400px;
+        border-radius: 12px;
+        opacity: 1;
+        background: #000;
+        max-width: 100%;
+        height: auto;
+        width: auto;
+    }
+    
+    /* Avatar placeholder */
+    .avatar-placeholder {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f7f9fa;
+        border-radius: 50%;
+    }
+    
+    /* Tweet stats styles */
+    .tweet-stats {
+        border-top: 1px solid #e1e8ed;
+        padding-top: 12px;
+        margin-top: 12px;
+    }
+    
+    .tweet-stats span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    /* Badge style enhancements */
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.35em 0.65em;
+    }
+    
+    /* Code block styles */
+    code {
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+    
+    /* Card shadow enhancement */
+    .shadow-sm {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08) !important;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .tweet-text {
+            font-size: 1rem;
+        }
+        
+        .media-grid-double,
+        .media-grid-multiple {
+            grid-template-columns: 1fr;
+        }
+        
+        .avatar-placeholder {
+            width: 40px;
+            height: 40px;
+        }
+        
+        .col-lg-10 {
+            padding: 0 15px;
+        }
+    }
+    
+    /* Print styles */
+    @media print {
+        .btn, .modal, nav, .card-header .btn {
+            display: none !important;
+        }
+        
+        .card {
+            border: 1px solid #dee2e6 !important;
+            box-shadow: none !important;
+            break-inside: avoid;
+        }
+        
+        .tweet-card {
+            margin-bottom: 20px !important;
+            border: 2px solid #1da1f2 !important;
+        }
+        
+        .tweet-text {
+            color: #000 !important;
+        }
+        
+        .tweet-image, .tweet-video {
+            max-height: 300px !important;
+        }
+    }
+    
+    /* Notification styles */
+    .toast-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #28a745;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 6px;
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    /* Remove load animation to avoid interfering with media display */
+</style>
+{% endblock %}

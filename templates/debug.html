@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+
+{% block title %}Debug - Twitter Saver{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bug"></i> System Debug</h2>
+    <button class="btn btn-outline-primary" onclick="loadDebugInfo()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- System Status Bar -->
+<div class="card mb-3">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div id="status-bar" class="d-flex flex-wrap gap-3 align-items-center" style="font-size: 13px;">
+                <span class="text-muted">Loading...</span>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-danger" onclick="forceStartQueue()">
+                    <i class="bi bi-play-fill"></i> Force Start Queue
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="resetStuckTasks()">
+                    <i class="bi bi-arrow-clockwise"></i> Reset Stuck Tasks
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Live Logs -->
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="d-flex align-items-center gap-2">
+                <h5 class="mb-0"><i class="bi bi-terminal"></i> Live Logs</h5>
+                <span id="log-status" class="badge bg-secondary">Disconnected</span>
+                <span id="log-count" class="badge bg-secondary">0 entries</span>
+            </div>
+            <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-outline-success" id="log-stream-toggle" onclick="toggleLogStream()">
+                    <i class="bi bi-play-fill"></i> <span id="log-stream-text">Start Stream</span>
+                </button>
+                <button class="btn btn-sm btn-outline-info" onclick="testLogCapture()">
+                    <i class="bi bi-bug"></i> Test
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
+                    <i class="bi bi-trash"></i> Clear
+                </button>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-download"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#" onclick="copyAllLogs(); return false;"><i class="bi bi-clipboard me-2"></i>Copy All</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="downloadLogs(); return false;"><i class="bi bi-file-text me-2"></i>Download .txt</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <!-- Filter row -->
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <div class="input-group input-group-sm" style="max-width: 260px;">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" id="log-filter" placeholder="Filter logs..." oninput="applyFilters()">
+                <button class="btn btn-outline-secondary" onclick="document.getElementById('log-filter').value=''; applyFilters();">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div class="btn-group btn-group-sm" id="level-toggles">
+                <button class="btn btn-outline-secondary active" data-level="all" onclick="setLevelFilter('all')">All</button>
+                <button class="btn btn-danger btn-sm" data-level="error" onclick="setLevelFilter('error')">ERROR</button>
+                <button class="btn btn-warning btn-sm" data-level="warning" onclick="setLevelFilter('warning')">WARN</button>
+                <button class="btn btn-info btn-sm" data-level="info" onclick="setLevelFilter('info')">INFO</button>
+                <button class="btn btn-secondary btn-sm" data-level="other" onclick="setLevelFilter('other')">OTHER</button>
+            </div>
+            <button class="btn btn-sm btn-outline-primary" onclick="toggleAutoRefresh()">
+                <i class="bi bi-arrow-repeat"></i> <span id="auto-refresh-text">Auto Refresh</span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0" style="position: relative;">
+        <div id="logs" style="height: 500px; overflow-y: auto; background-color: #0d1117; color: #00ff00; padding: 10px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 11px; line-height: 1.4;">
+            <div class="text-muted">Click "Start Stream" to begin receiving live logs...</div>
+        </div>
+        <!-- Scroll-to-bottom button -->
+        <button id="scroll-to-bottom" onclick="scrollToBottom()" title="Scroll to bottom"
+            style="display:none; position:absolute; bottom:12px; right:20px; z-index:10;
+                   background:#1a73e8; color:#fff; border:none; border-radius:50%;
+                   width:32px; height:32px; font-size:14px; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.4);">
+            <i class="bi bi-chevron-double-down"></i>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let autoRefreshInterval = null;
+    let isAutoRefresh = false;
+    let eventSource = null;
+    let logCount = 0;
+    let allLogEntries = []; // stores {text, level, el}
+    let activeLevelFilter = 'all';
+    let userScrolledUp = false;
+
+    // ── Status bar ──────────────────────────────────────────────────────────
+
+    function loadDebugInfo() {
+        fetch('/api/debug')
+            .then(r => r.json())
+            .then(data => {
+                updateStatusBar(data);
+                checkAndLogStatusChanges(data);
+            })
+            .catch(err => addRealTimeLog(`[ERROR] Failed to load debug info: ${err}`));
+    }
+
+    function updateStatusBar(data) {
+        const s = data.services_status || {};
+        function dot(ok) {
+            return `<span style="color:${ok ? '#198754' : '#dc3545'}">●</span>`;
+        }
+        const items = [
+            `${dot(s.processing_thread_alive)} Worker: <strong>${data.is_processing ? 'Active' : 'Idle'}</strong>`,
+            `<span style="color:#0d6efd">▣</span> Queue: <strong>${data.queue_size}</strong>`,
+            `${dot(s.twitter_service)} Twitter`,
+            `${dot(s.media_downloader)} Media`,
+            `${dot(s.xhs_mcp_docker)} XHS MCP`,
+        ];
+        document.getElementById('status-bar').innerHTML =
+            items.join('<span class="text-muted mx-1">|</span>');
+    }
+
+    let lastQueueSize = -1;
+    let lastProcessingStatus = null;
+
+    function checkAndLogStatusChanges(data) {
+        if (eventSource) return;
+        const t = new Date().toLocaleTimeString();
+        if (lastQueueSize !== -1 && lastQueueSize !== data.queue_size)
+            addRealTimeLog(`[${t}] Queue size changed: ${lastQueueSize} → ${data.queue_size}`);
+        lastQueueSize = data.queue_size;
+        if (lastProcessingStatus !== null && lastProcessingStatus !== data.is_processing)
+            addRealTimeLog(`[${t}] Processing: ${lastProcessingStatus ? 'Active' : 'Idle'} → ${data.is_processing ? 'Active' : 'Idle'}`);
+        lastProcessingStatus = data.is_processing;
+    }
+
+    // ── Log stream ──────────────────────────────────────────────────────────
+
+    function toggleLogStream() {
+        eventSource ? stopLogStream() : startLogStream();
+    }
+
+    function startLogStream() {
+        if (eventSource) return;
+        const statusEl = document.getElementById('log-status');
+        const toggleBtn = document.getElementById('log-stream-toggle');
+        const toggleText = document.getElementById('log-stream-text');
+
+        statusEl.textContent = 'Connecting...';
+        statusEl.className = 'badge bg-warning';
+
+        fetch('/api/logs/recent')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.logs) {
+                    document.getElementById('logs').innerHTML = '';
+                    allLogEntries = [];
+                    logCount = 0;
+                    data.logs.forEach(l => addRealTimeLog(l));
+                }
+            })
+            .catch(console.error);
+
+        eventSource = new EventSource('/api/logs/stream');
+
+        eventSource.onopen = () => {
+            statusEl.textContent = 'Connected';
+            statusEl.className = 'badge bg-success';
+            toggleText.textContent = 'Stop Stream';
+            toggleBtn.querySelector('i').className = 'bi bi-stop-fill';
+            toggleBtn.className = 'btn btn-sm btn-outline-danger';
+        };
+
+        eventSource.onmessage = e => {
+            if (e.data.trim()) addRealTimeLog(e.data);
+        };
+
+        eventSource.onerror = () => {
+            statusEl.textContent = 'Connection error';
+            statusEl.className = 'badge bg-danger';
+            setTimeout(() => {
+                if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+                    stopLogStream();
+                    setTimeout(startLogStream, 2000);
+                }
+            }, 1000);
+        };
+    }
+
+    function stopLogStream() {
+        if (eventSource) { eventSource.close(); eventSource = null; }
+        const statusEl = document.getElementById('log-status');
+        const toggleBtn = document.getElementById('log-stream-toggle');
+        statusEl.textContent = 'Disconnected';
+        statusEl.className = 'badge bg-secondary';
+        document.getElementById('log-stream-text').textContent = 'Start Stream';
+        toggleBtn.querySelector('i').className = 'bi bi-play-fill';
+        toggleBtn.className = 'btn btn-sm btn-outline-success';
+    }
+
+    // ── Log entry rendering ─────────────────────────────────────────────────
+
+    function classifyLevel(text) {
+        if (text.includes('[ERROR]') || text.includes('ERROR') || text.includes('failed') || text.includes('Failed') || text.includes('Exception')) return 'error';
+        if (text.includes('[WARNING]') || text.includes('WARNING') || text.includes('⚠️')) return 'warning';
+        if (text.includes('[INFO]') || text.includes('Starting') || text.includes('[SUCCESS]') || text.includes('Successfully') || text.includes('✓')) return 'info';
+        return 'other';
+    }
+
+    function levelColor(level) {
+        return { error: '#ff4444', warning: '#ffaa00', info: '#44aaff', other: '#00ff00' }[level] || '#00ff00';
+    }
+
+    function addRealTimeLog(logText) {
+        const level = classifyLevel(logText);
+        const logsContainer = document.getElementById('logs');
+        const el = document.createElement('div');
+        el.style.marginBottom = '1px';
+        el.style.wordBreak = 'break-word';
+        el.style.color = levelColor(level);
+        el.dataset.level = level;
+        el.textContent = logText;
+
+        // Apply keyword filter
+        const kw = document.getElementById('log-filter').value.trim().toLowerCase();
+        const matchesKw = !kw || logText.toLowerCase().includes(kw);
+        const matchesLevel = activeLevelFilter === 'all' || activeLevelFilter === level;
+        el.style.display = (matchesKw && matchesLevel) ? '' : 'none';
+
+        logsContainer.appendChild(el);
+        allLogEntries.push({ text: logText, level, el });
+
+        // Trim oldest if over limit
+        if (allLogEntries.length > 500) {
+            const removed = allLogEntries.shift();
+            if (removed.el.parentNode) removed.el.parentNode.removeChild(removed.el);
+        }
+
+        // Auto-scroll only if user hasn't scrolled up
+        if (!userScrolledUp) {
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        logCount++;
+        updateLogCount();
+    }
+
+    function updateLogCount() {
+        const visible = allLogEntries.filter(e => e.el.style.display !== 'none').length;
+        document.getElementById('log-count').textContent =
+            visible === logCount ? `${logCount} entries` : `${visible} / ${logCount} entries`;
+    }
+
+    // ── Filters ─────────────────────────────────────────────────────────────
+
+    function applyFilters() {
+        const kw = document.getElementById('log-filter').value.trim().toLowerCase();
+        allLogEntries.forEach(({ text, level, el }) => {
+            const matchesKw = !kw || text.toLowerCase().includes(kw);
+            const matchesLevel = activeLevelFilter === 'all' || activeLevelFilter === level;
+            el.style.display = (matchesKw && matchesLevel) ? '' : 'none';
+        });
+        updateLogCount();
+    }
+
+    function setLevelFilter(level) {
+        activeLevelFilter = level;
+        // Update button styles
+        document.querySelectorAll('#level-toggles button').forEach(btn => {
+            const isActive = btn.dataset.level === level;
+            if (btn.dataset.level === 'all') {
+                btn.className = isActive ? 'btn btn-secondary btn-sm active' : 'btn btn-outline-secondary btn-sm';
+            } else if (btn.dataset.level === 'error') {
+                btn.className = isActive ? 'btn btn-danger btn-sm active' : 'btn btn-outline-danger btn-sm';
+            } else if (btn.dataset.level === 'warning') {
+                btn.className = isActive ? 'btn btn-warning btn-sm active' : 'btn btn-outline-warning btn-sm';
+            } else if (btn.dataset.level === 'info') {
+                btn.className = isActive ? 'btn btn-info btn-sm active' : 'btn btn-outline-info btn-sm';
+            } else {
+                btn.className = isActive ? 'btn btn-secondary btn-sm active' : 'btn btn-outline-secondary btn-sm';
+            }
+        });
+        applyFilters();
+    }
+
+    // ── Smart scroll ─────────────────────────────────────────────────────────
+
+    const logsEl = document.getElementById('logs');
+    const scrollBtn = document.getElementById('scroll-to-bottom');
+
+    logsEl.addEventListener('scroll', () => {
+        const atBottom = logsEl.scrollHeight - logsEl.scrollTop - logsEl.clientHeight < 60;
+        userScrolledUp = !atBottom;
+        scrollBtn.style.display = userScrolledUp ? 'block' : 'none';
+    });
+
+    function scrollToBottom() {
+        logsEl.scrollTop = logsEl.scrollHeight;
+        userScrolledUp = false;
+        scrollBtn.style.display = 'none';
+    }
+
+    // ── Export ───────────────────────────────────────────────────────────────
+
+    function copyAllLogs() {
+        const text = allLogEntries.map(e => e.text).join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+            addRealTimeLog(`[INFO] Copied ${allLogEntries.length} log entries to clipboard`);
+        });
+    }
+
+    function downloadLogs() {
+        const text = allLogEntries.map(e => e.text).join('\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `debug-logs-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // ── Misc actions ─────────────────────────────────────────────────────────
+
+    function clearLogs() {
+        document.getElementById('logs').innerHTML = '';
+        allLogEntries = [];
+        logCount = 0;
+        updateLogCount();
+    }
+
+    function testLogCapture() {
+        fetch('/api/logs/test')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    addRealTimeLog(`[INFO] Log test complete, buffer size: ${data.buffer_size}`);
+                    if (data.latest_logs && data.latest_logs.length > 0)
+                        addRealTimeLog(`[INFO] Latest: ${data.latest_logs[data.latest_logs.length - 1]}`);
+                }
+            })
+            .catch(err => addRealTimeLog(`[ERROR] Log test failed: ${err}`));
+    }
+
+    function forceStartQueue() {
+        addRealTimeLog('[INFO] Force starting queue processor...');
+        fetch('/force_start_queue')
+            .then(r => r.json())
+            .then(data => {
+                addRealTimeLog(data.success ? `[INFO] ${data.message}` : `[ERROR] ${data.message}`);
+                if (data.success) setTimeout(loadDebugInfo, 1000);
+            })
+            .catch(err => addRealTimeLog(`[ERROR] Request failed: ${err}`));
+    }
+
+    function resetStuckTasks() {
+        addRealTimeLog('[INFO] Resetting stuck tasks...');
+        fetch('/reset_stuck_tasks')
+            .then(r => r.json())
+            .then(data => {
+                addRealTimeLog(data.success ? `[INFO] ${data.message}` : `[ERROR] ${data.message}`);
+                if (data.success) setTimeout(loadDebugInfo, 1000);
+            })
+            .catch(err => addRealTimeLog(`[ERROR] Request failed: ${err}`));
+    }
+
+    function toggleAutoRefresh() {
+        const btn = document.getElementById('auto-refresh-text');
+        if (isAutoRefresh) {
+            clearInterval(autoRefreshInterval);
+            isAutoRefresh = false;
+            btn.textContent = 'Auto Refresh';
+        } else {
+            autoRefreshInterval = setInterval(loadDebugInfo, 3000);
+            isAutoRefresh = true;
+            btn.textContent = 'Stop Auto Refresh';
+        }
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+
+    loadDebugInfo();
+    setTimeout(toggleAutoRefresh, 1000);
+
+    window.addEventListener('beforeunload', () => {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        if (eventSource) eventSource.close();
+    });
+</script>
+{% endblock %}

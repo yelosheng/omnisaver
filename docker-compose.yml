@@ -1,0 +1,20 @@
+services:
+  twitter-saver:
+    build: .
+    ports:
+      - "6201:6201"
+    volumes:
+      # Persistent data: database, users, session key, telegram owner
+      - ./docker-data:/data
+      # Saved tweets and media
+      - ./docker-data/saved_tweets:/app/saved_tweets
+      # Config file (copy config.ini.example to config.ini first)
+      - ./config.ini:/app/config.ini
+    environment:
+      - DATA_DIR=/data
+      - SAVE_PATH=/app/saved_tweets
+      - PLAYWRIGHT_HEADLESS=true
+      # Uncomment to enable HTTPS:
+      # - SSL_CERT_PATH=/app/cert.pem
+      # - SSL_KEY_PATH=/app/key.pem
+    restart: unless-stopped
