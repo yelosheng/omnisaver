@@ -80,69 +80,6 @@
             </div>
         </div>
 
-        <!-- XiaoHongShu Auto-Save -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <img src="/static/xhs.ico" style="width:18px;height:18px;object-fit:contain;vertical-align:-2px;" class="me-2">
-                    XiaoHongShu Auto-Save
-                </h5>
-                <button class="btn btn-outline-secondary btn-sm" onclick="loadXhsStatus()">
-                    <i class="bi bi-arrow-clockwise"></i> Refresh
-                </button>
-            </div>
-            <div class="card-body">
-                <div id="xhs-status-body" class="mb-3">
-                    <div class="text-center py-2">
-                        <div class="spinner-border spinner-border-sm" role="status"></div>
-                        <span class="ms-2">Loading...</span>
-                    </div>
-                </div>
-
-                <hr>
-
-                <div class="mb-3 d-flex align-items-center justify-content-between">
-                    <div>
-                        <strong>Enable auto-save 我的收藏</strong>
-                        <div class="text-muted small">Periodically saves new posts from your XiaoHongShu bookmarks.</div>
-                    </div>
-                    <div class="form-check form-switch ms-3">
-                        <input class="form-check-input" type="checkbox" id="xhs-enabled" style="width:3em;height:1.5em;">
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label"><strong>Your XiaoHongShu User ID</strong></label>
-                    <input type="text" class="form-control font-monospace" id="xhs-user-id"
-                           placeholder="e.g. 65c4edd7000000000e020b11" style="max-width:320px;">
-                    <div class="text-muted small mt-1">From your profile URL: <code>xiaohongshu.com/user/profile/<strong>&lt;user_id&gt;</strong></code></div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label"><strong>Interval (minutes)</strong></label>
-                    <div class="d-flex align-items-center gap-2" style="max-width:280px;">
-                        <input type="range" class="form-range flex-grow-1" id="xhs-interval-range"
-                               min="5" max="240" step="5" value="30" oninput="syncInterval(this.value)">
-                        <input type="number" class="form-control form-control-sm" id="xhs-interval-input"
-                               min="5" max="240" step="5" value="30" style="width:80px;"
-                               onchange="syncInterval(this.value, true)">
-                        <span class="text-muted small">min</span>
-                    </div>
-                    <div class="text-muted small mt-1" id="xhs-interval-hint">Runs every 30 minutes</div>
-                </div>
-
-                <div class="d-flex gap-2">
-                    <button class="btn btn-primary" onclick="saveXhsSettings()">
-                        <i class="bi bi-check-lg"></i> Save
-                    </button>
-                    <button class="btn btn-success" id="xhs-run-btn" onclick="xhsRunNow()">
-                        <i class="bi bi-play-fill"></i> Run Now
-                    </button>
-                </div>
-                <div id="xhs-run-result" class="mt-3" style="display:none;"></div>
-            </div>
-        </div>
-
         <!-- Twitter / X Cookie -->
         <div class="card mb-4">
             <div class="card-header">
@@ -213,73 +150,6 @@ async function saveYouTubeKey() {
     } catch (e) {
         result.style.display = 'block';
         result.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
-    }
-}
-
-// ── XHS ──────────────────────────────────────────────────────────
-async function loadXhsStatus() {
-    const body = document.getElementById('xhs-status-body');
-    try {
-        const resp = await fetch('/api/xhs/settings');
-        const s = await resp.json();
-        document.getElementById('xhs-enabled').checked = s.enabled;
-        document.getElementById('xhs-user-id').value = s.user_id || '';
-        syncInterval(s.interval_minutes);
-
-        const badge = s.enabled
-            ? `<span class="badge bg-success">Enabled</span>${s.thread_alive ? ' <span class="badge bg-secondary">Running</span>' : ' <span class="badge bg-warning text-dark">Thread not running</span>'}`
-            : `<span class="badge bg-secondary">Disabled</span>`;
-
-        body.innerHTML = `
-            <div class="row g-2 text-sm">
-                <div class="col-sm-4"><div class="text-muted small">Status</div><div>${badge}</div></div>
-                <div class="col-sm-4"><div class="text-muted small">Last run</div><div>${s.last_run ? s.last_run.replace('T',' ').slice(0,19) : '—'}</div></div>
-                <div class="col-sm-4"><div class="text-muted small">Saved (last run)</div><div>${s.last_count}</div></div>
-            </div>`;
-    } catch (e) {
-        body.innerHTML = `<div class="text-danger small">Failed to load: ${e.message}</div>`;
-    }
-}
-
-function syncInterval(val, save) {
-    val = Math.max(5, Math.min(240, parseInt(val) || 30));
-    document.getElementById('xhs-interval-range').value = val;
-    document.getElementById('xhs-interval-input').value = val;
-    const h = val < 60 ? `Runs every ${val} minutes` : `Runs every ${(val/60).toFixed(1).replace('.0','')} hour(s)`;
-    document.getElementById('xhs-interval-hint').textContent = h;
-    if (save) saveXhsSettings();
-}
-
-async function saveXhsSettings() {
-    const enabled = document.getElementById('xhs-enabled').checked;
-    const interval_minutes = parseInt(document.getElementById('xhs-interval-input').value) || 30;
-    const user_id = document.getElementById('xhs-user-id').value.trim();
-    await fetch('/api/xhs/settings', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({enabled, interval_minutes, user_id})
-    });
-    await loadXhsStatus();
-}
-
-async function xhsRunNow() {
-    const btn = document.getElementById('xhs-run-btn');
-    const result = document.getElementById('xhs-run-result');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
-    result.style.display = 'none';
-    try {
-        const resp = await fetch('/api/xhs/run-now', {method: 'POST'});
-        const data = await resp.json();
-        result.style.display = 'block';
-        result.innerHTML = `<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-2"></i>${data.message} — check <a href="/saved">Saved</a> for new posts.</div>`;
-        setTimeout(loadXhsStatus, 5000);
-    } catch (e) {
-        result.style.display = 'block';
-        result.innerHTML = `<div class="alert alert-danger mb-0">Error: ${e.message}</div>`;
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-play-fill"></i> Run Now';
     }
 }
 
@@ -382,7 +252,6 @@ async function saveTwitterCookies() {
 }
 
 loadTwitterCookieStatus();
-loadXhsStatus();
 loadXhsCookieStatus();
 
 // ── System Configuration ─────────────────────────────────────────
