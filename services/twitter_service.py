@@ -87,9 +87,11 @@ class TwitterService:
             if not url:
                 continue
             mtype = m.get('type', 'photo')
-            # xreach returns amplify_video_thumb URLs (JPEG) for videos — treat as photo
+            # xreach returns amplify_video_thumb (JPEG) for videos, not a real video stream.
+            # Replace with the tweet URL so yt-dlp can download the actual video.
             if mtype == 'video' and 'amplify_video_thumb' in url:
-                mtype = 'photo'
+                screen_name = user.get('screenName', 'i')
+                url = f"https://x.com/{screen_name}/status/{item['id']}"
             media_urls.append(url)
             media_types.append(mtype)
 

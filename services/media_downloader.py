@@ -103,11 +103,35 @@ class MediaDownloader:
         
         for i, url in enumerate(media_urls, 1):
             try:
+                # Twitter/X URLs — use yt-dlp to get the real video stream
+                if ('x.com' in url or 'twitter.com' in url) and '/status/' in url:
+                    info(f"[MediaDownloader] Using yt-dlp for Twitter video {i}: {url}")
+                    output_template = os.path.join(videos_dir, f'video_{i:02d}.%(ext)s')
+                    result = subprocess.run(
+                        ['yt-dlp', '-o', output_template, '--no-playlist', url],
+                        capture_output=True, text=True, timeout=120
+                    )
+                    if result.returncode == 0:
+                        # Find the file yt-dlp created
+                        downloaded = [f for f in os.listdir(videos_dir) if f.startswith(f'video_{i:02d}.')]
+                        if downloaded:
+                            filename = downloaded[0]
+                            local_path = os.path.join(videos_dir, filename)
+                            media_file = MediaFile(url=url, local_path=local_path, media_type='video', filename=filename)
+                            downloaded_files.append(media_file)
+                            success(f"[MediaDownloader] ✓ yt-dlp video: {filename}")
+                            self._generate_video_thumbnail(local_path, save_path)
+                        else:
+                            error(f"[MediaDownloader] ✗ yt-dlp ran but no file found for video {i}")
+                    else:
+                        error(f"[MediaDownloader] ✗ yt-dlp failed for video {i}: {result.stderr[:200]}")
+                    continue
+
                 filename = self.get_media_filename(url, i, 'video')
                 local_path = os.path.join(videos_dir, filename)
-                
+
                 info(f"[MediaDownloader] Downloading video {i}/{len(media_urls)}: {filename}")
-                
+
                 if self._download_file(url, local_path, show_progress=True):
                     media_file = MediaFile(
                         url=url,
@@ -117,12 +141,10 @@ class MediaDownloader:
                     )
                     downloaded_files.append(media_file)
                     success(f"[MediaDownloader] ✓ Downloaded video: {filename}")
-                    
-                    # Generate thumbnail for video
                     self._generate_video_thumbnail(local_path, save_path)
                 else:
                     error(f"[MediaDownloader] ✗ Failed to download video: {filename}")
-                    
+
             except Exception as e:
                 error(f"[MediaDownloader] ✗ Error downloading video {i}: {e}")
                 continue

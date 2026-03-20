@@ -1738,8 +1738,12 @@ def show_tweet(slug):
         except Exception:
             pass
 
-    # WeChat/YouTube: content is inline in the rendered HTML — no separate media grid needed
-    display_media_files = [] if (content_type in ('wechat', 'youtube') and tweet_html) else media_files
+    # WeChat/YouTube/thread: content is inline in the rendered HTML — no separate media grid needed
+    display_media_files = [] if (
+        content_type in ('wechat', 'youtube') and tweet_html
+    ) or (
+        task['is_thread'] and tweet_html
+    ) else media_files
 
     # Check for transcript
     has_transcript = os.path.exists(os.path.join(actual_save_path, 'transcript.txt'))
