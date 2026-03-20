@@ -792,11 +792,6 @@ def process_tweet_task(task_id, url):
             info(f"[Task {task_id}] Calling Twitter service to get tweet...")
             update_task_progress(task_id, 'api_call', f'正在获取推文 {tweet_id}')
             
-            # 先尝试获取单个推文，传递完整URL保留用户名信息
-            single_tweet = twitter_service.get_tweet(url)
-            success(f"[Task {task_id}] Successfully got tweet from @{single_tweet.author_username}")
-            update_task_progress(task_id, 'api_success', f'成功获取推文，作者: @{single_tweet.author_username}')
-            
             # 检测是否为长文
             is_article = TwitterURLParser.is_article_url(url)
             content_type = 'article' if is_article else 'tweet'
@@ -804,8 +799,20 @@ def process_tweet_task(task_id, url):
                 info(f"[Task {task_id}] Detected article URL, will scrape full article content")
                 update_task_progress(task_id, 'article_detected', '检测到长文链接，将抓取长文内容')
 
-            tweets = [single_tweet]
-            is_thread = False
+            # 当 xreach 可用时，直接抓完整串推；否则只抓单条
+            if not is_article and twitter_service.use_xreach:
+                update_task_progress(task_id, 'api_call', f'正在获取串推 {tweet_id}（xreach）')
+                tweets = twitter_service.get_thread_by_url(url)
+                is_thread = len(tweets) > 1
+                success(f"[Task {task_id}] Got {len(tweets)} tweet(s) from @{tweets[0].author_username}")
+                update_task_progress(task_id, 'api_success', f'成功获取 {len(tweets)} 条推文，作者: @{tweets[0].author_username}')
+            else:
+                update_task_progress(task_id, 'api_call', f'正在获取推文 {tweet_id}')
+                single_tweet = twitter_service.get_tweet(url)
+                success(f"[Task {task_id}] Successfully got tweet from @{single_tweet.author_username}")
+                update_task_progress(task_id, 'api_success', f'成功获取推文，作者: @{single_tweet.author_username}')
+                tweets = [single_tweet]
+                is_thread = False
                 
         except TwitterScrapingError as e:
             error(f"[Task {task_id}] Twitter API Error: {str(e)}")
