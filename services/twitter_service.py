@@ -80,8 +80,18 @@ class TwitterService:
 
         user = item.get('user', {})
         media = item.get('media', [])
-        media_urls = [m['url'] for m in media if 'url' in m]
-        media_types = [m.get('type', 'photo') for m in media]
+        media_urls = []
+        media_types = []
+        for m in media:
+            url = m.get('url', '')
+            if not url:
+                continue
+            mtype = m.get('type', 'photo')
+            # xreach returns amplify_video_thumb URLs (JPEG) for videos — treat as photo
+            if mtype == 'video' and 'amplify_video_thumb' in url:
+                mtype = 'photo'
+            media_urls.append(url)
+            media_types.append(mtype)
 
         return Tweet(
             id=item['id'],

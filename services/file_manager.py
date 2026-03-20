@@ -303,168 +303,70 @@ class FileManager:
         except IOError as e:
             raise FileManagerError(f"Failed to save tweet content: {e}")
     
-    def save_thread_content(self, tweets: List[Tweet], save_dir: str, media_files: List[MediaFile] = None) -> None:
+    def save_thread_content(self, tweets: List[Tweet], save_dir: str, media_files: List[MediaFile] = None,
+                            tweet_media_map: List[List[MediaFile]] = None) -> None:
         """
         Save thread content
-        
+
         Args:
             tweets: Tweet list (sorted by time)
             save_dir: Save directory
-            media_files: Media file list
-            
+            media_files: Flat list of all media files
+            tweet_media_map: Per-tweet media files (list[i] = media files for tweets[i])
+
         Raises:
             FileManagerError: Save failed
         """
         if not tweets:
             raise FileManagerError("No tweets to save")
-        
+
         try:
-            # Save pure thread text to content.txt (all tweets concatenated)
+            # Save pure thread text to content.txt
             content_file = self.get_content_file_path(save_dir)
             with open(content_file, 'w', encoding='utf-8') as f:
                 for i, tweet in enumerate(tweets, 1):
                     if i > 1:
-                        f.write("\n\n")  # Separate tweets with double newlines
+                        f.write("\n\n")
                     f.write(tweet.text)
-            
-            # Save Reader-mode HTML if any tweets have HTML content
-            has_html = any(tweet.html_content for tweet in tweets)
-            if has_html:
-                first_tweet = tweets[0]
-                html_file = os.path.join(save_dir, "content.html")
-                with open(html_file, 'w', encoding='utf-8') as f:
-                    # Create a clean HTML document for thread
-                    html_template = """<!DOCTYPE html>
+
+            # Always generate content.html — use html_content if available, otherwise plain text
+            first_tweet = tweets[0]
+            html_file = os.path.join(save_dir, "content.html")
+            with open(html_file, 'w', encoding='utf-8') as f:
+                f.write(f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tweet Thread by {author_name} (@{author_username})</title>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            max-width: 700px;
-            margin: 0 auto;
-            padding: 20px;
-            line-height: 1.6;
-            background-color: #f7f9fa;
-        }}
-        .thread-header {{
-            background: white;
-            border-radius: 16px;
-            border: 1px solid #e1e8ed;
-            padding: 24px;
-            margin-bottom: 20px;
-            text-align: center;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }}
-        .thread-header h1 {{
-            margin: 0 0 10px 0;
-            color: #14171a;
-        }}
-        .tweet-container {{
-            background: white;
-            border-radius: 16px;
-            border: 1px solid #e1e8ed;
-            padding: 20px;
-            margin: 16px 0;
-            border-left: 4px solid #1da1f2;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }}
-        .tweet-header {{
-            display: flex;
-            align-items: center;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #f0f0f0;
-        }}
-        .tweet-number {{
-            background: #1da1f2;
-            color: white;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: bold;
-            margin-right: 12px;
-        }}
-        .author-info {{
-            flex: 1;
-        }}
-        .author-name {{
-            font-weight: bold;
-            color: #14171a;
-            font-size: 16px;
-        }}
-        .author-username {{
-            color: #536471;
-            font-size: 14px;
-        }}
-        .tweet-content {{
-            color: #14171a;
-            font-size: 16px;
-            white-space: pre-line;
-            margin-bottom: 16px;
-        }}
-        .tweet-content a {{
-            color: #1da1f2;
-            text-decoration: none;
-        }}
-        .tweet-content a:hover {{
-            text-decoration: underline;
-        }}
-        .tweet-content strong {{
-            font-weight: bold;
-            color: #14171a;
-        }}
-        .tweet-meta {{
-            color: #536471;
-            font-size: 12px;
-            padding-top: 12px;
-            border-top: 1px solid #f0f0f0;
-        }}
-    </style>
+    <title>Thread — {first_tweet.author_name or ''} (@{first_tweet.author_username or ''})</title>
 </head>
 <body>
-    <div class="thread-header">
-        <h1>Tweet Thread</h1>
-        <p><strong>{author_name}</strong> (@{author_username})</p>
-        <p>{tweet_count} tweets in this thread</p>
-    </div>
-"""
-                    
-                    f.write(html_template.format(
-                        author_name=first_tweet.author_name or 'Unknown',
-                        author_username=first_tweet.author_username or 'unknown',
-                        tweet_count=len(tweets)
-                    ))
-                    
-                    # Write each tweet
-                    for i, tweet in enumerate(tweets, 1):
-                        clean_content = convert_html_to_markdown(tweet.html_content) if tweet.html_content else tweet.text
-                        
-                        tweet_html = f"""
-    <div class="tweet-container">
-        <div class="tweet-header">
-            <div class="tweet-number">{i}</div>
-            <div class="author-info">
-                <div class="author-name">{tweet.author_name or 'Unknown'}</div>
-                <div class="author-username">@{tweet.author_username or 'unknown'}</div>
-            </div>
-        </div>
-        <div class="tweet-content">{clean_content}</div>
-        <div class="tweet-meta">
-            <div>Tweet ID: {tweet.id} | Published: {tweet.created_at.strftime('%Y-%m-%d %H:%M:%S')} | <a href="https://twitter.com/{tweet.author_username or 'unknown'}/status/{tweet.id}" target="_blank">Original URL</a></div>
-        </div>
-    </div>
-"""
-                        f.write(tweet_html)
-                    
-                    f.write("\n</body>\n</html>")
-            
+""")
+                for i, tweet in enumerate(tweets):
+                    if tweet.html_content:
+                        body = convert_html_to_markdown(tweet.html_content)
+                    else:
+                        import html as _html
+                        body = _html.escape(tweet.text).replace('\n', '<br>')
+
+                    # Per-tweet media: use relative paths (view route will rewrite to /media/<id>/...)
+                    media_html = ''
+                    per_tweet_files = (tweet_media_map[i] if tweet_media_map and i < len(tweet_media_map) else [])
+                    for mf in per_tweet_files:
+                        rel = os.path.relpath(mf.local_path, save_dir).replace('\\', '/')
+                        if mf.media_type in ('photo', 'image'):
+                            media_html += f'<img src="{rel}" style="max-width:100%;border-radius:8px;margin:8px 0;display:block;">\n'
+                        elif mf.media_type in ('video', 'animated_gif'):
+                            media_html += (f'<video controls style="max-width:100%;border-radius:8px;margin:8px 0;">'
+                                           f'<source src="{rel}" type="video/mp4"></video>\n')
+
+                    f.write(f'<div class="thread-tweet" style="margin-bottom:20px;padding-bottom:20px;'
+                            f'border-bottom:1px solid #e1e8ed;">\n'
+                            f'<p style="white-space:pre-line;margin:0 0 8px;">{body}</p>\n'
+                            f'{media_html}</div>\n')
+
+                f.write("</body>\n</html>")
+
         except IOError as e:
             raise FileManagerError(f"Failed to save thread content: {e}")
     

@@ -856,46 +856,59 @@ def process_tweet_task(task_id, url):
         save_dir = file_manager.create_save_directory(tweets[0].id, tweets[0].created_at)
         update_task_progress(task_id, 'saving', f'创建保存目录: {save_dir}')
         
-        # 统计媒体文件数量
-        total_images = sum(len(tweet.get_images()) for tweet in tweets)
-        total_videos = sum(len(tweet.get_videos()) for tweet in tweets)
-        total_avatars = sum(len(tweet.get_avatars()) for tweet in tweets)
-        total_media = total_images + total_videos + total_avatars
-        
+        # 收集所有推文的媒体，按推文分组跟踪以便后续关联
+        all_images_flat = []
+        all_videos_flat = []
+        all_avatars_flat = []
+        tweet_img_ranges = []   # (start, end) index in all_images_flat per tweet
+        tweet_vid_ranges = []
+        for tweet in tweets:
+            i0 = len(all_images_flat); all_images_flat.extend(tweet.get_images()); tweet_img_ranges.append((i0, len(all_images_flat)))
+            v0 = len(all_videos_flat); all_videos_flat.extend(tweet.get_videos()); tweet_vid_ranges.append((v0, len(all_videos_flat)))
+            all_avatars_flat.extend(tweet.get_avatars())
+
+        total_images = len(all_images_flat)
+        total_videos = len(all_videos_flat)
+        total_media = total_images + total_videos + len(all_avatars_flat)
+
         if total_media > 0:
-            update_task_progress(task_id, 'media_download', f'准备下载 {total_media} 个媒体文件 (图片:{total_images}, 视频:{total_videos}, 头像:{total_avatars})')
-        
-        # 下载媒体文件
+            update_task_progress(task_id, 'media_download', f'准备下载 {total_media} 个媒体文件 (图片:{total_images}, 视频:{total_videos})')
+
+        # 批量下载 — 全局连续命名，避免多条推文同扩展名互相覆盖
         all_media_files = []
         downloaded_count = 0
-        
-        for tweet in tweets:
-            if tweet.has_media():
-                images = tweet.get_images()
-                videos = tweet.get_videos()
-                avatars = tweet.get_avatars()
-                
-                if images:
-                    update_task_progress(task_id, 'downloading_images', f'正在下载图片 ({len(images)} 个)...')
-                    image_files = media_downloader.download_images(images, save_dir)
-                    all_media_files.extend(image_files)
-                    downloaded_count += len(image_files)
-                    update_task_progress(task_id, 'images_done', f'图片下载完成 ({len(image_files)}/{len(images)})')
-                
-                if videos:
-                    update_task_progress(task_id, 'downloading_videos', f'正在下载视频 ({len(videos)} 个)...')
-                    video_files = media_downloader.download_videos(videos, save_dir)
-                    all_media_files.extend(video_files)
-                    downloaded_count += len(video_files)
-                    update_task_progress(task_id, 'videos_done', f'视频下载完成 ({len(video_files)}/{len(videos)})')
-                
-                if avatars:
-                    update_task_progress(task_id, 'downloading_avatars', f'正在下载头像 ({len(avatars)} 个)...')
-                    avatar_files = media_downloader.download_avatars(avatars, save_dir)
-                    all_media_files.extend(avatar_files)
-                    downloaded_count += len(avatar_files)
-                    update_task_progress(task_id, 'avatars_done', f'头像下载完成 ({len(avatar_files)}/{len(avatars)})')
-        
+
+        if all_images_flat:
+            update_task_progress(task_id, 'downloading_images', f'正在下载图片 ({total_images} 个)...')
+            image_files = media_downloader.download_images(all_images_flat, save_dir)
+            all_media_files.extend(image_files)
+            downloaded_count += len(image_files)
+            update_task_progress(task_id, 'images_done', f'图片下载完成 ({len(image_files)}/{total_images})')
+        else:
+            image_files = []
+
+        if all_videos_flat:
+            update_task_progress(task_id, 'downloading_videos', f'正在下载视频 ({total_videos} 个)...')
+            video_files = media_downloader.download_videos(all_videos_flat, save_dir)
+            all_media_files.extend(video_files)
+            downloaded_count += len(video_files)
+            update_task_progress(task_id, 'videos_done', f'视频下载完成 ({len(video_files)}/{total_videos})')
+        else:
+            video_files = []
+
+        if all_avatars_flat:
+            update_task_progress(task_id, 'downloading_avatars', f'正在下载头像...')
+            avatar_files = media_downloader.download_avatars(all_avatars_flat, save_dir)
+            all_media_files.extend(avatar_files)
+            downloaded_count += len(avatar_files)
+
+        # 建立 per-tweet 媒体映射（传给 save_thread_content 用于生成带图 HTML）
+        tweet_media_map = []
+        for i in range(len(tweets)):
+            i0, i1 = tweet_img_ranges[i]
+            v0, v1 = tweet_vid_ranges[i]
+            tweet_media_map.append(image_files[i0:i1] + video_files[v0:v1])
+
         if total_media > 0:
             update_task_progress(task_id, 'media_complete', f'媒体下载完成: {downloaded_count}/{total_media} 个文件')
         
@@ -903,7 +916,7 @@ def process_tweet_task(task_id, url):
         if len(tweets) == 1:
             file_manager.save_tweet_content(tweets[0], save_dir, all_media_files)
         else:
-            file_manager.save_thread_content(tweets, save_dir, all_media_files)
+            file_manager.save_thread_content(tweets, save_dir, all_media_files, tweet_media_map=tweet_media_map)
         
         # 保存元数据
         file_manager.save_metadata(tweets, save_dir, all_media_files)
@@ -1633,6 +1646,14 @@ def show_tweet(slug):
         content_type = task['content_type'] or 'tweet'
     except (IndexError, KeyError):
         pass
+
+    # Thread tweets: fix up relative media paths in content.html to /media/<task_id>/...
+    if content_type == 'tweet' and tweet_html and task['is_thread']:
+        tweet_html = re.sub(
+            r'(?:src|href)="(images/[^"]+|videos/[^"]+)"',
+            lambda m: f'src="/media/{task_id}/{m.group(1)}"',
+            tweet_html
+        )
 
     # WeChat articles: render content.md as HTML with local image paths
     if content_type == 'wechat' and not tweet_html:
