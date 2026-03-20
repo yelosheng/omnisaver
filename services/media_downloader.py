@@ -1,4 +1,5 @@
 import os
+import tempfile
 import requests
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -17,20 +18,25 @@ class MediaDownloadError(Exception):
 
 class MediaDownloader:
     """Media file downloader"""
-    
-    def __init__(self, max_retries: int = 3, timeout: int = 30, chunk_size: int = 8192):
+
+    def __init__(self, max_retries: int = 3, timeout: int = 30, chunk_size: int = 8192,
+                 twitter_auth_token: Optional[str] = None, twitter_ct0: Optional[str] = None):
         """
         Initialize media downloader
-        
+
         Args:
             max_retries: Maximum retry attempts
             timeout: Request timeout (seconds)
             chunk_size: Download chunk size (bytes)
+            twitter_auth_token: Twitter auth_token cookie (for yt-dlp authenticated video downloads)
+            twitter_ct0: Twitter ct0 cookie
         """
         self.max_retries = max_retries
         self.timeout = timeout
         self.chunk_size = chunk_size
-        
+        self.twitter_auth_token = twitter_auth_token
+        self.twitter_ct0 = twitter_ct0
+
         # Supported image formats
         self.image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
         # Supported video formats
@@ -100,32 +106,89 @@ class MediaDownloader:
         os.makedirs(videos_dir, exist_ok=True)
         
         downloaded_files = []
-        
+        _video_exts = {'.mp4', '.webm', '.mkv', '.avi', '.mov', '.m4v'}
+
+        # Pre-group: for Twitter tweet URLs, call yt-dlp ONCE per unique URL so
+        # yt-dlp can download all videos in the tweet together (avoids --playlist-items
+        # issues where different videos in the same tweet use different stream formats).
+        # Each unique tweet URL maps to the ordered list of global slot indices.
+        _twitter_slots: dict = {}   # tweet_url -> [i, ...]
+        _non_twitter: list = []     # [(i, url), ...]
         for i, url in enumerate(media_urls, 1):
+            if ('x.com' in url or 'twitter.com' in url) and '/status/' in url:
+                _twitter_slots.setdefault(url, []).append(i)
+            else:
+                _non_twitter.append((i, url))
+
+        # ── Twitter videos: one yt-dlp call per unique tweet URL ──────────────
+        # Download to a local /tmp directory first to avoid NAS I/O errors
+        # during yt-dlp's intermediate .part file writes, then move to final location.
+        for tweet_url, indices in _twitter_slots.items():
+            local_tmp_dir = None
             try:
-                # Twitter/X URLs — use yt-dlp to get the real video stream
-                if ('x.com' in url or 'twitter.com' in url) and '/status/' in url:
-                    info(f"[MediaDownloader] Using yt-dlp for Twitter video {i}: {url}")
-                    output_template = os.path.join(videos_dir, f'video_{i:02d}.%(ext)s')
-                    result = subprocess.run(
-                        ['yt-dlp', '-o', output_template, '--no-playlist', url],
-                        capture_output=True, text=True, timeout=120
+                local_tmp_dir = tempfile.mkdtemp(prefix='ytdl_')
+                url_key = abs(hash(tweet_url)) % 1000000
+                tmp_template = os.path.join(local_tmp_dir, f'_dl{url_key}_%(playlist_index)02d.%(ext)s')
+                cmd = ['yt-dlp', '-o', tmp_template, '--merge-output-format', 'mp4']
+
+                cookies_file = None
+                if self.twitter_auth_token and self.twitter_ct0:
+                    cookies_file = tempfile.NamedTemporaryFile(
+                        mode='w', suffix='.txt', delete=False, prefix='yt_cookies_'
                     )
-                    if result.returncode == 0:
-                        # Find the file yt-dlp created
-                        downloaded = [f for f in os.listdir(videos_dir) if f.startswith(f'video_{i:02d}.')]
-                        if downloaded:
-                            filename = downloaded[0]
-                            local_path = os.path.join(videos_dir, filename)
-                            media_file = MediaFile(url=url, local_path=local_path, media_type='video', filename=filename)
-                            downloaded_files.append(media_file)
-                            success(f"[MediaDownloader] ✓ yt-dlp video: {filename}")
-                            self._generate_video_thumbnail(local_path, save_path)
-                        else:
-                            error(f"[MediaDownloader] ✗ yt-dlp ran but no file found for video {i}")
-                    else:
-                        error(f"[MediaDownloader] ✗ yt-dlp failed for video {i}: {result.stderr[:200]}")
-                    continue
+                    cookies_file.write("# Netscape HTTP Cookie File\n")
+                    cookies_file.write(f".twitter.com\tTRUE\t/\tTRUE\t0\tauth_token\t{self.twitter_auth_token}\n")
+                    cookies_file.write(f".twitter.com\tTRUE\t/\tTRUE\t0\tct0\t{self.twitter_ct0}\n")
+                    cookies_file.write(f".x.com\tTRUE\t/\tTRUE\t0\tauth_token\t{self.twitter_auth_token}\n")
+                    cookies_file.write(f".x.com\tTRUE\t/\tTRUE\t0\tct0\t{self.twitter_ct0}\n")
+                    cookies_file.flush()
+                    cookies_file.close()
+                    cmd += ['--cookies', cookies_file.name]
+                cmd.append(tweet_url)
+
+                info(f"[MediaDownloader] yt-dlp download for tweet (slots {indices}): {tweet_url}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                if cookies_file:
+                    try:
+                        os.unlink(cookies_file.name)
+                    except OSError:
+                        pass
+
+                # Collect downloaded files from local tmp dir, sorted (playlist order)
+                tmp_files = sorted([
+                    f for f in os.listdir(local_tmp_dir)
+                    if f.startswith(f'_dl{url_key}_')
+                    and not f.endswith(('.part', '.ytdl'))
+                    and os.path.splitext(f)[1].lower() in _video_exts
+                    and os.path.getsize(os.path.join(local_tmp_dir, f)) > 0
+                ])
+
+                # Move files to final NAS location and assign to slots
+                for slot_i, tmp_file in zip(indices, tmp_files):
+                    final_ext = os.path.splitext(tmp_file)[1]
+                    final_filename = f'video_{slot_i:02d}{final_ext}'
+                    tmp_path = os.path.join(local_tmp_dir, tmp_file)
+                    final_path = os.path.join(videos_dir, final_filename)
+                    shutil.move(tmp_path, final_path)
+                    media_file = MediaFile(url=tweet_url, local_path=final_path,
+                                           media_type='video', filename=final_filename)
+                    downloaded_files.append(media_file)
+                    success(f"[MediaDownloader] ✓ yt-dlp video: {final_filename}")
+                    self._generate_video_thumbnail(final_path, save_path)
+
+                if len(tmp_files) < len(indices):
+                    warning(f"[MediaDownloader] Expected {len(indices)} videos from tweet, got {len(tmp_files)}")
+
+            except Exception as e:
+                error(f"[MediaDownloader] ✗ yt-dlp error for {tweet_url}: {e}")
+            finally:
+                # Clean up local tmp dir regardless of success/failure
+                if local_tmp_dir and os.path.exists(local_tmp_dir):
+                    shutil.rmtree(local_tmp_dir, ignore_errors=True)
+
+        # ── Non-Twitter videos: direct download ───────────────────────────────
+        for i, url in _non_twitter:
+            try:
 
                 filename = self.get_media_filename(url, i, 'video')
                 local_path = os.path.join(videos_dir, filename)
@@ -147,8 +210,7 @@ class MediaDownloader:
 
             except Exception as e:
                 error(f"[MediaDownloader] ✗ Error downloading video {i}: {e}")
-                continue
-        
+
         return downloaded_files
     
     def download_avatars(self, avatar_urls: List[str], save_path: str) -> List[MediaFile]:

@@ -82,6 +82,13 @@ class TwitterService:
         media = item.get('media', [])
         media_urls = []
         media_types = []
+
+        # Add author avatar first
+        avatar_url = user.get('profileImageUrl', '')
+        if avatar_url:
+            media_urls.append(avatar_url)
+            media_types.append('avatar')
+
         for m in media:
             url = m.get('url', '')
             if not url:
@@ -242,15 +249,26 @@ class TwitterService:
                 tweet_url = f"https://x.com/i/web/status/{tweet_id}"
                 items = self._run_xreach('thread', tweet_url)
                 if isinstance(items, list) and items:
-                    # Keep only the original author's tweets in the thread
-                    original_author = items[0].get('user', {}).get('screenName', '')
-                    thread_items = [
-                        item for item in items
-                        if item.get('user', {}).get('screenName') == original_author
-                        and item.get('conversationId') == tweet_id
-                    ]
-                    if not thread_items:
-                        thread_items = [items[0]]
+                    # Build a lookup map by tweet id
+                    items_by_id = {item['id']: item for item in items if item.get('id')}
+                    # Find the root tweet
+                    root = items_by_id.get(tweet_id) or items[0]
+                    original_author = root.get('user', {}).get('screenName', '')
+                    # Follow the self-reply chain: start from root, then find each
+                    # tweet where the same author replied directly to the previous one
+                    thread_items = [root]
+                    current_id = root['id']
+                    for _ in range(100):  # cap iterations
+                        next_item = next(
+                            (item for item in items
+                             if item.get('inReplyToTweetId') == current_id
+                             and item.get('user', {}).get('screenName') == original_author),
+                            None
+                        )
+                        if next_item is None:
+                            break
+                        thread_items.append(next_item)
+                        current_id = next_item['id']
                     tweets = [self._xreach_item_to_tweet(item) for item in thread_items]
                     tweets.sort(key=lambda t: t.created_at)
                     success(f"[TwitterService] xreach thread returned {len(tweets)} tweets")
