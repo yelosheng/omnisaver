@@ -868,9 +868,16 @@ class TwitterPlaywrightScraper:
                         text = await element.inner_text()
                         html = await element.inner_html()
                         if text and len(text.strip()) > 10:
+                            # Append any t.co links hidden by Twitter's card preview
+                            # (Twitter removes the last URL from visible text when it generates a card)
+                            link_els = await element.query_selector_all('a[href*="t.co"]')
+                            for link_el in link_els:
+                                href = await link_el.get_attribute('href')
+                                if href and href not in text:
+                                    text = text.rstrip() + '\n' + href
                             texts.append(text.strip())
                             htmls.append(html.strip())
-                    
+
                     if texts:
                         tweet_text = '\n\n'.join(texts)
                         tweet_html = '\n\n'.join(htmls)
