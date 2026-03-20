@@ -1,3 +1,6 @@
+import json
+import shutil
+import subprocess
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from models.tweet import Tweet
@@ -14,21 +17,33 @@ class TwitterScrapingError(Exception):
 
 class TwitterService:
     """Twitter Service - Web scraping only"""
-    
-    def __init__(self, max_retries: int = 3, timeout: int = 30, use_playwright: bool = True):
+
+    def __init__(self, max_retries: int = 3, timeout: int = 30, use_playwright: bool = True,
+                 xreach_auth_token: Optional[str] = None, xreach_ct0: Optional[str] = None):
         """
         Initialize Twitter Service
-        
+
         Args:
             max_retries: Maximum retry attempts
             timeout: Request timeout in seconds
             use_playwright: Whether to use Playwright for web scraping (default True, recommended)
+            xreach_auth_token: Twitter auth_token cookie for xreach (enables logged-in scraping)
+            xreach_ct0: Twitter ct0 cookie for xreach
         """
         self.max_retries = max_retries
         self.timeout = timeout
         self.use_playwright = use_playwright
-        
-        # Initialize web scraper
+        self.xreach_auth_token = xreach_auth_token
+        self.xreach_ct0 = xreach_ct0
+
+        # Check if xreach is available and credentials provided
+        self.use_xreach = bool(
+            xreach_auth_token and xreach_ct0 and shutil.which('xreach')
+        )
+        if self.use_xreach:
+            info("[TwitterService] xreach available with credentials — will use as primary scraper")
+
+        # Initialize web scraper (fallback)
         if self.use_playwright:
             try:
                 self.web_scraper = TwitterPlaywrightScraperSync(headless=True, timeout=timeout, debug=False)
@@ -40,9 +55,47 @@ class TwitterService:
         else:
             self.web_scraper = TwitterWebScraper(timeout=timeout)
             info("[TwitterService] Using traditional web scraping")
-        
+
         info("[TwitterService] Web scraping mode initialized")
     
+    def _run_xreach(self, *args) -> Any:
+        """Run an xreach command and return parsed JSON output."""
+        cmd = [
+            'xreach',
+            '--auth-token', self.xreach_auth_token,
+            '--ct0', self.xreach_ct0,
+        ] + list(args) + ['--json']
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
+        if result.returncode != 0:
+            raise TwitterScrapingError(f"xreach error: {result.stderr.strip()}")
+        return json.loads(result.stdout)
+
+    def _xreach_item_to_tweet(self, item: Dict[str, Any]) -> Tweet:
+        """Convert an xreach tweet item dict to a Tweet object."""
+        created_at_str = item.get('createdAt', '')
+        try:
+            created_at = datetime.strptime(created_at_str, '%a %b %d %H:%M:%S %z %Y')
+        except (ValueError, AttributeError):
+            created_at = datetime.now()
+
+        user = item.get('user', {})
+        media = item.get('media', [])
+        media_urls = [m['url'] for m in media if 'url' in m]
+        media_types = [m.get('type', 'photo') for m in media]
+
+        return Tweet(
+            id=item['id'],
+            text=item.get('text', ''),
+            html_content=None,
+            author_username=user.get('screenName', ''),
+            author_name=user.get('name', ''),
+            created_at=created_at,
+            media_urls=media_urls,
+            media_types=media_types,
+            reply_to=item.get('inReplyToTweetId'),
+            conversation_id=item.get('conversationId', item['id'])
+        )
+
     def extract_tweet_id(self, url: str) -> str:
         """
         Extract tweet ID from URL
@@ -89,17 +142,30 @@ class TwitterService:
                 raise ValueError(f"Invalid tweet ID: {tweet_id}")
             tweet_url = f"https://x.com/i/web/status/{tweet_id}"
         
-        # Use web scraping to get complete data
+        # Try xreach first if credentials are configured
+        if self.use_xreach:
+            try:
+                info(f"[TwitterService] Using xreach for tweet {tweet_id}")
+                data = self._run_xreach('tweet', tweet_url)
+                # xreach tweet returns a single object or a list; normalise to object
+                item = data[0] if isinstance(data, list) else data
+                if item.get('text') is not None:
+                    success(f"[TwitterService] xreach successful for tweet {tweet_id}")
+                    return self._xreach_item_to_tweet(item)
+            except Exception as e:
+                warning(f"[TwitterService] xreach failed for {tweet_id}, falling back to Playwright: {e}")
+
+        # Fallback: web scraping
         try:
             info(f"[TwitterService] Using web scraping for tweet {tweet_id}")
             web_data = self.web_scraper.get_tweet_data(tweet_url)
-            
+
             if web_data and web_data.get('text'):
                 success(f"[TwitterService] Web scraping successful, text length: {len(web_data['text'])}")
                 return self._create_tweet_from_web_data(web_data)
             else:
                 raise TwitterScrapingError(f"No valid tweet data found for {tweet_id}")
-                    
+
         except Exception as e:
             error(f"[TwitterService] Web scraping failed for {tweet_url}: {e}")
             raise TwitterScrapingError(f"Failed to fetch tweet {tweet_id} from {tweet_url}: {e}")
@@ -157,8 +223,31 @@ class TwitterService:
     def get_thread(self, tweet_id: str) -> List[Tweet]:
         if not tweet_id or not tweet_id.isdigit():
             raise ValueError(f"Invalid tweet ID: {tweet_id}")
+
+        if self.use_xreach:
+            try:
+                info(f"[TwitterService] Using xreach thread for {tweet_id}")
+                tweet_url = f"https://x.com/i/web/status/{tweet_id}"
+                items = self._run_xreach('thread', tweet_url)
+                if isinstance(items, list) and items:
+                    # Keep only the original author's tweets in the thread
+                    original_author = items[0].get('user', {}).get('screenName', '')
+                    thread_items = [
+                        item for item in items
+                        if item.get('user', {}).get('screenName') == original_author
+                        and item.get('conversationId') == tweet_id
+                    ]
+                    if not thread_items:
+                        thread_items = [items[0]]
+                    tweets = [self._xreach_item_to_tweet(item) for item in thread_items]
+                    tweets.sort(key=lambda t: t.created_at)
+                    success(f"[TwitterService] xreach thread returned {len(tweets)} tweets")
+                    return tweets
+            except Exception as e:
+                warning(f"[TwitterService] xreach thread failed for {tweet_id}, falling back: {e}")
+
         return [self.get_tweet(tweet_id)]
-    
+
     def get_thread_by_url(self, url: str) -> List[Tweet]:
         """
         Get tweet thread by URL

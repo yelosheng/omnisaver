@@ -143,6 +143,31 @@
             </div>
         </div>
 
+        <!-- Twitter / X Cookie -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-2" style="vertical-align:-2px"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.261 5.638 5.903-5.638zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    Twitter / X Cookie (xreach)
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">Enables logged-in scraping via xreach — access more content and avoid login walls. Export cookies from <a href="https://cookie-editor.cgagnier.ca/" target="_blank">Cookie-Editor</a> (Chrome extension) as JSON while logged in to x.com. Use a secondary account to reduce risk.</p>
+                <div id="twitter-cookie-status" class="mb-3"></div>
+                <div class="mb-3">
+                    <label class="form-label"><strong>Cookie JSON</strong></label>
+                    <textarea class="form-control font-monospace" id="twitter-cookie-json" rows="5"
+                              placeholder='Paste Cookie-Editor JSON export here...' style="font-size:0.8rem;"></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="saveTwitterCookies()">
+                        <i class="bi bi-check-lg"></i> Save Cookies
+                    </button>
+                </div>
+                <div id="twitter-cookie-result" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
         <!-- XHS Cookie Refresh -->
         <div class="card mb-4">
             <div class="card-header">
@@ -307,6 +332,56 @@ async function saveXhsCookies() {
     }
 }
 
+// ── Twitter Cookies ──────────────────────────────────────────────
+async function loadTwitterCookieStatus() {
+    const el = document.getElementById('twitter-cookie-status');
+    try {
+        const resp = await fetch('/api/twitter/cookie-status');
+        const d = await resp.json();
+        if (d.configured) {
+            el.innerHTML = `<span class="badge bg-success">Configured</span> <span class="text-muted small ms-2">auth_token: ${d.auth_token_preview}</span>`;
+        } else {
+            el.innerHTML = `<span class="badge bg-warning text-dark">Not configured</span> <span class="text-muted small ms-2">Using Playwright (no login)</span>`;
+        }
+    } catch (e) {
+        el.innerHTML = `<span class="text-danger small">Failed to check: ${e.message}</span>`;
+    }
+}
+
+async function saveTwitterCookies() {
+    const jsonStr = document.getElementById('twitter-cookie-json').value.trim();
+    const result = document.getElementById('twitter-cookie-result');
+    if (!jsonStr) { result.style.display = 'block'; result.innerHTML = '<span class="text-danger">Please paste cookie JSON first.</span>'; return; }
+    try {
+        JSON.parse(jsonStr);
+    } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = '<span class="text-danger">Invalid JSON format. Please export from Cookie-Editor as JSON.</span>';
+        return;
+    }
+    try {
+        const resp = await fetch('/api/twitter/cookies', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: jsonStr})
+        });
+        const data = await resp.json();
+        result.style.display = 'block';
+        if (data.success) {
+            result.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${data.message}</span>`;
+            document.getElementById('twitter-cookie-json').value = '';
+            loadTwitterCookieStatus();
+        } else {
+            result.innerHTML = `<span class="text-danger">${data.message}</span>`;
+        }
+        setTimeout(() => result.style.display = 'none', 5000);
+    } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
+    }
+}
+
+loadTwitterCookieStatus();
 loadXhsStatus();
 loadXhsCookieStatus();
 

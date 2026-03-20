@@ -584,7 +584,9 @@ def init_services():
         twitter_service = TwitterService(
             max_retries=config['max_retries'],
             timeout=config['timeout_seconds'],
-            use_playwright=config.get('use_playwright', True)
+            use_playwright=config.get('use_playwright', True),
+            xreach_auth_token=config_manager.get_twitter_auth_token(),
+            xreach_ct0=config_manager.get_twitter_ct0()
         )
         print(f"[init_services] TwitterService created: {twitter_service}")
         
@@ -2837,6 +2839,60 @@ def api_xhs_save_cookies():
             json.dump(cookies, f, ensure_ascii=False, indent=2)
 
         return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies.'})
+    except json.JSONDecodeError:
+        return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/twitter/cookie-status')
+@login_required
+def api_twitter_cookie_status():
+    """Check Twitter cookie configuration status."""
+    auth_token = config_manager.get_twitter_auth_token() if config_manager else None
+    ct0 = config_manager.get_twitter_ct0() if config_manager else None
+    configured = bool(auth_token and ct0)
+    return jsonify({
+        'configured': configured,
+        'auth_token_preview': (auth_token[:8] + '…') if auth_token else None,
+    })
+
+
+@app.route('/api/twitter/cookies', methods=['POST'])
+@login_required
+def api_twitter_save_cookies():
+    """Save Twitter cookies from Cookie-Editor JSON export.
+
+    Accepts a JSON array exported by Cookie-Editor. Extracts auth_token and ct0,
+    saves them to config.ini, and re-initialises TwitterService.
+    """
+    data = request.get_json()
+    if not data or not data.get('cookies'):
+        return jsonify({'success': False, 'message': 'No cookie data provided'}), 400
+
+    try:
+        cookies = json.loads(data['cookies'])
+        if not isinstance(cookies, list):
+            return jsonify({'success': False, 'message': 'Expected a JSON array of cookies'}), 400
+
+        cookie_map = {c['name']: c['value'] for c in cookies if 'name' in c and 'value' in c}
+        auth_token = cookie_map.get('auth_token', '')
+        ct0 = cookie_map.get('ct0', '')
+
+        if not auth_token or not ct0:
+            return jsonify({'success': False, 'message': 'auth_token or ct0 not found in cookie data'}), 400
+
+        config_manager.set_twitter_cookies(auth_token, ct0)
+
+        # Re-initialise TwitterService with the new credentials
+        global twitter_service
+        if twitter_service:
+            twitter_service.xreach_auth_token = auth_token
+            twitter_service.xreach_ct0 = ct0
+            import shutil
+            twitter_service.use_xreach = bool(shutil.which('xreach'))
+
+        return jsonify({'success': True, 'message': 'Twitter cookies saved.'})
     except json.JSONDecodeError:
         return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
     except Exception as e:

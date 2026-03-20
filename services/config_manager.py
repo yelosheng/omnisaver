@@ -69,6 +69,24 @@ class ConfigManager:
         """Get whether Playwright enables debug mode"""
         return self.config.getboolean('scraper', 'debug_mode', fallback=False)
 
+    def get_twitter_auth_token(self) -> Optional[str]:
+        """Get Twitter auth_token cookie for xreach"""
+        token = self.config.get('twitter', 'auth_token', fallback='')
+        return token if token else None
+
+    def get_twitter_ct0(self) -> Optional[str]:
+        """Get Twitter ct0 cookie for xreach"""
+        ct0 = self.config.get('twitter', 'ct0', fallback='')
+        return ct0 if ct0 else None
+
+    def set_twitter_cookies(self, auth_token: str, ct0: str) -> None:
+        """Persist Twitter auth_token and ct0 to config file"""
+        if 'twitter' not in self.config:
+            self.config['twitter'] = {}
+        self.config['twitter']['auth_token'] = auth_token
+        self.config['twitter']['ct0'] = ct0
+        self._save()
+
     def get_gemini_api_key(self) -> Optional[str]:
         """Get Gemini API key"""
         api_key = self.config.get('ai', 'gemini_api_key', fallback='')
