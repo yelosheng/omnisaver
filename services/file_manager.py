@@ -348,6 +348,12 @@ class FileManager:
                     else:
                         import html as _html
                         body = _html.escape(tweet.text).replace('\n', '<br>')
+                        # Auto-link bare URLs
+                        body = re.sub(
+                            r'(https?://[^\s<>&"]+)',
+                            r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>',
+                            body
+                        )
 
                     # Per-tweet media: use relative paths (view route will rewrite to /media/<id>/...)
                     media_html = ''
