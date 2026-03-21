@@ -17,10 +17,13 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 - Self-hosted — runs on any Linux box, NAS, or Raspberry Pi
 - No Twitter API key required — uses Playwright browser automation
 - **Multi-platform support:**
-  - **Twitter/X** — save tweets with all media
+  - **Twitter/X** — save tweets, full threads, long-form articles, and videos
   - **YouTube** — save video metadata, subtitles, and channel info
   - **XiaoHongShu (小红书)** — save image posts and videos via Telegram bot or REST API
   - **WeChat articles (微信公众号)** — save articles with images and formatting
+- **Full Twitter thread fetching** — when Twitter credentials are configured, entire reply chains are saved as a single archive with all media embedded inline
+- **Twitter long-form articles** — automatically detects and saves full article content from `/status/` URLs
+- **Twitter video downloads** — downloads videos via yt-dlp; authenticated downloads supported when credentials are configured
 - Unified URL input — paste any supported URL on the homepage; content type is auto-detected
 - Tampermonkey userscript adds save buttons on Twitter/X tweets and YouTube video pages/thumbnails
 - Saves content in multiple formats: plain text, Markdown, Reader-mode HTML
@@ -39,7 +42,10 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 
 ## 🚀 Quick Start
 
-**Prerequisites:** Python 3.7+. FFmpeg is optional (for video thumbnails).
+**Prerequisites:** Python 3.7+.
+
+- **yt-dlp** — required for Twitter/X and XiaoHongShu video downloads: `pip install yt-dlp` or follow [yt-dlp install guide](https://github.com/yt-dlp/yt-dlp#installation)
+- **FFmpeg** — optional, for video thumbnails
 
 ```bash
 # 1. Clone the repository
@@ -66,7 +72,9 @@ Open `http://localhost:6201` in your browser. Default login: `admin` / `admin`.
 
 > **Change the default password immediately after first login:** click the user menu (top-right) → **Change Password**.
 
-### Docker (Alternative)
+### Docker (Recommended for NAS / Home Server)
+
+Docker is the easiest deployment method. yt-dlp and FFmpeg are included in the image.
 
 ```bash
 # 1. Clone the repository
@@ -82,9 +90,18 @@ docker compose up -d
 # 4. Open http://localhost:6201
 ```
 
-All data (database, saved tweets, user credentials) is stored in `./docker-data/` on your host machine and persists across container restarts and rebuilds.
+All data (database, saved content, user credentials) is stored in `./docker-data/` on your host machine and persists across container restarts and rebuilds.
 
-> **Note:** The first build takes a few minutes — Playwright downloads Chromium (~200 MB) during the build.
+> **Note:** The first build takes several minutes — Playwright downloads Chromium (~200 MB) and yt-dlp is fetched during the build.
+
+**Custom port or save path** — edit `docker-compose.yml` before starting:
+
+```yaml
+ports:
+  - "8080:6201"          # change left side to use a different host port
+volumes:
+  - /mnt/nas/twitter:/app/saved_tweets  # point to your NAS or external drive
+```
 
 ---
 
@@ -108,6 +125,27 @@ The most convenient way to save content on a desktop browser. A Tampermonkey use
 If the server runs on the same machine as your browser, the default `http://localhost:6201` works out of the box. For a home server or NAS, use its local IP, e.g. `http://192.168.1.100:6201`.
 
 The script file is at `tampermonkey/twitter-saver.user.js`.
+
+---
+
+## 🔑 Twitter/X Credentials (Optional — Enables Full Thread Fetching)
+
+By default, the tool uses Playwright browser automation for scraping. Configuring Twitter cookies enables **xreach** — a faster scraper that fetches complete reply threads and supports authenticated video downloads.
+
+**What credentials unlock:**
+- Full thread fetching — entire self-reply chains saved as a single archive
+- Authenticated video downloads via yt-dlp
+- Faster scraping for single tweets
+
+**Setup (via web UI):**
+1. Log in to [x.com](https://x.com) in your browser
+2. Install [Cookie-Editor](https://cookie-editor.cgagnier.ca/) browser extension
+3. On x.com, click the Cookie-Editor icon → **Export** → **Export as JSON** → copy
+4. In the web UI, go to **Settings** → **Twitter/X Credentials** → paste the JSON → **Save**
+
+The tool extracts `auth_token` and `ct0` from the JSON and stores them in `config.ini`. Credentials persist across restarts.
+
+> **Note:** Twitter sessions expire after weeks or months. If thread fetching stops working, repeat the cookie export and re-paste in Settings.
 
 ---
 
@@ -299,6 +337,8 @@ Copy `config.ini.example` to `config.ini` and edit as needed.
 | `[scraper] use_playwright` | Use Playwright browser automation (recommended) | `true` |
 | `[scraper] headless` | Run browser in headless mode | `true` |
 | `[scraper] debug_mode` | Save screenshots on errors | `false` |
+| `[twitter] auth_token` | Twitter `auth_token` cookie (optional, enables xreach thread fetching) | unset |
+| `[twitter] ct0` | Twitter `ct0` cookie (required together with `auth_token`) | unset |
 | `[ai] gemini_api_key` | Gemini API key (optional, for AI tags) | unset |
 | `[ai] youtube_api_key` | YouTube Data API v3 key (optional, for channel avatars) | unset |
 | `[telegram] bot_token` | Telegram bot token (optional, for Telegram integration) | unset |

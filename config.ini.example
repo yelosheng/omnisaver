@@ -23,6 +23,14 @@ debug_mode = false
 # Get yours at https://console.anthropic.com/
 # claude_api_key = YOUR_CLAUDE_API_KEY_HERE
 
+[twitter]
+# Optional: Twitter/X cookies for enhanced scraping
+# When set, enables xreach for full thread fetching and authenticated video downloads
+# Easiest setup: go to /settings in the web UI and paste a Cookie-Editor JSON export
+# Or set manually:
+# auth_token = YOUR_TWITTER_AUTH_TOKEN
+# ct0 = YOUR_TWITTER_CT0
+
 [telegram]
 # Optional: Telegram bot token for receiving tweet URLs via Telegram
 # Create a bot at https://t.me/BotFather and paste the token here

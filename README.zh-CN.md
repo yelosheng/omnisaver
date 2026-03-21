@@ -17,10 +17,13 @@
 - 自托管部署，可运行于任意 Linux 设备、NAS 或树莓派
 - 无需 Twitter API 密钥，使用 Playwright 浏览器自动化抓取
 - **多平台支持：**
-  - **Twitter/X** —— 保存推文及所有媒体
+  - **Twitter/X** —— 保存推文、完整串推、长文 Article 和视频
   - **YouTube** —— 保存视频元数据、字幕和频道信息
   - **小红书（XHS）** —— 通过 Telegram 机器人或 REST API 保存图文帖和视频
   - **微信公众号** —— 保存文章全文、图片和排版
+- **完整串推抓取** —— 配置 Twitter 账号凭证后，自动获取整条回复链并将所有媒体内联嵌入存档
+- **Twitter 长文 Article 支持** —— 自动检测并保存 `/status/` URL 下的长文全文内容
+- **Twitter 视频下载** —— 通过 yt-dlp 下载视频；配置凭证后支持登录态下载
 - 统一 URL 输入 —— 在首页粘贴任意支持的链接，自动识别平台类型
 - 油猴脚本为 Twitter/X 推文和 YouTube 视频页面/缩略图添加保存按钮
 - 生成多格式内容文件：纯文本、Markdown、Reader-mode HTML
@@ -39,7 +42,10 @@
 
 ## 🚀 快速开始
 
-**前提条件：** Python 3.7+，FFmpeg 可选（用于视频缩略图）。
+**前提条件：** Python 3.7+。
+
+- **yt-dlp** —— Twitter/X 和小红书视频下载必需：`pip install yt-dlp` 或参考 [yt-dlp 安装说明](https://github.com/yt-dlp/yt-dlp#installation)
+- **FFmpeg** —— 可选，用于生成视频缩略图
 
 ```bash
 # 1. 克隆仓库
@@ -66,7 +72,9 @@ python run_web.py
 
 > **首次登录后请立即修改密码：** 点击右上角用户菜单 → **修改密码**。
 
-### Docker 部署（可选）
+### Docker 部署（推荐用于 NAS / 家庭服务器）
+
+Docker 是最简单的部署方式，镜像已内置 yt-dlp 和 FFmpeg。
 
 ```bash
 # 1. 克隆仓库
@@ -82,9 +90,18 @@ docker compose up -d
 # 4. 访问 http://localhost:6201
 ```
 
-所有数据（数据库、已保存推文、用户信息）均存储在宿主机的 `./docker-data/` 目录中，容器重启或重建后数据不会丢失。
+所有数据（数据库、已保存内容、用户信息）均存储在宿主机的 `./docker-data/` 目录中，容器重启或重建后数据不会丢失。
 
-> **注意：** 首次构建需要几分钟——Playwright 在构建过程中会下载 Chromium（约 200 MB）。
+> **注意：** 首次构建需要几分钟——Playwright 下载 Chromium（约 200 MB），yt-dlp 也会在构建时获取。
+
+**自定义端口或保存路径** —— 启动前编辑 `docker-compose.yml`：
+
+```yaml
+ports:
+  - "8080:6201"                          # 左侧改为你想要的宿主机端口
+volumes:
+  - /mnt/nas/twitter:/app/saved_tweets   # 指向 NAS 或外部存储
+```
 
 ---
 
@@ -108,6 +125,27 @@ docker compose up -d
 如果服务器与浏览器在同一台设备上，默认的 `http://localhost:6201` 即可使用。如果部署在家庭服务器或 NAS 上，填入设备的局域网地址，例如 `http://192.168.1.100:6201`。
 
 脚本文件位于 `tampermonkey/twitter-saver.user.js`。
+
+---
+
+## 🔑 Twitter/X 账号凭证（可选——启用完整串推抓取）
+
+默认情况下，本工具使用 Playwright 浏览器自动化抓取。配置 Twitter Cookie 后可启用 **xreach**——速度更快的抓取方式，支持完整串推获取和登录态视频下载。
+
+**配置后可解锁：**
+- 完整串推抓取——将整条自回复链存为单一存档（含所有内联媒体）
+- 通过 yt-dlp 的登录态视频下载
+- 单条推文抓取速度提升
+
+**配置步骤（通过 Web 界面）：**
+1. 在浏览器中登录 [x.com](https://x.com)
+2. 安装 [Cookie-Editor](https://cookie-editor.cgagnier.ca/) 浏览器扩展
+3. 在 x.com 页面点击 Cookie-Editor 图标 → **Export** → **Export as JSON** → 复制
+4. 在 Web 界面进入**设置** → **Twitter/X 凭证** → 粘贴 JSON → **保存**
+
+工具会自动从 JSON 中提取 `auth_token` 和 `ct0` 并写入 `config.ini`，重启后凭证保留。
+
+> **提示：** Twitter 会话通常在数周至数月后过期。如果串推抓取失效，重新导出 Cookie 并在设置页面粘贴即可。
 
 ---
 
@@ -317,6 +355,8 @@ saved_wechat/
 | `[scraper] use_playwright` | 使用 Playwright 浏览器自动化（推荐） | `true` |
 | `[scraper] headless` | 无头模式运行浏览器 | `true` |
 | `[scraper] debug_mode` | 调试模式，出错时保存截图 | `false` |
+| `[twitter] auth_token` | Twitter `auth_token` Cookie（可选，启用 xreach 串推抓取） | 未设置 |
+| `[twitter] ct0` | Twitter `ct0` Cookie（需与 `auth_token` 同时设置） | 未设置 |
 | `[ai] gemini_api_key` | Gemini API 密钥（可选，用于 AI 标签） | 未设置 |
 | `[ai] youtube_api_key` | YouTube Data API v3 密钥（可选，用于频道头像） | 未设置 |
 | `[telegram] bot_token` | Telegram 机器人令牌（可选，用于 Telegram 集成） | 未设置 |
