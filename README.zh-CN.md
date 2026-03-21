@@ -2,9 +2,9 @@
   <img src="telegram_avatar.png" alt="Twitter Saver" width="120">
 </div>
 
-# Twitter/X、YouTube、小红书 & 微信公众号内容归档工具
+# Twitter/X、YouTube、小红书、微信公众号 & 网页内容归档工具
 
-专为 NAS、家庭服务器或树莓派设计的自托管内容保存工具。一键将推文、YouTube 视频、小红书笔记和微信公众号文章（含图片和视频）存档到本地——无需 Twitter API 密钥。
+专为 NAS、家庭服务器或树莓派设计的自托管内容保存工具。一键将推文、YouTube 视频、小红书笔记、微信公众号文章和任意网页（含图片和视频）存档到本地——无需 Twitter API 密钥。
 
 ![Python](https://img.shields.io/badge/Python-3.7%2B-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![No API Key](https://img.shields.io/badge/Twitter%20API-不需要-brightgreen)
 
@@ -16,11 +16,12 @@
 
 - 自托管部署，可运行于任意 Linux 设备、NAS 或树莓派
 - 无需 Twitter API 密钥，使用 Playwright 浏览器自动化抓取
-- **多平台支持：**
+- **多平台支持（六大平台）：**
   - **Twitter/X** —— 保存推文、完整串推、长文 Article 和视频
   - **YouTube** —— 保存视频元数据、字幕和频道信息
   - **小红书（XHS）** —— 通过 Telegram 机器人或 REST API 保存图文帖和视频
   - **微信公众号** —— 保存文章全文、图片和排版
+  - **任意网页** —— 类 Pocket 稍后阅读功能，支持任意 `http/https` URL；使用 Firefox 阅读模式算法（Mozilla Readability.js）提取正文和图片
 - **完整串推抓取** —— 配置 Twitter 账号凭证后，自动获取整条回复链并将所有媒体内联嵌入存档
 - **Twitter 长文 Article 支持** —— 自动检测并保存 `/status/` URL 下的长文全文内容
 - **Twitter 视频下载** —— 通过 yt-dlp 下载视频；配置凭证后支持登录态下载
@@ -30,7 +31,7 @@
 - 保存完整元数据（作者信息、发布时间等）为 JSON
 - 内置任务队列与失败重试机制（指数退避）
 - Web UI 支持实时日志流、任务监控和内容浏览
-- 已保存页面显示平台标识（X、YouTube、小红书、微信）
+- 已保存页面显示平台标识（X、YouTube、小红书、微信、🌐 网页）
 - 支持瀑布加载和分页两种浏览模式（可切换）
 - 每条归档内容可生成唯一分享链接
 - 支持在 Web UI 用户菜单直接修改密码
@@ -285,6 +286,41 @@ curl -X POST http://localhost:6201/api/submit/youtube \
 
 ---
 
+## 🌐 网页稍后阅读
+
+将任意文章或网页保存为离线副本——类似 Pocket 或 Instapaper 的效果。
+
+### 保存网页
+
+**通过 Web UI** —— 在首页输入框粘贴任意 `http://` 或 `https://` 链接。
+
+**通过 Telegram 机器人** —— 发送任意非小红书/微信/YouTube/Twitter 的网页链接。
+
+**通过 REST API：**
+```bash
+curl -X POST http://localhost:6201/api/submit \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/article"}'
+```
+
+### 工作原理
+
+使用 Playwright 渲染完整页面（执行 JavaScript、触发懒加载图片），再运行 **Mozilla Readability.js**（与 Firefox 阅读模式相同的算法）提取干净的正文内容，并将图片下载到本地。
+
+### 输出结构
+
+```
+saved_tweets/
+└── YYYY/MM/YYYY-MM-DD_标题_hash/
+    ├── content.html       # 阅读模式 HTML（含内联图片）
+    ├── content.txt        # 纯文本
+    ├── content.md         # Markdown（含元数据头部）
+    ├── metadata.json      # 标题、作者、来源站点、发布日期、原文链接
+    └── images/            # 下载的图片
+```
+
+---
+
 ## 📰 微信公众号集成
 
 保存微信公众号文章的全文、图片和排版。
@@ -338,6 +374,7 @@ saved_wechat/
 - 包含 YouTube 链接的消息 → 加入保存队列
 - 包含小红书链接的消息 → 立即保存（参见小红书章节）
 - 包含微信文章链接的消息 → 加入保存队列
+- 其他任意 `http/https` 链接 → 作为网页稍后阅读任务加入队列
 - `/status` — 显示当前队列大小
 
 ---
@@ -383,7 +420,7 @@ saved_wechat/
 |---|---|
 | `/` | 提交任意支持的 URL 开始归档（自动识别平台） |
 | `/tasks` | 查看任务队列状态 |
-| `/saved` | 浏览和搜索已归档内容（Twitter、YouTube、小红书、微信） |
+| `/saved` | 浏览和搜索已归档内容（Twitter、YouTube、小红书、微信、网页） |
 | `/tags` | 管理 AI 生成的标签 |
 | `/retries` | 查看失败任务并手动重试 |
 | `/view/<slug>` | 通过分享链接查看归档内容 |

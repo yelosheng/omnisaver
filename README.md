@@ -2,9 +2,9 @@
   <img src="telegram_avatar.png" alt="Twitter Saver" width="120">
 </div>
 
-# Twitter/X, YouTube, XiaoHongShu & WeChat Content Saver
+# Twitter/X, YouTube, XiaoHongShu, WeChat & Web Content Saver
 
-A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive tweets, YouTube videos, XiaoHongShu (小红书) posts, and WeChat articles — including images and videos — to local storage with one click.
+A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive tweets, YouTube videos, XiaoHongShu (小红书) posts, WeChat articles, and any webpage — including images and videos — to local storage with one click.
 
 ![Python](https://img.shields.io/badge/Python-3.7%2B-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![No API Key](https://img.shields.io/badge/Twitter%20API-Not%20Required-brightgreen)
 
@@ -21,6 +21,7 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
   - **YouTube** — save video metadata, subtitles, and channel info
   - **XiaoHongShu (小红书)** — save image posts and videos via Telegram bot or REST API
   - **WeChat articles (微信公众号)** — save articles with images and formatting
+  - **Any webpage** — Pocket-style read-it-later for any `http/https` URL; uses Firefox Reader Mode algorithm (Mozilla Readability.js) to extract clean article content with images
 - **Full Twitter thread fetching** — when Twitter credentials are configured, entire reply chains are saved as a single archive with all media embedded inline
 - **Twitter long-form articles** — automatically detects and saves full article content from `/status/` URLs
 - **Twitter video downloads** — downloads videos via yt-dlp; authenticated downloads supported when credentials are configured
@@ -30,7 +31,7 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 - Saves complete metadata (author, timestamp, stats) as JSON
 - Built-in task queue with automatic retry on failure (exponential backoff)
 - Web UI with real-time log streaming, task monitoring, and content browsing
-- Saved page shows a platform badge (X, YouTube, 小红书, or WeChat) on each card
+- Saved page shows a platform badge (X, YouTube, 小红书, WeChat, or 🌐 Web) on each card
 - Supports infinite scroll and pagination (toggle per preference)
 - Each archived post gets a unique public share link (`/view/<slug>`)
 - Change password via the in-app user menu
@@ -293,6 +294,41 @@ Go to `/settings` in the web UI to configure an optional **YouTube Data API key*
 
 ---
 
+## 🌐 Web Page Read-It-Later
+
+Save any article or webpage for offline reading — works like Pocket or Instapaper.
+
+### Saving Web Pages
+
+**Via Web UI** — paste any `http://` or `https://` URL into the homepage input field.
+
+**Via Telegram bot** — send any webpage link that isn't XHS/WeChat/YouTube/Twitter.
+
+**Via REST API:**
+```bash
+curl -X POST http://localhost:6201/api/submit \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/article"}'
+```
+
+### How It Works
+
+Uses Playwright to render the page (executes JavaScript, triggers lazy-loaded images), then runs **Mozilla Readability.js** — the same algorithm as Firefox Reader Mode — to extract clean article content. Images are downloaded locally.
+
+### Web Page Output Structure
+
+```
+saved_tweets/
+└── YYYY/MM/YYYY-MM-DD_title_hash/
+    ├── content.html       # Reader-mode HTML with inline images
+    ├── content.txt        # Plain text
+    ├── content.md         # Markdown with metadata header
+    ├── metadata.json      # Title, author, sitename, published date, source URL
+    └── images/            # Downloaded images
+```
+
+---
+
 ## 📰 WeChat Article Integration
 
 Save WeChat public account articles (微信公众号文章) with full text, images, and formatting.
@@ -365,7 +401,7 @@ Visit `http://localhost:6201` after starting.
 |---|---|
 | `/` | Submit any supported URL to start archiving (auto-detects platform) |
 | `/tasks` | View task queue status |
-| `/saved` | Browse and search all archived content (Twitter, YouTube, XHS, WeChat) |
+| `/saved` | Browse and search all archived content (Twitter, YouTube, XHS, WeChat, Web) |
 | `/tags` | Manage AI-generated tags |
 | `/retries` | View failed tasks and retry manually |
 | `/view/<slug>` | View any archived post via share link |
@@ -373,6 +409,7 @@ Visit `http://localhost:6201` after starting.
 | `/telegram` | Telegram bot configuration |
 | `/settings` | YouTube API key and XHS auto-save configuration |
 | `/help` | Tampermonkey script installation guide |
+| `POST /api/submit` | Submit any URL — platform is auto-detected (JSON body: `{"url": "..."}`) |
 | `POST /api/submit/xhs` | Submit a XiaoHongShu URL (JSON body: `{"url": "..."}`) |
 | `POST /api/submit/youtube` | Submit a YouTube URL (JSON body: `{"url": "..."}`) |
 | `POST /api/submit/wechat` | Submit a WeChat article URL (JSON body: `{"url": "..."}`) |
