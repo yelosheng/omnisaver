@@ -29,13 +29,11 @@ _READABILITY_JS = Path(__file__).parent / 'Readability.js'
 class WebpageService:
     """Fetch any web page and save its main content for offline reading."""
 
-    SAVE_DIR = 'saved_web'
-
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
         if base_path is None:
             data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
             base_path = str(Path(data_dir) / 'saved_tweets')
-        self.base_path = Path(base_path) / self.SAVE_DIR
+        self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.create_date_folders = create_date_folders
 
