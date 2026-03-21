@@ -44,9 +44,12 @@ class WebpageService:
     _NOISE_SELECTORS = [
         'nav', 'aside', 'footer', 'header',
         '[class*="related"]', '[class*="recommend"]',
-        '[class*="ad"]', '[class*="promo"]',
+        '[class="advertisement"]', '[class*=" advertisement"]',
+        '[class*="adblock"]', '[class*="ad-slot"]', '[class*="ad-unit"]',
+        '[id*="ad-"]', '[id*="google_ad"]',
+        '[class*="promo"]',
         '[class*="newsletter"]', '[class*="subscribe"]',
-        '[class*="social"]', '[class*="share"]',
+        '[class*="social-share"]', '[class*="share-bar"]',
         '[class*="comment"]', '[class*="sidebar"]',
         'script', 'style', 'noscript',
     ]
