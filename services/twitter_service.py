@@ -1,5 +1,4 @@
 import json
-import re
 import shutil
 import subprocess
 from typing import List, Optional, Dict, Any
@@ -223,12 +222,12 @@ class TwitterService:
             conversation_id=web_data.get('conversation_id', web_data['id'])
         )
     
-    def _get_article_via_playwright(self, url: str):
-        """Use Playwright directly to check for article content. Returns (is_article, Tweet|None)."""
+    def _get_article_via_playwright(self, url: str) -> Optional[Tweet]:
+        """Use Playwright to check for article content. Returns Tweet if article detected, else None."""
         web_data = self.web_scraper.get_tweet_data(url)
         if web_data and web_data.get('is_article') and web_data.get('text'):
-            return True, self._create_tweet_from_web_data(web_data)
-        return False, None
+            return self._create_tweet_from_web_data(web_data)
+        return None
 
     def get_tweet_by_url(self, url: str) -> Tweet:
         """
@@ -279,14 +278,13 @@ class TwitterService:
                         current_id = next_item['id']
                     tweets = [self._xreach_item_to_tweet(item) for item in thread_items]
                     tweets.sort(key=lambda t: t.created_at)
-                    # If xreach returned a single tweet whose text is mostly/only a URL,
-                    # it's likely a Twitter Article tweet — fall back to Playwright which
-                    # can detect and extract the full article content.
-                    if self.use_playwright:
+                    # Single xreach result may be a Twitter Article (/status/ URL that renders
+                    # as long-form content). Multi-tweet results are real threads — skip check.
+                    if len(tweets) == 1 and self.use_playwright:
                         try:
                             status_url = f"https://x.com/i/web/status/{tweet_id}"
-                            is_art, pw_tweet = self._get_article_via_playwright(status_url)
-                            if is_art and pw_tweet:
+                            pw_tweet = self._get_article_via_playwright(status_url)
+                            if pw_tweet:
                                 success(f"[TwitterService] Playwright detected article content for {tweet_id}")
                                 return [pw_tweet]
                         except Exception as pw_err:
