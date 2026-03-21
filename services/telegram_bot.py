@@ -112,6 +112,13 @@ def _extract_youtube_url(text: str) -> Optional[str]:
     return m.group(0) if m else None
 
 
+def _extract_any_url(text: str) -> Optional[str]:
+    """Extract the first http/https URL from text."""
+    import re as _re
+    m = _re.search(r'https?://\S+', text)
+    return m.group(0).rstrip('.,)>»') if m else None
+
+
 # ---------------------------------------------------------------------------
 # Handlers (closures over submit_callback)
 # ---------------------------------------------------------------------------
@@ -251,8 +258,35 @@ def _make_handlers(submit_callback: Callable):
         # Twitter/X URL
         url = _extract_twitter_url(text)
         if not url:
+            # Generic webpage fallback — any http/https URL
+            from services.webpage_service import WebpageService
+            webpage_url = _extract_any_url(text)
+            if webpage_url and WebpageService.is_valid_webpage_url(webpage_url):
+                try:
+                    from app import processing_queue, get_db_connection, format_time_for_db, get_current_time
+                    conn = get_db_connection()
+                    existing = conn.execute('SELECT id, status FROM tasks WHERE url = ?', (webpage_url,)).fetchone()
+                    if existing:
+                        conn.close()
+                        await update.message.reply_text(
+                            f"⚠️ Already queued/saved (task #{existing['id']}, status: {existing['status']})"
+                        )
+                    else:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "INSERT INTO tasks (url, status, created_at, content_type) VALUES (?, 'pending', ?, 'webpage')",
+                            (webpage_url, format_time_for_db(get_current_time()))
+                        )
+                        task_id = cursor.lastrowid
+                        conn.commit()
+                        conn.close()
+                        processing_queue.put((task_id, webpage_url))
+                        await update.message.reply_text(f"✅ Added to queue (task #{task_id})")
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Webpage submit failed: {e}")
+                return
             await update.message.reply_text(
-                "❌ No Twitter/X, XiaoHongShu, WeChat, or YouTube URL found."
+                "❌ No supported URL found. Supports: Twitter/X, XiaoHongShu, WeChat, YouTube, or any webpage URL."
             )
             return
 
