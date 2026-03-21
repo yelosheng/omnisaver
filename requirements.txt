@@ -10,3 +10,4 @@ playwright>=1.40.0
 python-telegram-bot>=20.0markdown
 
 trafilatura>=1.6.0
+readability-lxml>=0.8.1

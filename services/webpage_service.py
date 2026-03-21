@@ -1,6 +1,7 @@
 """
 Pocket-style read-later service for arbitrary web pages.
-Uses trafilatura for main content extraction.
+Uses readability-lxml (Firefox Reader mode algorithm) for HTML extraction,
+trafilatura for plain-text and metadata.
 """
 
 import hashlib
@@ -24,6 +25,18 @@ class WebpageService:
 
     SAVE_DIR = 'saved_web'
 
+    # Common article container selectors (tried in order, first match wins)
+    _ARTICLE_SELECTORS = [
+        'article',
+        '[class*="article-body"]',
+        '[class*="article-content"]',
+        '[class*="entry-content"]',
+        '[class*="post-content"]',
+        '[class*="story-body"]',
+        '[itemprop="articleBody"]',
+        'main',
+    ]
+
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
         if base_path is None:
             data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
@@ -38,43 +51,52 @@ class WebpageService:
 
     def save_page(self, url: str) -> dict:
         """
-        Fetch a web page, extract its main content via trafilatura, and save locally.
+        Fetch a web page, extract its main content, and save locally.
+
+        Uses readability-lxml to extract clean article HTML (preserving images,
+        headings, lists, code blocks). Falls back to trafilatura for plain text.
 
         Files saved:
+          content.html  — reader-mode HTML (div.reader-content) for the view route
           content.txt   — plain text body
           content.md    — markdown with header
-          content.html  — reader-mode HTML (div.reader-content) for the view route
           metadata.json — title, author, sitename, published_date, source_url
-          images/       — downloaded images
-
-        Returns dict with keys: page_id, title, author, author_name, author_username,
-                                save_path, image_count, tweet_text
+          images/       — downloaded images (local paths replace remote URLs)
         """
+        try:
+            from readability import Document as ReadabilityDoc
+        except ImportError:
+            raise WebpageServiceError(
+                'readability-lxml is not installed. Run: pip install readability-lxml'
+            )
         try:
             import trafilatura
             from trafilatura.metadata import extract_metadata as _extract_meta
         except ImportError:
-            raise WebpageServiceError('trafilatura is not installed. Run: pip install trafilatura')
+            raise WebpageServiceError(
+                'trafilatura is not installed. Run: pip install trafilatura'
+            )
 
         info(f'[WebpageService] Fetching: {url}')
         downloaded = trafilatura.fetch_url(url)
         if not downloaded:
             raise WebpageServiceError(f'Failed to fetch URL: {url}')
 
-        # --- metadata ---
+        # --- metadata (trafilatura is best at this) ---
         meta = _extract_meta(downloaded)
-        title = (getattr(meta, 'title', None) or 'Untitled').strip()
+        title = (getattr(meta, 'title', None) or '').strip()
         author = (getattr(meta, 'author', None) or '').strip()
         sitename = (getattr(meta, 'sitename', None) or urllib.parse.urlparse(url).netloc).strip()
         published_date = (getattr(meta, 'date', None) or '').strip()
         description = (getattr(meta, 'description', None) or '').strip()
 
-        # --- extract content ---
-        common_opts = dict(include_images=True, include_links=True, include_tables=True, no_fallback=False)
-        md_content = trafilatura.extract(downloaded, output_format='markdown', **common_opts) or ''
-        html_content = trafilatura.extract(downloaded, output_format='html', **common_opts) or ''
+        # --- extract article HTML via readability-lxml ---
+        doc = ReadabilityDoc(downloaded)
+        if not title:
+            title = doc.title() or 'Untitled'
+        article_html = doc.summary(html_partial=True)  # clean article HTML fragment
 
-        if not md_content and not html_content:
+        if not article_html:
             raise WebpageServiceError(f'Could not extract readable content from: {url}')
 
         # --- build save directory ---
@@ -95,39 +117,39 @@ class WebpageService:
         post_dir = self.base_path / folder_name
         post_dir.mkdir(parents=True, exist_ok=True)
 
-        # --- download images ---
-        image_count = 0
-        if html_content:
-            html_content, image_count = self._download_images(html_content, post_dir, url)
+        # --- download images (replace src with local paths) ---
+        article_html, image_count = self._download_images(article_html, post_dir, url)
 
         # --- content.html ---
         reader_html = self._build_reader_html(
-            title, author, sitename, published_date, url,
-            html_content or f'<p>{description}</p>'
+            title, author, sitename, published_date, url, article_html
         )
         (post_dir / 'content.html').write_text(reader_html, encoding='utf-8')
 
+        # --- plain text via trafilatura (better than stripping HTML) ---
+        plain = trafilatura.extract(
+            downloaded, output_format='txt',
+            include_links=False, include_images=False, no_fallback=False
+        ) or ''
+        if not plain:
+            # strip tags as last resort
+            plain = re.sub(r'<[^>]+>', ' ', article_html)
+            plain = re.sub(r'\s+', ' ', plain).strip()
+        (post_dir / 'content.txt').write_text(plain, encoding='utf-8')
+
         # --- content.md ---
+        md_content = trafilatura.extract(
+            downloaded, output_format='markdown',
+            include_links=True, include_images=False, no_fallback=False
+        ) or plain
         header_lines = [f'# {title}', '']
         if author:
             header_lines.append(f'**Author**: {author}  ')
-        header_lines += [
-            f'**Site**: {sitename}  ',
-            f'**Source**: {url}  ',
-        ]
+        header_lines += [f'**Site**: {sitename}  ', f'**Source**: {url}  ']
         if published_date:
             header_lines.append(f'**Published**: {published_date}  ')
         header_lines += ['', '---', '', '']
         (post_dir / 'content.md').write_text('\n'.join(header_lines) + md_content, encoding='utf-8')
-
-        # --- content.txt ---
-        plain = re.sub(r'!\[[^\]]*\]\([^)]*\)', '', md_content)
-        plain = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', plain)
-        plain = re.sub(r'[#*`>_~]', '', plain)
-        plain = re.sub(r'\n{3,}', '\n\n', plain).strip()
-        if not plain:
-            plain = description
-        (post_dir / 'content.txt').write_text(plain, encoding='utf-8')
 
         # --- metadata.json ---
         metadata = {
@@ -145,7 +167,7 @@ class WebpageService:
             json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf-8'
         )
 
-        success(f'[WebpageService] Saved "{title}" to {post_dir}')
+        success(f'[WebpageService] Saved "{title}" → {post_dir} ({image_count} images)')
         return {
             'page_id': page_id,
             'title': title,
@@ -158,11 +180,14 @@ class WebpageService:
         }
 
     def _download_images(self, html_content: str, post_dir: Path, base_url: str):
-        """Download <img> src URLs, replace with local paths. Returns (updated_html, count)."""
+        """
+        Find all <img> tags in html_content, download each image to images/,
+        replace src with local relative path. Returns (updated_html, count).
+        """
         from bs4 import BeautifulSoup
 
         soup = BeautifulSoup(html_content, 'html.parser')
-        imgs = soup.find_all('img', src=True)
+        imgs = soup.find_all('img')
         if not imgs:
             return html_content, 0
 
@@ -171,30 +196,47 @@ class WebpageService:
 
         count = 0
         for idx, img in enumerate(imgs, 1):
-            src = img['src']
+            # Support lazy-loading: prefer data-src / data-lazy-src over src
+            src = (img.get('data-src') or img.get('data-lazy-src') or
+                   img.get('data-original') or img.get('src') or '').strip()
+
+            if not src or src.startswith('data:'):
+                continue  # skip inline data URIs
+
+            # Resolve relative URLs
             if src.startswith('//'):
                 src = 'https:' + src
             elif src.startswith('/'):
                 p = urllib.parse.urlparse(base_url)
                 src = f'{p.scheme}://{p.netloc}{src}'
             elif not src.startswith('http'):
-                continue  # skip data: URIs and other schemes
+                continue
 
+            # Strip query params from URL for extension detection
+            src_clean = src.split('?')[0]
             try:
                 req = urllib.request.Request(
                     src, headers={'User-Agent': 'Mozilla/5.0', 'Referer': base_url}
                 )
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     data = resp.read()
+                    if len(data) < 500:
+                        continue  # skip tiny placeholder images
                     ct = resp.headers.get('Content-Type', '')
                     ext = ('.png' if 'png' in ct else '.webp' if 'webp' in ct
                            else '.gif' if 'gif' in ct else '.jpg')
+                    if not ext and src_clean.lower().endswith(('.png', '.webp', '.gif')):
+                        ext = '.' + src_clean.rsplit('.', 1)[-1].lower()
                     fname = f'{idx:02d}{ext}'
                     (img_dir / fname).write_bytes(data)
                     img['src'] = f'images/{fname}'
+                    # Remove lazy-load attributes so the local src is used
+                    for attr in ('data-src', 'data-lazy-src', 'data-original'):
+                        if img.has_attr(attr):
+                            del img[attr]
                     count += 1
             except Exception as e:
-                warning(f'[WebpageService] Image {idx} download failed: {e}')
+                warning(f'[WebpageService] Image {idx} failed ({src[:60]}): {e}')
 
         return str(soup), count
 
@@ -217,7 +259,7 @@ class WebpageService:
 <body>
 <div class="reader-content">
 <h1>{title}</h1>
-<p class="article-meta" style="color:#888;font-size:0.9em;margin-bottom:1.5em">{meta_html}</p>
+<p style="color:#888;font-size:0.9em;margin-bottom:1.5em">{meta_html}</p>
 {body_html}
 </div>
 </body>
