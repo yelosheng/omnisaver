@@ -1664,6 +1664,14 @@ def show_tweet(slug):
             tweet_html
         )
 
+    # Webpage: rewrite relative image paths to /media/<task_id>/images/...
+    if content_type == 'webpage' and tweet_html:
+        tweet_html = re.sub(
+            r'src="(images/[^"]+)"',
+            lambda m: f'src="/media/{task_id}/{m.group(1)}"',
+            tweet_html
+        )
+
     # WeChat articles: render content.md as HTML with local image paths
     if content_type == 'wechat' and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
@@ -1747,9 +1755,9 @@ def show_tweet(slug):
         except Exception:
             pass
 
-    # WeChat/YouTube/thread-style tweet: media is already inline in HTML — suppress separate grid
+    # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube') and tweet_html
+        content_type in ('wechat', 'youtube', 'webpage') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
