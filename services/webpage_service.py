@@ -1,9 +1,12 @@
 """
 Pocket-style read-later service for arbitrary web pages.
-Uses readability-lxml (Firefox Reader mode algorithm) for HTML extraction,
-trafilatura for plain-text and metadata.
+Uses Playwright to render JS-heavy pages (triggers lazy-loaded images),
+then extracts the article via CSS selectors (article, main, etc.).
+Falls back to readability-lxml if no semantic container is found.
+trafilatura handles plain-text and metadata.
 """
 
+import asyncio
 import hashlib
 import json
 import os
@@ -13,7 +16,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from utils.realtime_logger import info, error, warning, success
+from utils.realtime_logger import info, warning, success
 
 
 class WebpageServiceError(Exception):
@@ -25,16 +28,27 @@ class WebpageService:
 
     SAVE_DIR = 'saved_web'
 
-    # Common article container selectors (tried in order, first match wins)
+    # Tried in order; first match with enough text wins
     _ARTICLE_SELECTORS = [
+        '[itemprop="articleBody"]',
         'article',
         '[class*="article-body"]',
         '[class*="article-content"]',
         '[class*="entry-content"]',
         '[class*="post-content"]',
         '[class*="story-body"]',
-        '[itemprop="articleBody"]',
         'main',
+    ]
+
+    # Tags inside the article to strip (nav, ads, related, etc.)
+    _NOISE_SELECTORS = [
+        'nav', 'aside', 'footer', 'header',
+        '[class*="related"]', '[class*="recommend"]',
+        '[class*="ad"]', '[class*="promo"]',
+        '[class*="newsletter"]', '[class*="subscribe"]',
+        '[class*="social"]', '[class*="share"]',
+        '[class*="comment"]', '[class*="sidebar"]',
+        'script', 'style', 'noscript',
     ]
 
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
@@ -53,8 +67,12 @@ class WebpageService:
         """
         Fetch a web page, extract its main content, and save locally.
 
-        Uses readability-lxml to extract clean article HTML (preserving images,
-        headings, lists, code blocks). Falls back to trafilatura for plain text.
+        Strategy:
+          1. Playwright renders the page (JS executed, lazy images loaded)
+          2. BeautifulSoup + CSS selectors extract the article element
+          3. Noise inside the article (ads, nav, related) is stripped
+          4. readability-lxml used as fallback if no semantic container found
+          5. trafilatura handles metadata and plain-text output
 
         Files saved:
           content.html  — reader-mode HTML (div.reader-content) for the view route
@@ -64,12 +82,6 @@ class WebpageService:
           images/       — downloaded images (local paths replace remote URLs)
         """
         try:
-            from readability import Document as ReadabilityDoc
-        except ImportError:
-            raise WebpageServiceError(
-                'readability-lxml is not installed. Run: pip install readability-lxml'
-            )
-        try:
             import trafilatura
             from trafilatura.metadata import extract_metadata as _extract_meta
         except ImportError:
@@ -78,26 +90,37 @@ class WebpageService:
             )
 
         info(f'[WebpageService] Fetching: {url}')
-        downloaded = trafilatura.fetch_url(url)
-        if not downloaded:
-            raise WebpageServiceError(f'Failed to fetch URL: {url}')
+
+        # --- render with Playwright ---
+        rendered_html = self._fetch_rendered_html(url)
+        if rendered_html:
+            info('[WebpageService] Using Playwright-rendered HTML')
+            page_html = rendered_html
+        else:
+            warning('[WebpageService] Playwright failed, falling back to static fetch')
+            page_html = trafilatura.fetch_url(url)
+            if not page_html:
+                raise WebpageServiceError(f'Failed to fetch URL: {url}')
 
         # --- metadata (trafilatura is best at this) ---
-        meta = _extract_meta(downloaded)
+        meta = _extract_meta(page_html)
         title = (getattr(meta, 'title', None) or '').strip()
         author = (getattr(meta, 'author', None) or '').strip()
         sitename = (getattr(meta, 'sitename', None) or urllib.parse.urlparse(url).netloc).strip()
         published_date = (getattr(meta, 'date', None) or '').strip()
         description = (getattr(meta, 'description', None) or '').strip()
 
-        # --- extract article HTML via readability-lxml ---
-        doc = ReadabilityDoc(downloaded)
-        if not title:
-            title = doc.title() or 'Untitled'
-        article_html = doc.summary(html_partial=True)  # clean article HTML fragment
+        # --- extract article HTML ---
+        article_html, used_method = self._extract_article_html(page_html, url)
+        info(f'[WebpageService] Extraction method: {used_method}')
 
         if not article_html:
             raise WebpageServiceError(f'Could not extract readable content from: {url}')
+
+        if not title:
+            # try to get title from page <title>
+            m = re.search(r'<title[^>]*>(.*?)</title>', page_html, re.I | re.S)
+            title = m.group(1).strip() if m else 'Untitled'
 
         # --- build save directory ---
         page_id = hashlib.md5(url.encode()).hexdigest()[:12]
@@ -126,20 +149,20 @@ class WebpageService:
         )
         (post_dir / 'content.html').write_text(reader_html, encoding='utf-8')
 
-        # --- plain text via trafilatura (better than stripping HTML) ---
+        # --- plain text via trafilatura ---
         plain = trafilatura.extract(
-            downloaded, output_format='txt',
+            page_html, output_format='txt',
             include_links=False, include_images=False, no_fallback=False
         ) or ''
         if not plain:
-            # strip tags as last resort
-            plain = re.sub(r'<[^>]+>', ' ', article_html)
-            plain = re.sub(r'\s+', ' ', plain).strip()
+            from bs4 import BeautifulSoup
+            plain = BeautifulSoup(article_html, 'html.parser').get_text(separator='\n')
+            plain = re.sub(r'\n{3,}', '\n\n', plain).strip()
         (post_dir / 'content.txt').write_text(plain, encoding='utf-8')
 
         # --- content.md ---
         md_content = trafilatura.extract(
-            downloaded, output_format='markdown',
+            page_html, output_format='markdown',
             include_links=True, include_images=False, no_fallback=False
         ) or plain
         header_lines = [f'# {title}', '']
@@ -179,10 +202,100 @@ class WebpageService:
             'tweet_text': plain[:500] if plain else description[:500],
         }
 
+    def _extract_article_html(self, page_html: str, url: str) -> tuple[str, str]:
+        """
+        Extract the main article HTML from the page.
+        Returns (html_fragment, method_name).
+        Tries CSS selectors first, falls back to readability-lxml.
+        """
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(page_html, 'html.parser')
+
+        # Try semantic selectors
+        for sel in self._ARTICLE_SELECTORS:
+            el = soup.select_one(sel)
+            if not el:
+                continue
+            # Strip noise inside the container
+            for noise_sel in self._NOISE_SELECTORS:
+                for noise in el.select(noise_sel):
+                    noise.decompose()
+            text = el.get_text()
+            if len(text.strip()) > 200:  # must have meaningful content
+                return str(el), f'selector:{sel}'
+
+        # Fall back to readability-lxml
+        try:
+            from readability import Document as ReadabilityDoc
+            doc = ReadabilityDoc(page_html)
+            html = doc.summary(html_partial=True)
+            if html and len(html) > 200:
+                return html, 'readability-lxml'
+        except Exception:
+            pass
+
+        return '', 'none'
+
+    def _fetch_rendered_html(self, url: str) -> str | None:
+        """
+        Use Playwright to render the page with JavaScript, scroll to trigger
+        lazy-loaded images, and return the full rendered HTML.
+        Returns None if Playwright is unavailable or fails.
+        """
+        try:
+            return asyncio.run(self._async_fetch_rendered_html(url))
+        except Exception as e:
+            warning(f'[WebpageService] Playwright fetch failed: {e}')
+            return None
+
+    async def _async_fetch_rendered_html(self, url: str) -> str:
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu',
+                      '--disable-blink-features=AutomationControlled']
+            )
+            context = await browser.new_context(
+                user_agent=(
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/120.0.0.0 Safari/537.36'
+                ),
+                viewport={'width': 1280, 'height': 900},
+                locale='en-US',
+            )
+            page = await context.new_page()
+            try:
+                await page.goto(url, wait_until='networkidle', timeout=30000)
+                # Scroll to trigger lazy-loaded images
+                await page.evaluate("""
+                    async () => {
+                        await new Promise(resolve => {
+                            let y = 0;
+                            const timer = setInterval(() => {
+                                window.scrollBy(0, 400);
+                                y += 400;
+                                if (y >= document.body.scrollHeight) {
+                                    clearInterval(timer);
+                                    window.scrollTo(0, 0);
+                                    resolve();
+                                }
+                            }, 100);
+                        });
+                    }
+                """)
+                await page.wait_for_timeout(1000)
+                html = await page.content()
+            finally:
+                await browser.close()
+            return html
+
     def _download_images(self, html_content: str, post_dir: Path, base_url: str):
         """
-        Find all <img> tags in html_content, download each image to images/,
-        replace src with local relative path. Returns (updated_html, count).
+        Find all <img> tags, download to images/, replace src with local path.
+        Returns (updated_html, count).
         """
         from bs4 import BeautifulSoup
 
@@ -196,14 +309,12 @@ class WebpageService:
 
         count = 0
         for idx, img in enumerate(imgs, 1):
-            # Support lazy-loading: prefer data-src / data-lazy-src over src
             src = (img.get('data-src') or img.get('data-lazy-src') or
                    img.get('data-original') or img.get('src') or '').strip()
 
             if not src or src.startswith('data:'):
-                continue  # skip inline data URIs
+                continue
 
-            # Resolve relative URLs
             if src.startswith('//'):
                 src = 'https:' + src
             elif src.startswith('/'):
@@ -212,7 +323,6 @@ class WebpageService:
             elif not src.startswith('http'):
                 continue
 
-            # Strip query params from URL for extension detection
             src_clean = src.split('?')[0]
             try:
                 req = urllib.request.Request(
@@ -221,7 +331,7 @@ class WebpageService:
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     data = resp.read()
                     if len(data) < 500:
-                        continue  # skip tiny placeholder images
+                        continue  # skip tiny placeholders
                     ct = resp.headers.get('Content-Type', '')
                     ext = ('.png' if 'png' in ct else '.webp' if 'webp' in ct
                            else '.gif' if 'gif' in ct else '.jpg')
@@ -230,7 +340,6 @@ class WebpageService:
                     fname = f'{idx:02d}{ext}'
                     (img_dir / fname).write_bytes(data)
                     img['src'] = f'images/{fname}'
-                    # Remove lazy-load attributes so the local src is used
                     for attr in ('data-src', 'data-lazy-src', 'data-original'):
                         if img.has_attr(attr):
                             del img[attr]
