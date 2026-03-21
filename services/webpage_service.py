@@ -1,9 +1,8 @@
 """
 Pocket-style read-later service for arbitrary web pages.
-Uses Playwright to render JS-heavy pages (triggers lazy-loaded images),
-then extracts the article via CSS selectors (article, main, etc.).
-Falls back to readability-lxml if no semantic container is found.
-trafilatura handles plain-text and metadata.
+Uses Playwright to render the page, then runs Mozilla's Readability.js
+(the same algorithm as Firefox Reader Mode) in the browser context.
+trafilatura handles metadata and plain-text output.
 """
 
 import asyncio
@@ -23,36 +22,14 @@ class WebpageServiceError(Exception):
     pass
 
 
+# Path to bundled Readability.js (Mozilla, same as Firefox Reader Mode)
+_READABILITY_JS = Path(__file__).parent / 'Readability.js'
+
+
 class WebpageService:
     """Fetch any web page and save its main content for offline reading."""
 
     SAVE_DIR = 'saved_web'
-
-    # Tried in order; first match with enough text wins
-    _ARTICLE_SELECTORS = [
-        '[itemprop="articleBody"]',
-        'article',
-        '[class*="article-body"]',
-        '[class*="article-content"]',
-        '[class*="entry-content"]',
-        '[class*="post-content"]',
-        '[class*="story-body"]',
-        'main',
-    ]
-
-    # Tags inside the article to strip (nav, ads, related, etc.)
-    _NOISE_SELECTORS = [
-        'nav', 'aside', 'footer', 'header',
-        '[class*="related"]', '[class*="recommend"]',
-        '[class="advertisement"]', '[class*=" advertisement"]',
-        '[class*="adblock"]', '[class*="ad-slot"]', '[class*="ad-unit"]',
-        '[id*="ad-"]', '[id*="google_ad"]',
-        '[class*="promo"]',
-        '[class*="newsletter"]', '[class*="subscribe"]',
-        '[class*="social-share"]', '[class*="share-bar"]',
-        '[class*="comment"]', '[class*="sidebar"]',
-        'script', 'style', 'noscript',
-    ]
 
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
         if base_path is None:
@@ -72,13 +49,11 @@ class WebpageService:
 
         Strategy:
           1. Playwright renders the page (JS executed, lazy images loaded)
-          2. BeautifulSoup + CSS selectors extract the article element
-          3. Noise inside the article (ads, nav, related) is stripped
-          4. readability-lxml used as fallback if no semantic container found
-          5. trafilatura handles metadata and plain-text output
+          2. Mozilla Readability.js runs in the browser — same as Firefox Reader Mode
+          3. trafilatura handles metadata and plain-text output
 
         Files saved:
-          content.html  — reader-mode HTML (div.reader-content) for the view route
+          content.html  — reader-mode HTML (div.reader-content)
           content.txt   — plain text body
           content.md    — markdown with header
           metadata.json — title, author, sitename, published_date, source_url
@@ -94,36 +69,40 @@ class WebpageService:
 
         info(f'[WebpageService] Fetching: {url}')
 
-        # --- render with Playwright ---
-        rendered_html = self._fetch_rendered_html(url)
-        if rendered_html:
-            info('[WebpageService] Using Playwright-rendered HTML')
-            page_html = rendered_html
-        else:
-            warning('[WebpageService] Playwright failed, falling back to static fetch')
-            page_html = trafilatura.fetch_url(url)
-            if not page_html:
-                raise WebpageServiceError(f'Failed to fetch URL: {url}')
+        # --- render with Playwright + run Readability.js in browser ---
+        result = self._fetch_with_readability(url)
+        if not result:
+            raise WebpageServiceError(f'Failed to fetch or extract content from: {url}')
 
-        # --- metadata (trafilatura is best at this) ---
-        meta = _extract_meta(page_html)
-        title = (getattr(meta, 'title', None) or '').strip()
-        author = (getattr(meta, 'author', None) or '').strip()
-        sitename = (getattr(meta, 'sitename', None) or urllib.parse.urlparse(url).netloc).strip()
-        published_date = (getattr(meta, 'date', None) or '').strip()
-        description = (getattr(meta, 'description', None) or '').strip()
-
-        # --- extract article HTML ---
-        article_html, used_method = self._extract_article_html(page_html, url)
-        info(f'[WebpageService] Extraction method: {used_method}')
+        article_html = result.get('content', '')
+        title = (result.get('title') or '').strip()
+        author = (result.get('byline') or '').strip()
+        excerpt = (result.get('excerpt') or '').strip()
 
         if not article_html:
-            raise WebpageServiceError(f'Could not extract readable content from: {url}')
+            raise WebpageServiceError(f'Readability.js extracted no content from: {url}')
 
+        # --- metadata from trafilatura (better date/sitename extraction) ---
+        # Use a static fetch just for metadata (much faster than a second Playwright load)
+        static_html = trafilatura.fetch_url(url) or ''
+        if static_html:
+            meta = _extract_meta(static_html)
+            if not title:
+                title = (getattr(meta, 'title', None) or '').strip()
+            if not author:
+                author = (getattr(meta, 'author', None) or '').strip()
+            sitename = (getattr(meta, 'sitename', None) or '').strip()
+            published_date = (getattr(meta, 'date', None) or '').strip()
+            description = (getattr(meta, 'description', None) or excerpt).strip()
+        else:
+            sitename = ''
+            published_date = ''
+            description = excerpt
+
+        if not sitename:
+            sitename = urllib.parse.urlparse(url).netloc
         if not title:
-            # try to get title from page <title>
-            m = re.search(r'<title[^>]*>(.*?)</title>', page_html, re.I | re.S)
-            title = m.group(1).strip() if m else 'Untitled'
+            title = 'Untitled'
 
         # --- build save directory ---
         page_id = hashlib.md5(url.encode()).hexdigest()[:12]
@@ -152,11 +131,13 @@ class WebpageService:
         )
         (post_dir / 'content.html').write_text(reader_html, encoding='utf-8')
 
-        # --- plain text via trafilatura ---
-        plain = trafilatura.extract(
-            page_html, output_format='txt',
-            include_links=False, include_images=False, no_fallback=False
-        ) or ''
+        # --- plain text ---
+        plain = ''
+        if static_html:
+            plain = trafilatura.extract(
+                static_html, output_format='txt',
+                include_links=False, include_images=False, no_fallback=False
+            ) or ''
         if not plain:
             from bs4 import BeautifulSoup
             plain = BeautifulSoup(article_html, 'html.parser').get_text(separator='\n')
@@ -164,10 +145,14 @@ class WebpageService:
         (post_dir / 'content.txt').write_text(plain, encoding='utf-8')
 
         # --- content.md ---
-        md_content = trafilatura.extract(
-            page_html, output_format='markdown',
-            include_links=True, include_images=False, no_fallback=False
-        ) or plain
+        md_content = ''
+        if static_html:
+            md_content = trafilatura.extract(
+                static_html, output_format='markdown',
+                include_links=True, include_images=False, no_fallback=False
+            ) or ''
+        if not md_content:
+            md_content = plain
         header_lines = [f'# {title}', '']
         if author:
             header_lines.append(f'**Author**: {author}  ')
@@ -205,55 +190,23 @@ class WebpageService:
             'tweet_text': plain[:500] if plain else description[:500],
         }
 
-    def _extract_article_html(self, page_html: str, url: str) -> tuple[str, str]:
+    def _fetch_with_readability(self, url: str) -> dict | None:
         """
-        Extract the main article HTML from the page.
-        Returns (html_fragment, method_name).
-        Tries CSS selectors first, falls back to readability-lxml.
-        """
-        from bs4 import BeautifulSoup
-
-        soup = BeautifulSoup(page_html, 'html.parser')
-
-        # Try semantic selectors
-        for sel in self._ARTICLE_SELECTORS:
-            el = soup.select_one(sel)
-            if not el:
-                continue
-            # Strip noise inside the container
-            for noise_sel in self._NOISE_SELECTORS:
-                for noise in el.select(noise_sel):
-                    noise.decompose()
-            text = el.get_text()
-            if len(text.strip()) > 200:  # must have meaningful content
-                return str(el), f'selector:{sel}'
-
-        # Fall back to readability-lxml
-        try:
-            from readability import Document as ReadabilityDoc
-            doc = ReadabilityDoc(page_html)
-            html = doc.summary(html_partial=True)
-            if html and len(html) > 200:
-                return html, 'readability-lxml'
-        except Exception:
-            pass
-
-        return '', 'none'
-
-    def _fetch_rendered_html(self, url: str) -> str | None:
-        """
-        Use Playwright to render the page with JavaScript, scroll to trigger
-        lazy-loaded images, and return the full rendered HTML.
-        Returns None if Playwright is unavailable or fails.
+        Use Playwright to render the page, inject Mozilla Readability.js,
+        and run it in the browser context. Returns the parsed article dict
+        (title, content, byline, excerpt, etc.) or None on failure.
         """
         try:
-            return asyncio.run(self._async_fetch_rendered_html(url))
+            return asyncio.run(self._async_fetch_with_readability(url))
         except Exception as e:
-            warning(f'[WebpageService] Playwright fetch failed: {e}')
+            warning(f'[WebpageService] Readability fetch failed: {e}')
             return None
 
-    async def _async_fetch_rendered_html(self, url: str) -> str:
+    async def _async_fetch_with_readability(self, url: str) -> dict:
         from playwright.async_api import async_playwright
+
+        readability_src = _READABILITY_JS.read_text(encoding='utf-8')
+
         async with async_playwright() as p:
             browser = await p.chromium.launch(
                 headless=True,
@@ -290,10 +243,20 @@ class WebpageService:
                     }
                 """)
                 await page.wait_for_timeout(1000)
-                html = await page.content()
+
+                # Inject and run Readability.js in the browser
+                await page.add_script_tag(content=readability_src)
+                article = await page.evaluate("""
+                    () => {
+                        var doc = document.cloneNode(true);
+                        var reader = new Readability(doc);
+                        return reader.parse();
+                    }
+                """)
             finally:
                 await browser.close()
-            return html
+
+            return article
 
     def _download_images(self, html_content: str, post_dir: Path, base_url: str):
         """
@@ -334,7 +297,7 @@ class WebpageService:
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     data = resp.read()
                     if len(data) < 500:
-                        continue  # skip tiny placeholders
+                        continue
                     ct = resp.headers.get('Content-Type', '')
                     ext = ('.png' if 'png' in ct else '.webp' if 'webp' in ct
                            else '.gif' if 'gif' in ct else '.jpg')
@@ -354,7 +317,6 @@ class WebpageService:
 
     def _build_reader_html(self, title: str, author: str, sitename: str,
                            published_date: str, url: str, body_html: str) -> str:
-        """Build content.html with div.reader-content for the view route."""
         meta_parts = []
         if author:
             meta_parts.append(f'<span>{author}</span>')
