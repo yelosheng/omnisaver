@@ -307,7 +307,7 @@ class WebpageService:
                     fname = f'{idx:02d}{ext}'
                     (img_dir / fname).write_bytes(data)
                     img['src'] = f'images/{fname}'
-                    for attr in ('data-src', 'data-lazy-src', 'data-original'):
+                    for attr in ('srcset', 'data-srcset', 'data-src', 'data-lazy-src', 'data-original'):
                         if img.has_attr(attr):
                             del img[attr]
                     count += 1
