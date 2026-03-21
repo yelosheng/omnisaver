@@ -29,6 +29,7 @@ from services.user_manager import UserManager
 from services.xhs_service import XHSService, XHSServiceError
 from services.wechat_service import WechatService, WechatServiceError
 from services.youtube_service import YoutubeService, YoutubeServiceError
+from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
 
 app = Flask(__name__)
@@ -1056,6 +1057,8 @@ def queue_processor():
                     process_wechat_task(task_id, url)
                 elif _content_type == 'youtube':
                     process_youtube_task(task_id, url)
+                elif _content_type == 'webpage':
+                    process_webpage_task(task_id, url)
                 else:
                     process_tweet_task(task_id, url)
                 # 检查任务实际状态来确定是否成功
@@ -1200,8 +1203,10 @@ def submit_url():
         if extracted and XHSService.is_valid_xhs_url(extracted):
             url = extracted
             content_type = 'xhs'
+        elif WebpageService.is_valid_webpage_url(url):
+            content_type = 'webpage'
         else:
-            return jsonify({'success': False, 'message': 'Unsupported URL. Supported: Twitter/X, YouTube, XiaoHongShu, WeChat articles'})
+            return jsonify({'success': False, 'message': 'Unsupported URL. Please enter a valid http/https URL.'})
 
     # Normalize XHS URL
     if content_type == 'xhs':
@@ -2546,26 +2551,42 @@ def api_submit():
                 ]
             }), 400
         
-        # 验证URL格式
-        if not TwitterURLParser.is_valid_twitter_url(url):
-            return jsonify({
-                'success': False,
-                'error': 'Invalid Twitter URL',
-                'message': f'Invalid Twitter URL: {url}',
-                'url': url
-            }), 400
-        
+        # Detect content type (same logic as submit_url)
+        _ct = 'tweet'
+        if YoutubeService.is_valid_youtube_url(url):
+            _ct = 'youtube'
+        elif XHSService.is_valid_xhs_url(url):
+            _ct = 'xhs'
+        elif WechatService.is_valid_wechat_url(url):
+            _ct = 'wechat'
+        elif TwitterURLParser.is_valid_twitter_url(url):
+            _ct = 'tweet'
+        else:
+            extracted = XHSService.extract_url_from_share_text(url)
+            if extracted and XHSService.is_valid_xhs_url(extracted):
+                url = extracted
+                _ct = 'xhs'
+            elif WebpageService.is_valid_webpage_url(url):
+                _ct = 'webpage'
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Unsupported URL',
+                    'message': f'Cannot process URL: {url}',
+                    'url': url
+                }), 400
+
         # 检查URL是否已存在
         conn = get_db_connection()
         existing_task = conn.execute(
             'SELECT id, status FROM tasks WHERE url = ?', (url,)
         ).fetchone()
-        
+
         if existing_task:
             task_id = existing_task['id']
             status = existing_task['status']
             conn.close()
-            
+
             return jsonify({
                 'success': True,
                 'message': f'Task already exists (status: {status})',
@@ -2574,20 +2595,20 @@ def api_submit():
                 'status': status,
                 'duplicate': True
             }), 200
-        
+
         # 创建新任务
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO tasks (url, status, created_at) VALUES (?, ?, ?)',
-            (url, 'pending', format_time_for_db(get_current_time()))
+            'INSERT INTO tasks (url, status, created_at, content_type) VALUES (?, ?, ?, ?)',
+            (url, 'pending', format_time_for_db(get_current_time()), _ct)
         )
         task_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        
+
         # 添加到处理队列
         enqueue_task(task_id, url)
-        info(f"[API Submit] Added task {task_id} to queue. Queue size: {processing_queue.qsize()}")
+        info(f"[API Submit] Added {_ct} task {task_id} to queue. Queue size: {processing_queue.qsize()}")
         
         return jsonify({
             'success': True,
@@ -3130,6 +3151,58 @@ def make_youtube_service() -> YoutubeService:
     yt_api_key = config_manager.get_youtube_api_key() if config_manager else None
     return YoutubeService(base_path, create_date_folders=create_date_folders,
                           youtube_api_key=yt_api_key)
+
+
+def make_webpage_service() -> WebpageService:
+    """Instantiate WebpageService with the configured save path."""
+    base_path = config_manager.get_save_path() if config_manager else os.path.join(DATA_DIR, 'saved_tweets')
+    return WebpageService(base_path)
+
+
+def process_webpage_task(task_id: int, url: str):
+    """Queue worker handler for generic web page tasks."""
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            'UPDATE tasks SET status = ?, processed_at = ? WHERE id = ?',
+            ('processing', format_time_for_db(get_current_time()), task_id)
+        )
+        conn.commit()
+        conn.close()
+
+        svc = make_webpage_service()
+        result = svc.save_page(url)
+        slug = generate_unique_slug()
+        now = format_time_for_db(get_current_time())
+
+        conn = get_db_connection()
+        conn.execute(
+            '''UPDATE tasks SET status='completed', processed_at=?, tweet_id=?,
+               author_username=?, author_name=?, save_path=?, tweet_text=?,
+               share_slug=?, media_count=?, content_type='webpage' WHERE id=?''',
+            (now, result.get('page_id', ''),
+             result.get('author_username', ''), result.get('author_name', ''),
+             result.get('save_path', ''), result.get('tweet_text', '')[:500],
+             slug, result.get('image_count', 0),
+             task_id)
+        )
+        full_text = _read_full_text(result.get('save_path', '')) or result.get('tweet_text', '')
+        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text)
+        conn.commit()
+        conn.close()
+        success(f'[Webpage Task {task_id}] Saved: {result["title"]}')
+    except Exception as e:
+        error(f'[Webpage Task {task_id}] Failed: {e}')
+        try:
+            conn2 = get_db_connection()
+            conn2.execute(
+                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
+                (str(e)[:500], task_id)
+            )
+            conn2.commit()
+            conn2.close()
+        except Exception:
+            pass
 
 
 @app.route('/api/submit/youtube', methods=['POST'])
