@@ -1633,18 +1633,15 @@ def show_tweet(slug):
             with open(content_html_file, 'r', encoding='utf-8') as f:
                 html_content = f.read()
                 # 提取HTML文件中的推文内容部分（去掉HTML文档结构）
-                # 提取<div class="reader-content">内的内容
-                content_match = re.search(r'<div class="reader-content">(.*?)</div>', html_content, re.DOTALL)
-                if content_match:
-                    tweet_html = content_match.group(1).strip()
+                from bs4 import BeautifulSoup as _BS
+                _soup = _BS(html_content, 'html.parser')
+                _reader = _soup.find('div', class_='reader-content')
+                if _reader:
+                    tweet_html = str(_reader)
                     print(f"[DEBUG] Successfully loaded Reader mode content, length: {len(tweet_html)}")
                 else:
-                    # 备用：使用完整的body内容
-                    body_match = re.search(r'<body>(.*?)</body>', html_content, re.DOTALL)
-                    if body_match:
-                        tweet_html = body_match.group(1).strip()
-                    else:
-                        tweet_html = html_content
+                    _body = _soup.find('body')
+                    tweet_html = str(_body) if _body else html_content
                     print(f"[DEBUG] Using fallback HTML content, length: {len(tweet_html)}")
         except Exception as e:
             print(f"[DEBUG] Failed to read HTML file: {e}")
