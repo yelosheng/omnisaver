@@ -1,7 +1,9 @@
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -224,14 +226,21 @@ class XHSService:
 
     @staticmethod
     def _download_video(post_url: str, output_dir: Path):
-        # Use a fixed filename to avoid URL-unsafe characters (spaces, #, etc.)
-        result = subprocess.run(
-            ['yt-dlp', '-o', str(output_dir / 'video.%(ext)s'),
-             '--no-playlist', post_url],
-            capture_output=True, text=True, timeout=120
-        )
-        if result.returncode != 0:
-            raise XHSServiceError(f'yt-dlp failed: {result.stderr.strip()[:200]}')
+        # Download to /tmp first to avoid NAS I/O errors during ffmpeg merge
+        tmp_dir = tempfile.mkdtemp(prefix='xhs_dl_')
+        try:
+            result = subprocess.run(
+                ['yt-dlp', '-o', os.path.join(tmp_dir, 'video.%(ext)s'),
+                 '--no-playlist', '--merge-output-format', 'mp4', post_url],
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode != 0:
+                raise XHSServiceError(f'yt-dlp failed: {result.stderr.strip()[:200]}')
+            # Move downloaded file(s) to final output_dir
+            for fname in os.listdir(tmp_dir):
+                shutil.move(os.path.join(tmp_dir, fname), str(output_dir / fname))
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # ------------------------------------------------------------------
     # Main entry point
