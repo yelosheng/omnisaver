@@ -490,11 +490,17 @@ def init_db():
     _fts_exists = cursor.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks_fts'"
     ).fetchone()
-    _need_recreate = _fts_exists and ("content=''" in (_fts_exists[0] or '') or 'trigram' not in (_fts_exists[0] or ''))
+    _fts_sql = _fts_exists[0] if _fts_exists else ''
+    _need_recreate = _fts_exists and (
+        "content=''" in _fts_sql or
+        'trigram' not in _fts_sql or
+        'title' not in _fts_sql
+    )
     if _need_recreate:
         cursor.execute('DROP TABLE IF EXISTS tasks_fts')
     cursor.execute('''
         CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
+            title,
             author_name,
             author_username,
             full_text,
@@ -507,12 +513,14 @@ def init_db():
     conn.close()
 
 
-def fts_upsert(conn, task_id, author_name, author_username, full_text):
+def fts_upsert(conn, task_id, author_name, author_username, full_text, title=''):
     """Insert or replace a row in the FTS5 index."""
     # Delete old entry if exists, then insert new one
     conn.execute('DELETE FROM tasks_fts WHERE rowid = ?', (task_id,))
-    conn.execute('INSERT INTO tasks_fts(rowid, author_name, author_username, full_text) VALUES(?, ?, ?, ?)',
-                 (task_id, author_name or '', author_username or '', full_text or ''))
+    conn.execute(
+        'INSERT INTO tasks_fts(rowid, title, author_name, author_username, full_text) VALUES(?, ?, ?, ?, ?)',
+        (task_id, title or '', author_name or '', author_username or '', full_text or '')
+    )
 
 
 def _read_full_text(save_path):
@@ -524,6 +532,21 @@ def _read_full_text(save_path):
         try:
             with open(content_path, 'r', encoding='utf-8') as f:
                 return f.read().strip()
+        except Exception:
+            pass
+    return ''
+
+
+def _read_title(save_path):
+    """Read title from metadata.json for FTS indexing."""
+    if not save_path:
+        return ''
+    meta_path = os.path.join(save_path, 'metadata.json')
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, encoding='utf-8') as f:
+                meta = json.loads(f.read())
+            return (meta.get('title') or '').strip()
         except Exception:
             pass
     return ''
@@ -542,10 +565,11 @@ def rebuild_fts_index():
     count = 0
     for t in tasks:
         full_text = _read_full_text(t['save_path']) or t['tweet_text'] or ''
-        if full_text:
+        title = _read_title(t['save_path'])
+        if full_text or title:
             conn.execute(
-                'INSERT INTO tasks_fts(rowid, author_name, author_username, full_text) VALUES(?, ?, ?, ?)',
-                (t['id'], t['author_name'] or '', t['author_username'] or '', full_text)
+                'INSERT INTO tasks_fts(rowid, title, author_name, author_username, full_text) VALUES(?, ?, ?, ?, ?)',
+                (t['id'], title, t['author_name'] or '', t['author_username'] or '', full_text)
             )
             count += 1
 
@@ -645,7 +669,8 @@ def process_xhs_task(task_id: int, url: str):
              task_id)
         )
         full_text = _read_full_text(result['save_path']) or result.get('tweet_text', '')
-        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text)
+        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text,
+                   title=_read_title(result['save_path']))
         conn.commit()
         conn.close()
         success(f'[XHS Task {task_id}] Saved: {result["title"]}')
@@ -691,7 +716,8 @@ def process_wechat_task(task_id: int, url: str):
              task_id)
         )
         full_text = _read_full_text(result.get('save_path', '')) or result.get('tweet_text', '')
-        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text)
+        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text,
+                   title=_read_title(result.get('save_path', '')))
         conn.commit()
         conn.close()
         success(f'[WeChat Task {task_id}] Saved: {result["title"]}')
@@ -737,7 +763,8 @@ def process_youtube_task(task_id: int, url: str):
              task_id)
         )
         full_text = _read_full_text(result['save_path']) or result.get('title', '')
-        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text)
+        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text,
+                   title=_read_title(result['save_path']))
         conn.commit()
         conn.close()
         success(f'[YouTube Task {task_id}] Saved: {result["title"]}')
@@ -973,7 +1000,8 @@ def process_tweet_task(task_id, url):
 
         # Update FTS index
         full_text = _read_full_text(save_dir) or tweet_text
-        fts_upsert(conn, task_id, tweets[0].author_name, tweets[0].author_username, full_text)
+        fts_upsert(conn, task_id, tweets[0].author_name, tweets[0].author_username, full_text,
+                   title=_read_title(save_dir))
         conn.commit()
 
         info(f"[Task {task_id}] Generated share slug: {share_slug}")
@@ -1405,18 +1433,18 @@ def api_saved():
                 SELECT tasks.* FROM tasks
                 JOIN tasks_fts ON tasks.id = tasks_fts.rowid
                 WHERE tasks.status = 'completed'
-                  AND (tasks_fts.full_text LIKE ? OR tasks_fts.author_name LIKE ? OR tasks_fts.author_username LIKE ?)
+                  AND (tasks_fts.title LIKE ? OR tasks_fts.full_text LIKE ? OR tasks_fts.author_name LIKE ? OR tasks_fts.author_username LIKE ?)
                 ORDER BY tasks.processed_at DESC
                 LIMIT ? OFFSET ?
             '''
-            params = [like_param, like_param, like_param, per_page, offset]
+            params = [like_param, like_param, like_param, like_param, per_page, offset]
             tasks = conn.execute(query, params).fetchall()
             total = conn.execute(
                 '''SELECT COUNT(*) as count FROM tasks
                    JOIN tasks_fts ON tasks.id = tasks_fts.rowid
                    WHERE tasks.status = 'completed'
-                     AND (tasks_fts.full_text LIKE ? OR tasks_fts.author_name LIKE ? OR tasks_fts.author_username LIKE ?)''',
-                [like_param, like_param, like_param]
+                     AND (tasks_fts.title LIKE ? OR tasks_fts.full_text LIKE ? OR tasks_fts.author_name LIKE ? OR tasks_fts.author_username LIKE ?)''',
+                [like_param, like_param, like_param, like_param]
             ).fetchone()['count']
     else:
         query = f'''
@@ -1681,6 +1709,8 @@ def show_tweet(slug):
                 import re as _re
                 import markdown as _md
                 md_text = open(content_md_file, encoding='utf-8').read()
+                # Strip legacy "来源" line (full URL, too long to display)
+                md_text = _re.sub(r'\*\*来源\*\*:.*\n?', '', md_text)
                 # Replace relative image and video paths with media-serving URLs
                 md_text = _re.sub(
                     r'images/(\d+\.\w+)',
@@ -3193,7 +3223,8 @@ def process_webpage_task(task_id: int, url: str):
              task_id)
         )
         full_text = _read_full_text(result.get('save_path', '')) or result.get('tweet_text', '')
-        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text)
+        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''), full_text,
+                   title=_read_title(result.get('save_path', '')))
         conn.commit()
         conn.close()
         success(f'[Webpage Task {task_id}] Saved: {result["title"]}')
