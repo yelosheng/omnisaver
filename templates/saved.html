@@ -525,10 +525,16 @@
                     }
 
                     // No data on first load
+                    const hasActiveFilters = currentContentTypes.length > 0 || currentDateFrom || currentDateTo || searchQuery;
                     if (searchQuery) {
                         noSaved.innerHTML = `
                             <i class="bi bi-search large-icon"></i>
                             <p class="text-muted mt-2">No tweets matching "${searchQuery}"</p>
+                        `;
+                    } else if (hasActiveFilters) {
+                        noSaved.innerHTML = `
+                            <i class="bi bi-funnel large-icon"></i>
+                            <p class="text-muted mt-2">没有符合筛选条件的内容</p>
                         `;
                     } else {
                         noSaved.innerHTML = `

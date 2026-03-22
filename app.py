@@ -1400,6 +1400,9 @@ def api_saved():
     per_page = request.args.get('per_page', 20, type=int)
     search_query = request.args.get('search', '').strip()
     content_types = [ct.strip() for ct in request.args.get('content_type', '').split(',') if ct.strip()]
+    # 'tweet' and 'article' are both Twitter content — treat them as one platform
+    if 'tweet' in content_types and 'article' not in content_types:
+        content_types.append('article')
     date_from = request.args.get('date_from', '').strip()   # 'YYYY-MM-DD'
     date_to = request.args.get('date_to', '').strip()        # 'YYYY-MM-DD'
 
