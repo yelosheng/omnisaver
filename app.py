@@ -1393,6 +1393,59 @@ def saved():
 def retries():
     return redirect(url_for('tasks'))
 
+def _build_fts_query(q: str) -> str:
+    """
+    Convert a Google-style search string to an FTS5 MATCH expression.
+
+    Supported syntax:
+      - bare words          → AND (all must appear, not necessarily adjacent)
+      - "exact phrase"      → phrase match
+      - -word / -"phrase"   → NOT (exclude)
+      - word1 OR word2      → OR
+
+    Examples:
+      金价 避险            →  "金价" "避险"
+      金价 OR 白银         →  "金价" OR "白银"
+      避险 -美联储         →  "避险" NOT "美联储"
+      "避险资产" 黄金       →  "避险资产" "黄金"
+    """
+    import re as _re
+    tokens = []
+    # Tokenise: quoted phrases, -excluded terms, OR keyword, bare words
+    for m in _re.finditer(r'-"([^"]+)"|"([^"]+)"|-(\S+)|(\bOR\b)|(\S+)', q):
+        neg_phrase, phrase, neg_word, or_kw, word = m.groups()
+        if neg_phrase:
+            tokens.append(f'NOT "{neg_phrase}"')
+        elif phrase:
+            tokens.append(f'"{phrase}"')
+        elif neg_word:
+            tokens.append(f'NOT "{neg_word}"')
+        elif or_kw:
+            tokens.append('OR')
+        elif word:
+            tokens.append(f'"{word}"')
+
+    # Collapse: insert implicit AND between consecutive non-OR tokens
+    parts = []
+    prev_was_op = True  # treat start as after an operator
+    for tok in tokens:
+        if tok == 'OR':
+            parts.append('OR')
+            prev_was_op = True
+        elif tok.startswith('NOT '):
+            if not prev_was_op and (not parts or parts[-1] != 'OR'):
+                parts.append('AND')
+            parts.append(tok)
+            prev_was_op = False
+        else:
+            if not prev_was_op and (not parts or parts[-1] != 'OR'):
+                parts.append('AND')
+            parts.append(tok)
+            prev_was_op = False
+
+    return ' '.join(parts) if parts else f'"{q}"'
+
+
 @app.route('/api/saved')
 def api_saved():
     """获取已保存推文列表API，支持搜索功能"""
@@ -1435,7 +1488,8 @@ def api_saved():
         use_fts = len(search_query) >= 3
         if use_fts:
             # FTS5 trigram search (requires ≥3 unicode chars)
-            fts_query = '"' + search_query.replace('"', '""') + '"'
+            # Parse Google-style syntax: "phrase", -exclude, OR, bare AND terms
+            fts_query = _build_fts_query(search_query)
             query = f'''
                 SELECT tasks.* FROM tasks
                 JOIN tasks_fts ON tasks.id = tasks_fts.rowid
