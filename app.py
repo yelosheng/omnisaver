@@ -1399,13 +1399,33 @@ def api_saved():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     search_query = request.args.get('search', '').strip()
-    
+    content_types = [ct.strip() for ct in request.args.get('content_type', '').split(',') if ct.strip()]
+    date_from = request.args.get('date_from', '').strip()   # 'YYYY-MM-DD'
+    date_to = request.args.get('date_to', '').strip()        # 'YYYY-MM-DD'
+
     conn = get_db_connection()
     
     # 构建搜索条件
     base_where = "status = 'completed'"
-    params = []
-    
+    extra_conditions = []
+    extra_params = []
+
+    if content_types:
+        placeholders = ','.join('?' * len(content_types))
+        extra_conditions.append(f'content_type IN ({placeholders})')
+        extra_params.extend(content_types)
+
+    if date_from:
+        extra_conditions.append('processed_at >= ?')
+        extra_params.append(date_from + ' 00:00:00')
+
+    if date_to:
+        extra_conditions.append('processed_at <= ?')
+        extra_params.append(date_to + ' 23:59:59')
+
+    if extra_conditions:
+        base_where = base_where + ' AND ' + ' AND '.join(extra_conditions)
+
     offset = (page - 1) * per_page
 
     if search_query:
@@ -1413,38 +1433,38 @@ def api_saved():
         if use_fts:
             # FTS5 trigram search (requires ≥3 unicode chars)
             fts_query = '"' + search_query.replace('"', '""') + '"'
-            query = '''
+            query = f'''
                 SELECT tasks.* FROM tasks
                 JOIN tasks_fts ON tasks.id = tasks_fts.rowid
-                WHERE tasks.status = 'completed' AND tasks_fts MATCH ?
+                WHERE tasks.{base_where} AND tasks_fts MATCH ?
                 ORDER BY tasks.processed_at DESC
                 LIMIT ? OFFSET ?
             '''
-            params = [fts_query, per_page, offset]
+            params = extra_params + [fts_query, per_page, offset]
             tasks = conn.execute(query, params).fetchall()
             total = conn.execute(
-                "SELECT COUNT(*) as count FROM tasks JOIN tasks_fts ON tasks.id = tasks_fts.rowid WHERE tasks.status = 'completed' AND tasks_fts MATCH ?",
-                [fts_query]
+                f"SELECT COUNT(*) as count FROM tasks JOIN tasks_fts ON tasks.id = tasks_fts.rowid WHERE tasks.{base_where} AND tasks_fts MATCH ?",
+                extra_params + [fts_query]
             ).fetchone()['count']
         else:
             # Short query (<3 chars): trigram can't match, fallback to LIKE on FTS full_text
             like_param = f'%{search_query}%'
-            query = '''
+            query = f'''
                 SELECT tasks.* FROM tasks
                 JOIN tasks_fts ON tasks.id = tasks_fts.rowid
-                WHERE tasks.status = 'completed'
+                WHERE tasks.{base_where}
                   AND (tasks_fts.title LIKE ? OR tasks_fts.full_text LIKE ? OR tasks_fts.author_name LIKE ? OR tasks_fts.author_username LIKE ?)
                 ORDER BY tasks.processed_at DESC
                 LIMIT ? OFFSET ?
             '''
-            params = [like_param, like_param, like_param, like_param, per_page, offset]
+            params = extra_params + [like_param, like_param, like_param, like_param, per_page, offset]
             tasks = conn.execute(query, params).fetchall()
             total = conn.execute(
-                '''SELECT COUNT(*) as count FROM tasks
+                f'''SELECT COUNT(*) as count FROM tasks
                    JOIN tasks_fts ON tasks.id = tasks_fts.rowid
-                   WHERE tasks.status = 'completed'
+                   WHERE tasks.{base_where}
                      AND (tasks_fts.title LIKE ? OR tasks_fts.full_text LIKE ? OR tasks_fts.author_name LIKE ? OR tasks_fts.author_username LIKE ?)''',
-                [like_param, like_param, like_param, like_param]
+                extra_params + [like_param, like_param, like_param, like_param]
             ).fetchone()['count']
     else:
         query = f'''
@@ -1453,8 +1473,8 @@ def api_saved():
             ORDER BY processed_at DESC
             LIMIT ? OFFSET ?
         '''
-        tasks = conn.execute(query, [per_page, offset]).fetchall()
-        total = conn.execute(f"SELECT COUNT(*) as count FROM tasks WHERE {base_where}").fetchone()['count']
+        tasks = conn.execute(query, extra_params + [per_page, offset]).fetchall()
+        total = conn.execute(f"SELECT COUNT(*) as count FROM tasks WHERE {base_where}", extra_params).fetchone()['count']
     
     conn.close()
     
