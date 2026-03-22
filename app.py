@@ -308,7 +308,8 @@ def check_and_schedule_retry(cursor, task_id, error_message):
             "Rate limit exceeded",
             "Timeout",
             "Connection error",
-            "Request failed"
+            "Request failed",
+            "Video download failed",
         ]
         
         should_retry = any(error_pattern in error_message for error_pattern in retry_eligible_errors)

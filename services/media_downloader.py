@@ -153,6 +153,8 @@ class MediaDownloader:
                         os.unlink(cookies_file.name)
                     except OSError:
                         pass
+                if result.returncode != 0:
+                    raise Exception(f"Video download failed: yt-dlp exit {result.returncode}: {result.stderr.strip()[:300]}")
 
                 # Collect downloaded files from local tmp dir, sorted (playlist order)
                 tmp_files = sorted([
