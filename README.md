@@ -32,6 +32,7 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 - Built-in task queue with automatic retry on failure (exponential backoff)
 - Web UI with real-time log streaming, task monitoring, and content browsing
 - Saved page shows a platform badge (X, YouTube, 小红书, WeChat, or 🌐 Web) on each card
+- **Enhanced search:** full-text search across content and article titles; filter by platform (multi-select), date range (quick presets or custom); all filters combine
 - Supports infinite scroll and pagination (toggle per preference)
 - Each archived post gets a unique public share link (`/view/<slug>`)
 - Change password via the in-app user menu
