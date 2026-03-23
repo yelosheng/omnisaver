@@ -1,8 +1,8 @@
 <div align="center">
-  <img src="telegram_avatar.png" alt="Twitter Saver" width="120">
+  <img src="telegram_avatar.png" alt="OmniSaver" width="120">
 </div>
 
-# Twitter/X, YouTube, XiaoHongShu, WeChat & Web Content Saver
+# OmniSaver — Multi-Platform Content Archiver
 
 A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive tweets, YouTube videos, XiaoHongShu (小红书) posts, WeChat articles, and any webpage — including images and videos — to local storage with one click.
 

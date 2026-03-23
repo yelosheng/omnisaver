@@ -1,8 +1,8 @@
 <div align="center">
-  <img src="telegram_avatar.png" alt="Twitter Saver" width="120">
+  <img src="telegram_avatar.png" alt="OmniSaver" width="120">
 </div>
 
-# Twitter/X、YouTube、小红书、微信公众号 & 网页内容归档工具
+# OmniSaver — 多平台内容归档工具
 
 专为 NAS、家庭服务器或树莓派设计的自托管内容保存工具。一键将推文、YouTube 视频、小红书笔记、微信公众号文章和任意网页（含图片和视频）存档到本地——无需 Twitter API 密钥。
 
