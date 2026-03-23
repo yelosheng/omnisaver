@@ -51,8 +51,8 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yelosheng/twitter-saver.git
-cd twitter-saver
+git clone https://github.com/yelosheng/omnisaver.git
+cd omnisaver
 
 # 2. Install Python dependencies
 pip install -r requirements.txt
@@ -80,8 +80,8 @@ Docker is the easiest deployment method. yt-dlp and FFmpeg are included in the i
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yelosheng/twitter-saver.git
-cd twitter-saver
+git clone https://github.com/yelosheng/omnisaver.git
+cd omnisaver
 
 # 2. Copy config
 cp config.ini.example config.ini

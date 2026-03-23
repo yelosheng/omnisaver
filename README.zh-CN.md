@@ -51,8 +51,8 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/yelosheng/twitter-saver.git
-cd twitter-saver
+git clone https://github.com/yelosheng/omnisaver.git
+cd omnisaver
 
 # 2. 安装 Python 依赖
 pip install -r requirements.txt
@@ -80,8 +80,8 @@ Docker 是最简单的部署方式，镜像已内置 yt-dlp 和 FFmpeg。
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/yelosheng/twitter-saver.git
-cd twitter-saver
+git clone https://github.com/yelosheng/omnisaver.git
+cd omnisaver
 
 # 2. 复制配置文件
 cp config.ini.example config.ini
