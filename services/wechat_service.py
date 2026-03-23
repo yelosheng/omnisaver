@@ -257,7 +257,6 @@ class WechatService:
             '',
             f'**作者**: {meta.author}  ',
             f'**发布时间**: {meta.publish_time}  ',
-            f'**来源**: {url}  ',
             '',
             '---',
             '',

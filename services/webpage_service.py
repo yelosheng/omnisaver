@@ -325,7 +325,6 @@ class WebpageService:
             meta_parts.append(f'<span>{sitename}</span>')
         if published_date:
             meta_parts.append(f'<span>{published_date}</span>')
-        meta_parts.append(f'<a href="{url}" target="_blank" rel="noopener">原文链接</a>')
         meta_html = ' · '.join(meta_parts)
 
         return f'''<!DOCTYPE html>

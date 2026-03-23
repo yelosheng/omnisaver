@@ -1227,8 +1227,11 @@ def submit_url():
     elif TwitterURLParser.is_valid_twitter_url(url):
         content_type = 'tweet'
     else:
-        # Try XHS share text extraction
+        # Try XHS share text extraction (handles xhslink.com short URLs too)
         extracted = XHSService.extract_url_from_share_text(url)
+        if extracted and extracted != url:
+            extracted = XHSService.resolve_xhslink(extracted)
+            extracted = XHSService.normalize_xhs_url(extracted)
         if extracted and XHSService.is_valid_xhs_url(extracted):
             url = extracted
             content_type = 'xhs'
@@ -1585,7 +1588,7 @@ def api_saved():
             thumbnails_dir = os.path.join(actual_save_path, 'thumbnails')
             if os.path.exists(thumbnails_dir):
                 for filename in os.listdir(thumbnails_dir):
-                    if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
                         has_media_preview = True
                         break
             
@@ -2676,6 +2679,9 @@ def api_submit():
             _ct = 'tweet'
         else:
             extracted = XHSService.extract_url_from_share_text(url)
+            if extracted and extracted != url:
+                extracted = XHSService.resolve_xhslink(extracted)
+                extracted = XHSService.normalize_xhs_url(extracted)
             if extracted and XHSService.is_valid_xhs_url(extracted):
                 url = extracted
                 _ct = 'xhs'
