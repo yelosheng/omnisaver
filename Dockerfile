@@ -6,6 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
+    git \
     nodejs \
     npm \
     && rm -rf /var/lib/apt/lists/*
@@ -23,6 +24,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Chromium and all its system dependencies via Playwright
 RUN playwright install --with-deps chromium
+
+# Install wechat-article-for-ai (WeChat article scraping)
+RUN git clone https://github.com/Panniantong/wechat-article-for-ai.git /root/.agent-reach/tools/wechat-article-for-ai \
+    && pip install --no-cache-dir -r /root/.agent-reach/tools/wechat-article-for-ai/requirements.txt \
+    && python -m camoufox fetch
 
 # Copy application code
 COPY . .
