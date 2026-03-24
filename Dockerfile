@@ -2,11 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies: ffmpeg (video thumbnails) + curl (yt-dlp install)
+# Install system dependencies: ffmpeg (video thumbnails) + curl (yt-dlp install) + nodejs (xreach-cli)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
+
+# Install xreach-cli (Twitter thread fetching)
+RUN npm install -g xreach-cli
 
 # Install yt-dlp (video downloads for Twitter/X and XiaoHongShu)
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
