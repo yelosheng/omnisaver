@@ -1,5 +1,5 @@
 services:
-  twitter-saver:
+  omnisaver:
     build: .
     ports:
       - "6201:6201"
@@ -10,6 +10,10 @@ services:
       - ./docker-data/saved_tweets:/app/saved_tweets
       # Config file (copy config.ini.example to config.ini first)
       - ./config.ini:/app/config.ini
+      # XHS cookies (shared with xiaohongshu-mcp)
+      - ./docker-data/xhs:/root/.agent-reach/xhs
+      # mcporter config pointing to xiaohongshu-mcp service
+      - ./docker-mcporter.json:/root/.mcporter/mcporter.json:ro
     environment:
       - DATA_DIR=/data
       - SAVE_PATH=/app/saved_tweets
@@ -17,4 +21,15 @@ services:
       # Uncomment to enable HTTPS:
       # - SSL_CERT_PATH=/app/cert.pem
       # - SSL_KEY_PATH=/app/key.pem
+    depends_on:
+      - xiaohongshu-mcp
+    restart: unless-stopped
+
+  xiaohongshu-mcp:
+    image: xpzouying/xiaohongshu-mcp
+    ports:
+      - "18060:18060"
+    volumes:
+      # XHS cookies (shared with omnisaver)
+      - ./docker-data/xhs/cookies.json:/app/cookies.json
     restart: unless-stopped
