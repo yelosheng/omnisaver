@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     && rm -rf /var/lib/apt/lists/*
 
-# Install xreach-cli (Twitter thread fetching)
-RUN npm install -g xreach-cli
+# Install xreach-cli (Twitter thread fetching) and mcporter (XiaoHongShu)
+RUN npm install -g xreach-cli mcporter
 
 # Install yt-dlp (video downloads for Twitter/X and XiaoHongShu)
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
