@@ -1,4 +1,16 @@
 services:
+  init:
+    image: busybox
+    command: >
+      sh -c "
+        mkdir -p /data/saved_tweets /data/xhs &&
+        touch /data/xhs/cookies.json &&
+        [ -f /app/config.ini ] || cp /app/config.ini.example /app/config.ini
+      "
+    volumes:
+      - ./docker-data:/data
+      - .:/app
+
   omnisaver:
     build: .
     ports:
@@ -8,8 +20,6 @@ services:
       - ./docker-data:/data
       # Saved tweets and media
       - ./docker-data/saved_tweets:/app/saved_tweets
-      # Config file (copy config.ini.example to config.ini first)
-      - ./config.ini:/app/config.ini
       # XHS cookies (shared with xiaohongshu-mcp)
       - ./docker-data/xhs:/root/.agent-reach/xhs
       # mcporter config pointing to xiaohongshu-mcp service
@@ -22,7 +32,10 @@ services:
       # - SSL_CERT_PATH=/app/cert.pem
       # - SSL_KEY_PATH=/app/key.pem
     depends_on:
-      - xiaohongshu-mcp
+      init:
+        condition: service_completed_successfully
+      xiaohongshu-mcp:
+        condition: service_started
     restart: unless-stopped
 
   xiaohongshu-mcp:
@@ -32,4 +45,7 @@ services:
     volumes:
       # XHS cookies (shared with omnisaver)
       - ./docker-data/xhs/cookies.json:/app/cookies.json
+    depends_on:
+      init:
+        condition: service_completed_successfully
     restart: unless-stopped
