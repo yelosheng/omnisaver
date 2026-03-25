@@ -21,7 +21,7 @@ class ConfigManager:
     def _create_default_config(self):
         """Create default configuration file"""
         self.config['storage'] = {
-            'base_path': '/mnt/nas/saved_tweets',
+            'base_path': 'saved_tweets',
             'create_date_folders': 'true'
         }
         self.config['download'] = {
@@ -42,8 +42,11 @@ class ConfigManager:
             self.config.write(f)
 
     def get_save_path(self) -> str:
-        """Get save path"""
-        return self.config.get('storage', 'base_path', fallback='/mnt/nas/saved_tweets')
+        """Get save path — env var SAVE_PATH takes priority over config.ini"""
+        env_path = os.environ.get('SAVE_PATH', '').strip()
+        if env_path:
+            return env_path
+        return self.config.get('storage', 'base_path', fallback='saved_tweets')
     
     def get_create_date_folders(self) -> bool:
         """Whether to create date folders"""
