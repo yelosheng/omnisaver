@@ -9,6 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     nodejs \
     npm \
+    libgtk-3-0 \
+    libdbus-glib-1-2 \
+    libxt6 \
+    libx11-xcb1 \
+    libxcb-dri3-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install xreach-cli (Twitter thread fetching) and mcporter (XiaoHongShu)
