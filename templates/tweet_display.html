@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ 'Article' if tweet.is_article else 'Tweet' }} - OmniSaver{% endblock %}
+{% block title %}{{ tweet.page_title }} - OmniSaver{% endblock %}
 
 {% block content %}
 <div class="container">

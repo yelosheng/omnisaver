@@ -1616,10 +1616,10 @@ def api_saved():
             content_path = os.path.join(actual_save_path, 'content.txt')
             _ct = task_dict.get('content_type') or 'tweet'
 
-            # YouTube / WeChat: show title as preview
+            # YouTube / WeChat / XHS: show title as preview
             if _ct == 'youtube':
                 task_dict['preview_text'] = task_dict.get('tweet_text') or ''
-            elif _ct == 'wechat':
+            elif _ct in ('wechat', 'xhs'):
                 meta_path = os.path.join(actual_save_path, 'metadata.json')
                 title = ''
                 if os.path.exists(meta_path):
@@ -1781,16 +1781,20 @@ def show_tweet(slug):
             tweet_html
         )
 
-    # WeChat articles: render content.md as HTML with local image paths
-    if content_type == 'wechat' and not tweet_html:
+    # XHS / WeChat articles: render content.md as HTML with local image paths
+    if content_type in ('xhs', 'wechat') and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
         if os.path.exists(content_md_file):
             try:
                 import re as _re
                 import markdown as _md
                 md_text = open(content_md_file, encoding='utf-8').read()
-                # Strip legacy "来源" line (full URL, too long to display)
-                md_text = _re.sub(r'\*\*来源\*\*:.*\n?', '', md_text)
+                # Strip source URL lines and XHS-specific noise fields
+                md_text = _re.sub(r'\*\*(来源|链接)\*\*:.*\n?', '', md_text)
+                if content_type == 'xhs':
+                    md_text = _re.sub(r'\*\*IP归属\*\*:.*\n?', '', md_text)
+                    md_text = _re.sub(r'\*\*类型\*\*:.*\n?', '', md_text)
+                    md_text = _re.sub(r'\*\*点赞\*\*:.*\n?', '', md_text)
                 # Replace relative image and video paths with media-serving URLs
                 md_text = _re.sub(
                     r'images/(\d+\.\w+)',
@@ -1874,6 +1878,26 @@ def show_tweet(slug):
     # Check for transcript
     has_transcript = os.path.exists(os.path.join(actual_save_path, 'transcript.txt'))
 
+    # 提取页面标题：优先读 metadata.json 的 title 字段，其次用内容首行，最后按 content_type 兜底
+    page_title = ''
+    metadata_json_file = os.path.join(actual_save_path, 'metadata.json')
+    if os.path.exists(metadata_json_file):
+        try:
+            import json as _json
+            with open(metadata_json_file, 'r', encoding='utf-8') as _f:
+                _meta = _json.load(_f)
+            page_title = _meta.get('title', '') or ''
+        except Exception:
+            pass
+    if not page_title and tweet_text:
+        first_line = tweet_text.splitlines()[0].lstrip('#').strip()
+        if first_line:
+            page_title = first_line[:80] + ('…' if len(first_line) > 80 else '')
+    if not page_title:
+        _type_labels = {'tweet': 'Tweet', 'article': 'Article', 'xhs': 'XHS Post',
+                        'wechat': 'WeChat Article', 'youtube': 'YouTube Video', 'webpage': 'Webpage'}
+        page_title = _type_labels.get(content_type, 'Content')
+
     tweet_data = {
         'id': task['tweet_id'],
         'author_name': task['author_name'],
@@ -1891,6 +1915,7 @@ def show_tweet(slug):
         'is_article': is_article,
         'has_transcript': has_transcript,
         'task_id': task_id,
+        'page_title': page_title,
     }
 
     return render_template('tweet_display.html', tweet=tweet_data, task_id=task_id)
