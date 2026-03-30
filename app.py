@@ -7,20 +7,14 @@ Flask + Bootstrap Web应用
 import os
 import re
 import json
-import sqlite3
 import subprocess
 import threading
-import time
 import logging
-import sys
-import io
 import secrets
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, Response, session, flash
 from werkzeug.utils import secure_filename
-import queue
-from collections import deque
 from services.config_manager import ConfigManager
 from services.twitter_service import TwitterService, TwitterScrapingError
 from services.media_downloader import MediaDownloader
@@ -1222,31 +1216,6 @@ def force_start_queue():
             'message': f'Error: {str(e)}'
         })
 
-# 全局变量用于跟踪当前处理状态
-current_task_status = {
-    'task_id': None,
-    'status': 'idle',
-    'progress': '',
-    'start_time': None,
-    'last_update': None,
-    'retry_time': None,
-    'error_message': None
-}
-
-def update_task_progress(task_id, status, progress='', error_message=None, retry_time=None):
-    """更新任务处理进度"""
-    global current_task_status
-    current_task_status.update({
-        'task_id': task_id,
-        'status': status,
-        'progress': progress,
-        'last_update': get_current_time().strftime('%H:%M:%S'),
-        'error_message': error_message,
-        'retry_time': retry_time
-    })
-    if status == 'started':
-        current_task_status['start_time'] = get_current_time().strftime('%H:%M:%S')
-
 @app.route('/api/fts/rebuild', methods=['POST'])
 @login_required
 def api_fts_rebuild():
@@ -1446,45 +1415,6 @@ def serve_media(task_id, filename):
 
     return "File not found", 404
 
-def task_monitor():
-    """任务监控器，定期检查卡住的任务"""
-    print("[Task Monitor] Starting task monitor thread...")
-    
-    while True:
-        try:
-            time.sleep(300)  # 每5分钟检查一次
-            
-            conn = get_db_connection()
-            
-            # 查找处理时间超过10分钟的processing任务
-            stuck_tasks = conn.execute('''
-                SELECT id, url, processed_at 
-                FROM tasks 
-                WHERE status = "processing" 
-                AND datetime(processed_at) < datetime('now', '-10 minutes')
-            ''').fetchall()
-            
-            if stuck_tasks:
-                print(f"[Task Monitor] Found {len(stuck_tasks)} stuck tasks, recovering...")
-                
-                for task in stuck_tasks:
-                    print(f"[Task Monitor] Recovering stuck task {task['id']}")
-                    # 重置为pending状态
-                    conn.execute(
-                        'UPDATE tasks SET status = ?, error_message = ? WHERE id = ?',
-                        ('pending', 'Task recovered from stuck state', task['id'])
-                    )
-                    # 重新加入队列
-                    enqueue_task(task['id'], task['url'])
-                
-                conn.commit()
-                print(f"[Task Monitor] Recovered {len(stuck_tasks)} stuck tasks")
-            
-            conn.close()
-            
-        except Exception as e:
-            print(f"[Task Monitor] Error in task monitor: {e}")
-
 # Flask应用启动时的钩子
 @app.before_request
 def initialize_app():
@@ -1509,35 +1439,6 @@ def initialize_app():
         # 自动检测并修复卡住的任务
         auto_fix_stuck_tasks()
         app._background_thread_started = True
-
-def auto_fix_stuck_tasks():
-    """自动修复卡住的任务"""
-    try:
-        conn = get_db_connection()
-        
-        # 检查是否有卡住的processing任务
-        stuck_tasks = conn.execute(
-            'SELECT id, url FROM tasks WHERE status = "processing"'
-        ).fetchall()
-        
-        if stuck_tasks:
-            print(f"[Auto Fix] Found {len(stuck_tasks)} stuck tasks, auto-fixing...")
-            
-            # 重置为pending
-            conn.execute('UPDATE tasks SET status = "pending" WHERE status = "processing"')
-            conn.commit()
-            
-            # 重新加入队列
-            for task in stuck_tasks:
-                enqueue_task(task['id'], task['url'])
-                print(f"[Auto Fix] Requeued task {task['id']}")
-            
-            print(f"[Auto Fix] Auto-fixed {len(stuck_tasks)} stuck tasks")
-
-        conn.close()
-
-    except Exception as e:
-        print(f"[Auto Fix] Error in auto fix: {e}")
 
 @app.route('/api/retry-tasks')
 def api_retry_tasks():
@@ -1837,127 +1738,11 @@ def api_submit():
             'message': f'Server error: {str(e)}'
         }), 500
 
-def get_xhs_save_path() -> str:
-    """Return the XHS base save directory — same as Twitter's save path."""
-    if config_manager:
-        return config_manager.get_save_path()
-    return os.path.join(DATA_DIR, 'saved_tweets')
-
-
-def make_xhs_service() -> 'XHSService':
-    """Instantiate XHSService with the same path/folder settings as Twitter."""
-    create_date_folders = config_manager.get_create_date_folders() if config_manager else True
-    return XHSService(get_xhs_save_path(), create_date_folders=create_date_folders)
-
-
-def register_xhs_task(url: str, result: dict) -> tuple[int, str]:
-    """Insert a completed XHS save as a task in the DB.
-
-    Returns (task_id, share_slug).
-    """
-    conn = get_db_connection()
-    slug = generate_unique_slug()
-    now = format_time_for_db(get_current_time())
-    conn.execute(
-        '''INSERT INTO tasks
-               (url, status, processed_at, tweet_id, author_username, author_name,
-                save_path, tweet_text, content_type, share_slug,
-                is_thread, tweet_count, media_count)
-           VALUES (?, 'completed', ?, ?, ?, ?, ?, ?, 'xhs', ?, 0, 1, ?)''',
-        (url, now,
-         result['feed_id'],
-         result.get('author_username', ''),
-         result.get('author_name', ''),
-         result['save_path'],
-         result.get('tweet_text', ''),
-         slug,
-         result.get('media_count', result.get('image_count', 0)))
-    )
-    conn.commit()
-    task_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-    conn.close()
-    return task_id, slug
 
 
 # ---------------------------------------------------------------------------
 # App settings helpers
 # ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# XHS auto-save background job
-# ---------------------------------------------------------------------------
-
-_xhs_autosave_thread: threading.Thread = None
-_xhs_autosave_stop = threading.Event()
-
-
-def _xhs_autosave_worker():
-    """Background thread: periodically fetch home feed and save new posts."""
-    info('[XHS AutoSave] Worker started')
-    while not _xhs_autosave_stop.is_set():
-        try:
-            interval = int(get_setting('xhs_autosave_interval_minutes', '30'))
-        except ValueError:
-            interval = 30
-
-        # Wait for the configured interval (check stop every 10s)
-        for _ in range(interval * 6):
-            if _xhs_autosave_stop.is_set():
-                return
-            time.sleep(10)
-
-        if _xhs_autosave_stop.is_set():
-            return
-
-        if get_setting('xhs_autosave_enabled', 'false') != 'true':
-            continue
-
-        _run_xhs_autosave()
-
-    info('[XHS AutoSave] Worker stopped')
-
-
-def _run_xhs_autosave():
-    """Fetch 我的收藏, save posts not already in the DB."""
-    info('[XHS AutoSave] Running...')
-    saved_count = 0
-    try:
-        user_id = get_setting('xhs_user_id', '').strip()
-        xhs = make_xhs_service()
-        feeds = xhs.get_favorites(user_id=user_id or None)
-
-        conn = get_db_connection()
-        existing_ids = {
-            row[0] for row in
-            conn.execute("SELECT tweet_id FROM tasks WHERE content_type='xhs'").fetchall()
-        }
-        conn.close()
-
-        for feed in feeds:
-            feed_id = feed['feed_id']
-            if feed_id in existing_ids:
-                continue
-            try:
-                result = xhs.save_post(feed['url'])
-                register_xhs_task(feed['url'], result)
-                existing_ids.add(feed_id)
-                saved_count += 1
-                info(f'[XHS AutoSave] Saved: {result["title"]}')
-            except Exception as e:
-                warning(f'[XHS AutoSave] Failed {feed_id}: {e}')
-
-    except Exception as e:
-        error(f'[XHS AutoSave] Error: {e}')
-
-    now = format_time_for_db(get_current_time())
-    set_setting('xhs_autosave_last_run', now)
-    set_setting('xhs_autosave_last_count', str(saved_count))
-    info(f'[XHS AutoSave] Done — saved {saved_count} new posts')
-
-
-def stop_xhs_autosave():
-    _xhs_autosave_stop.set()
 
 
 # ---------------------------------------------------------------------------
@@ -2223,40 +2008,6 @@ def api_submit_xhs():
 # WeChat helpers and routes
 # ---------------------------------------------------------------------------
 
-def make_wechat_service() -> WechatService:
-    """Instantiate WechatService with the same path/folder settings as Twitter."""
-    create_date_folders = config_manager.get_create_date_folders() if config_manager else True
-    base_path = config_manager.get_save_path() if config_manager else os.path.join(DATA_DIR, 'saved_tweets')
-    return WechatService(base_path, create_date_folders=create_date_folders)
-
-
-def register_wechat_task(url: str, result: dict) -> tuple[int, str]:
-    """Insert a completed WeChat article save as a task in the DB. Returns (task_id, share_slug)."""
-    conn = get_db_connection()
-    slug = generate_unique_slug()
-    now = format_time_for_db(get_current_time())
-    cursor = conn.execute(
-        '''INSERT INTO tasks
-           (url, status, processed_at, tweet_id, author_username, author_name,
-            save_path, tweet_text, content_type, share_slug,
-            is_thread, tweet_count, media_count)
-           VALUES (?, 'completed', ?, ?, ?, ?, ?, ?, 'wechat', ?, 0, 1, ?)''',
-        (
-            url,
-            now,
-            result.get('article_id', ''),
-            result.get('author_username', ''),
-            result.get('author_name', ''),
-            result.get('save_path', ''),
-            result.get('tweet_text', '')[:500],
-            slug,
-            result.get('image_count', 0),
-        )
-    )
-    task_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return task_id, slug
 
 
 @app.route('/api/submit/wechat', methods=['POST'])
@@ -2333,19 +2084,6 @@ def api_submit_wechat():
 # YouTube helpers and routes
 # ---------------------------------------------------------------------------
 
-def make_youtube_service() -> YoutubeService:
-    """Instantiate YoutubeService with the same path/folder settings as Twitter."""
-    create_date_folders = config_manager.get_create_date_folders() if config_manager else True
-    base_path = config_manager.get_save_path() if config_manager else os.path.join(DATA_DIR, 'saved_tweets')
-    yt_api_key = config_manager.get_youtube_api_key() if config_manager else None
-    return YoutubeService(base_path, create_date_folders=create_date_folders,
-                          youtube_api_key=yt_api_key)
-
-
-def make_webpage_service() -> WebpageService:
-    """Instantiate WebpageService with the configured save path."""
-    base_path = config_manager.get_save_path() if config_manager else os.path.join(DATA_DIR, 'saved_tweets')
-    return WebpageService(base_path)
 
 
 @app.route('/api/submit/youtube', methods=['POST'])
