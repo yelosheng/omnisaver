@@ -3,8 +3,8 @@
 ```
 twitter_collector/
 │
-├── app.py                        # Flask 主应用（~2200行）：所有路由、SQLite初始化/迁移、
-│                                 # 后台任务队列、重试逻辑、标签生成、媒体服务
+├── app.py                        # Flask 主应用（~2400行）：所有路由、认证、模板过滤器、
+│                                 # init_services()、媒体服务。不含业务逻辑（已拆分到 services/）
 ├── run_web.py                    # Web 启动入口：初始化DB/服务/后台线程，启动Telegram Bot，
 │                                 # 最终调用 app.run()
 ├── main.py                       # CLI 入口：命令行方式提交URL，用 rich 显示进度
@@ -24,6 +24,11 @@ twitter_collector/
 │   └── media_file.py             # MediaFile dataclass：媒体文件元信息
 │
 ├── services/                     # 业务服务层
+│   ├── db.py                     # 数据库层：get_db_connection、init_db、rebuild_fts_index、
+│   │                             # FTS工具函数、路径/时间工具、get_setting/set_setting
+│   ├── background.py             # 后台层：任务队列、5个任务处理器（tweet/xhs/wechat/
+│   │                             # youtube/webpage）、重试调度、XHS autosave、
+│   │                             # init_background() 注入服务依赖
 │   ├── config_manager.py         # 加载 config.ini 和环境变量，校验配置，提供 get_save_path()
 │   ├── file_manager.py           # 文件读写：按日期建目录、写 content.txt/metadata.json 等
 │   ├── media_downloader.py       # 并行下载图片/视频，写入 images/ videos/ 目录
@@ -55,13 +60,11 @@ twitter_collector/
 │   ├── tasks.html                # 任务队列监控页
 │   ├── retries.html              # 失败任务重试管理页
 │   ├── settings.html             # 统一设置页：XHS Cookie、YouTube API Key 等
+│   ├── xhs_settings.html         # 小红书专项设置（Cookie 等）
 │   ├── telegram.html             # Telegram Bot 配置页
 │   ├── debug.html                # 调试页：系统状态、卡住任务重置
 │   ├── help.html                 # 帮助页：Tampermonkey 脚本安装说明
-│   ├── change_password.html      # 修改密码页
-│   ├── xhs_settings.html         # 小红书专项设置（Cookie 等）
-│   ├── view_tweet.html           # 旧版推文预览模板（已被 tweet_display.html 取代）
-│   └── view_tweet_simple.html    # 旧版简化推文预览模板
+│   └── change_password.html      # 修改密码页
 │
 ├── static/                       # 静态资源
 │   ├── favicon.svg               # 网站 favicon（SVG）
@@ -77,8 +80,7 @@ twitter_collector/
 │   ├── clear_all_data.py         # 清空全部已保存数据和数据库记录
 │   ├── generate_missing_thumbnails.py  # 为缺失缩略图的视频用 FFmpeg 补生成
 │   ├── migrate_to_hierarchical.py      # 将旧平铺目录结构迁移为 YYYY/MM/ 层级结构
-│   ├── regenerate_content.py     # 从 metadata.json 重新生成 content.html
-│   └── test_login.py             # 测试登录接口的简单脚本
+│   └── regenerate_content.py     # 从 metadata.json 重新生成 content.html
 │
 ├── tests/                        # 自动化测试
 │   ├── test_config_manager.py    # ConfigManager 单元测试
@@ -112,6 +114,22 @@ twitter_collector/
 ├── X_page_tweet.png              # README 中 Tampermonkey 功能截图
 │
 └── venv/                         # Python 虚拟环境（gitignored）
+```
+
+## 服务层依赖关系
+
+```
+services/db.py
+    ↑ 无内部依赖，只用标准库（os, sqlite3, secrets, json, datetime）
+
+services/background.py
+    ↑ 依赖 services/db.py
+    ↑ 通过 init_background(config_manager, twitter_service,
+                           media_downloader, file_manager) 注入服务
+
+app.py
+    ↑ 依赖 services/db.py、services/background.py
+    ↑ 只含 Flask 路由、模板过滤器、init_services()
 ```
 
 ## 运行时生成（gitignored，不在仓库中）
