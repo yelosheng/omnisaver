@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import urllib.parse
 import urllib.request
@@ -26,6 +27,12 @@ class WechatService:
     """WeChat Official Account article archiver."""
 
     _COOKIES_PATH = os.path.expanduser('~/.agent-reach/wechat/cookies.json')
+    _GENERIC_TITLES = {'Weixin Official Accounts Platform', '微信公众平台', ''}
+    _ALBUM_NOISE_LINES = {
+        'Close', '更多', 'Name cleared', '微信扫一扫赞赏作者', 'Like the Author',
+        'Other Amount', '赞赏后展示我的头像', '作品', '暂无作品', '¥', '最低赞赏 ¥0',
+        'OK', 'Back', '赞赏金额', 'Like', 'Share', 'Popular', 'Comment', 'Loading...'
+    }
     _CAPTCHA_INDICATORS = (
         'js_verify',
         'verify_container',
@@ -64,6 +71,52 @@ class WechatService:
             if m2 and m2.group(1):
                 urls.append(m2.group(1))
         return urls
+
+    @staticmethod
+    def _extract_swiper_image_urls(soup) -> list[str]:
+        """Extract image URLs from album/swiper-style pages."""
+        urls = []
+        seen = set()
+        for el in soup.select('.swiper_item[data-src], #img_list .swiper_item[data-src]'):
+            url = (el.get('data-src') or '').strip()
+            if not url:
+                continue
+            canonical = re.sub(r'([?&])wx_fmt=[^&]+', '', url)
+            canonical = re.sub(r'([?&])tp=[^&]+', '', canonical)
+            canonical = re.sub(r'([?&])wxfrom=[^&]+', '', canonical)
+            canonical = canonical.rstrip('?&')
+            if canonical not in seen:
+                seen.add(canonical)
+                urls.append(url)
+        return urls
+
+    @classmethod
+    def _extract_album_page_text(cls, soup) -> str:
+        """Extract clean text for image-album pages from the primary content container."""
+        content_el = (
+            soup.select_one('#js_content_top_container')
+            or soup.select_one('#js_article_content')
+            or soup.select_one('.rich_media_area_primary_inner')
+            or soup.select_one('#js_content')
+            or soup.select_one('#js_image_content')
+        )
+        if not content_el:
+            return ''
+        raw_text = cls._normalize_rich_text(content_el.get_text('\n\n', strip=True))
+        cleaned_lines = []
+        for line in raw_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            if line in cls._ALBUM_NOISE_LINES:
+                continue
+            if re.fullmatch(r'[0-9]+', line):
+                continue
+            if re.fullmatch(r'[.,;:，。；：]+', line):
+                continue
+            cleaned_lines.append(line)
+        text = cls._normalize_rich_text('\n'.join(cleaned_lines))
+        return cls._escape_markdown_headers(text) if text else ''
 
     @staticmethod
     def _normalize_rich_text(text: str) -> str:
@@ -199,6 +252,23 @@ class WechatService:
                         """
                     )
 
+                async def _read_runtime_state():
+                    return await page.evaluate(
+                        """
+                        () => {
+                            const norm = (text) => String(text || '').trim();
+                            const shareEl = document.querySelector('#js_image_desc') || document.querySelector('#js_common_share_desc');
+                            const contentEl = document.querySelector('#js_content') || document.querySelector('#js_image_content');
+                            return {
+                                title: norm(document.title),
+                                shareTextLen: shareEl ? norm(shareEl.innerText).length : 0,
+                                contentTextLen: contentEl ? norm(contentEl.innerText).length : 0,
+                                swiperCount: document.querySelectorAll('.swiper_item[data-src]').length,
+                            };
+                        }
+                        """
+                    )
+
                 runtime_payload = None
                 for _ in range(40):
                     await asyncio.sleep(0.5)
@@ -208,7 +278,12 @@ class WechatService:
                             'WeChat verification/CAPTCHA detected. Please retry after solving verification in a browser session.'
                         )
                     runtime_payload = await _read_runtime_share()
-                    if runtime_payload and len((runtime_payload.get('text') or '').strip()) >= 120:
+                    runtime_state = await _read_runtime_state()
+                    title_ready = runtime_state.get('title', '') not in self._GENERIC_TITLES
+                    share_ready = runtime_payload and len((runtime_payload.get('text') or '').strip()) >= 12
+                    content_ready = runtime_state.get('contentTextLen', 0) >= 20
+                    swiper_ready = runtime_state.get('swiperCount', 0) > 0
+                    if title_ready and (share_ready or content_ready or swiper_ready):
                         break
 
                 html = await _safe_page_content()
@@ -301,9 +376,17 @@ class WechatService:
 
         # Fallback for newer XHS-style article format that uses different selectors
         if not meta.title:
-            title_el = soup.select_one('.rich_media_title') or soup.select_one('h1')
+            title_el = (
+                soup.select_one('.rich_media_title')
+                or soup.select_one('#activity-name')
+                or soup.select_one('#js_image_desc')
+                or soup.select_one('h1')
+                or soup.select_one('title')
+            )
             if title_el:
-                meta.title = title_el.get_text(strip=True)
+                title_text = title_el.get_text(strip=True)
+                if title_text not in self._GENERIC_TITLES:
+                    meta.title = title_text
         if not meta.author:
             author_el = soup.select_one('.wx_follow_nickname')
             if author_el:
@@ -333,6 +416,10 @@ class WechatService:
         else:
             post_dir = self.base_path / folder_name
         post_dir.mkdir(parents=True, exist_ok=True)
+        image_hashes = {}
+        img_dir = post_dir / 'images'
+        if img_dir.exists():
+            shutil.rmtree(img_dir)
 
         # Inject video placeholders into content HTML before markdown conversion
         # so that video positions are preserved inline in the resulting markdown.
@@ -360,8 +447,12 @@ class WechatService:
         # Convert content to markdown (with video placeholders in place)
         md_body = convert_html_to_markdown(patched_html, parsed.code_blocks)
 
+        swiper_urls = self._extract_swiper_image_urls(soup)
+        album_text_md = self._extract_album_page_text(soup) if swiper_urls else ''
         runtime_text_md = self._extract_share_description_markdown(soup, html)
-        if runtime_text_md:
+        if album_text_md:
+            md_body = album_text_md
+        elif runtime_text_md:
             existing_text = self._normalize_rich_text(re.sub(r'!\[[^\]]*\]\([^)]*\)', '', md_body))
             runtime_compact = re.sub(r'\s+', '', runtime_text_md)
             existing_compact = re.sub(r'\s+', '', existing_text)
@@ -378,7 +469,6 @@ class WechatService:
         # Download images → images/01.jpg, 02.jpg, … and replace URLs in markdown
         image_count = 0
         if md_image_urls:
-            img_dir = post_dir / 'images'
             img_dir.mkdir(exist_ok=True)
             seen = {}  # md_url → local_rel (avoid re-downloading duplicates)
             idx = 1
@@ -401,6 +491,13 @@ class WechatService:
                         )
                         with urllib.request.urlopen(req, timeout=20) as resp:
                             data = resp.read()
+                            data_hash = hashlib.sha256(data).hexdigest()
+                            if data_hash in image_hashes:
+                                local_rel = image_hashes[data_hash]
+                                md_body = md_body.replace(md_url, local_rel)
+                                seen[md_url] = local_rel
+                                last_err = None
+                                break
                             ct = resp.headers.get('Content-Type', '')
                             if 'png' in ct:
                                 ext = '.png'
@@ -415,6 +512,7 @@ class WechatService:
                             local_rel = f'images/{fname}'
                             md_body = md_body.replace(md_url, local_rel)
                             seen[md_url] = local_rel
+                            image_hashes[data_hash] = local_rel
                             image_count += 1
                             idx += 1
                             last_err = None
@@ -429,7 +527,6 @@ class WechatService:
         # Extract from window.picture_page_info_list and append to markdown.
         carousel_urls = self._extract_carousel_image_urls(html)
         if carousel_urls:
-            img_dir = post_dir / 'images'
             img_dir.mkdir(exist_ok=True)
             carousel_lines = []
             idx = image_count + 1  # continue numbering after any inline images
@@ -448,11 +545,17 @@ class WechatService:
                         )
                         with urllib.request.urlopen(req, timeout=20) as resp:
                             data = resp.read()
+                            data_hash = hashlib.sha256(data).hexdigest()
+                            if data_hash in image_hashes:
+                                last_err = None
+                                break
                             ct = resp.headers.get('Content-Type', '')
                             ext = '.png' if 'png' in ct else '.webp' if 'webp' in ct else '.gif' if 'gif' in ct else '.jpg'
                             fname = f'{idx:02d}{ext}'
                             (img_dir / fname).write_bytes(data)
-                            carousel_lines.append(f'![图{idx}](images/{fname})')
+                            local_rel = f'images/{fname}'
+                            carousel_lines.append(f'![图{idx}]({local_rel})')
+                            image_hashes[data_hash] = local_rel
                             image_count += 1
                             idx += 1
                             last_err = None
@@ -465,6 +568,50 @@ class WechatService:
                     idx += 1
             if carousel_lines:
                 md_body = md_body.rstrip() + '\n\n' + '\n\n'.join(carousel_lines) + '\n'
+
+        if swiper_urls:
+            img_dir.mkdir(exist_ok=True)
+            swiper_lines = []
+            idx = image_count + 1
+            for s_url in swiper_urls:
+                last_err = None
+                clean_url = s_url.split('#')[0]
+                for attempt in range(3):
+                    try:
+                        if attempt:
+                            import time as _t; _t.sleep(1.5 * attempt)
+                        req = urllib.request.Request(
+                            clean_url,
+                            headers={
+                                'User-Agent': 'Mozilla/5.0',
+                                'Referer': 'https://mp.weixin.qq.com/',
+                            }
+                        )
+                        with urllib.request.urlopen(req, timeout=20) as resp:
+                            data = resp.read()
+                            data_hash = hashlib.sha256(data).hexdigest()
+                            if data_hash in image_hashes:
+                                last_err = None
+                                break
+                            ct = resp.headers.get('Content-Type', '')
+                            ext = '.png' if 'png' in ct else '.webp' if 'webp' in ct else '.gif' if 'gif' in ct else '.jpg'
+                            fname = f'{idx:02d}{ext}'
+                            (img_dir / fname).write_bytes(data)
+                            local_rel = f'images/{fname}'
+                            swiper_lines.append(f'![图{idx}]({local_rel})')
+                            image_hashes[data_hash] = local_rel
+                            image_count += 1
+                            idx += 1
+                            last_err = None
+                            break
+                    except Exception as e:
+                        last_err = e
+                if last_err:
+                    warning(f'Swiper image {idx} download failed: {last_err}')
+                    swiper_lines.append(f'![图{idx}]({clean_url})')
+                    idx += 1
+            if swiper_lines:
+                md_body = md_body.rstrip() + '\n\n' + '\n\n'.join(swiper_lines) + '\n'
 
         # Download videos and replace inline placeholders in markdown
         video_count = 0
