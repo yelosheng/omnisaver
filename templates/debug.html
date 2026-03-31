@@ -75,7 +75,21 @@
                 <button class="btn btn-info btn-sm" data-level="info" onclick="setLevelFilter('info')">INFO</button>
                 <button class="btn btn-secondary btn-sm" data-level="other" onclick="setLevelFilter('other')">OTHER</button>
             </div>
+            <div class="form-check form-switch ms-1">
+                <input class="form-check-input" type="checkbox" id="failure-only-toggle" onchange="toggleFailureOnly()">
+                <label class="form-check-label small" for="failure-only-toggle">Failures only</label>
+            </div>
+            <div class="input-group input-group-sm" style="max-width: 220px;">
+                <span class="input-group-text"><i class="bi bi-hash"></i></span>
+                <select class="form-select" id="task-filter" onchange="setTaskFilter(this.value)">
+                    <option value="">All tasks</option>
+                </select>
+                <button class="btn btn-outline-secondary" onclick="clearTaskFilter()" title="Clear task filter">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
         </div>
+        <div id="task-summary" class="d-flex flex-wrap gap-2 mt-2"></div>
     </div>
     <div class="card-body p-0" style="position: relative;">
         <div id="logs" style="height: calc(100vh - 420px); min-height: 300px; overflow-y: auto; background-color: #0d1117; color: #00ff00; padding: 10px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 11px; line-height: 1.4; user-select: text; -webkit-user-select: text;">
@@ -100,6 +114,8 @@
     let logCount = 0;
     let allLogEntries = [];
     let activeLevelFilter = 'all';
+    let activeTaskFilter = '';
+    let failuresOnly = false;
     let userScrolledUp = false;
     let isSelecting = false;
 
@@ -220,22 +236,98 @@
         return { error: '#ff4444', warning: '#ffaa00', info: '#44aaff', other: '#00ff00' }[level] || '#00ff00';
     }
 
+    function extractTaskId(text) {
+        const match = text.match(/\[(?:[A-Za-z ]+ )?Task (\d+)\]/);
+        return match ? match[1] : '';
+    }
+
+    function isFailureLog(text, level) {
+        if (level === 'error') return true;
+        const normalized = text.toLowerCase();
+        return (
+            normalized.includes(' failed') ||
+            normalized.includes('failed:') ||
+            normalized.includes('error') ||
+            normalized.includes('exception') ||
+            normalized.includes('retry ') ||
+            normalized.includes('stuck task') ||
+            normalized.includes('recovering') ||
+            normalized.includes('resetting')
+        );
+    }
+
+    function shouldDisplayEntry(entry, kw) {
+        const matchesKw = !kw || entry.text.toLowerCase().includes(kw);
+        const matchesLevel = activeLevelFilter === 'all' || activeLevelFilter === entry.level;
+        const matchesTask = !activeTaskFilter || entry.taskId === activeTaskFilter;
+        const matchesFailure = !failuresOnly || entry.isFailure;
+        return matchesKw && matchesLevel && matchesTask && matchesFailure;
+    }
+
+    function refreshTaskSummary() {
+        const summaryEl = document.getElementById('task-summary');
+        const taskFilterEl = document.getElementById('task-filter');
+        const taskMap = new Map();
+
+        allLogEntries.forEach(entry => {
+            if (!entry.taskId) return;
+            if (!taskMap.has(entry.taskId)) {
+                taskMap.set(entry.taskId, { total: 0, errors: 0, lastText: '' });
+            }
+            const stats = taskMap.get(entry.taskId);
+            stats.total += 1;
+            if (entry.level === 'error' || entry.isFailure) stats.errors += 1;
+            stats.lastText = entry.text;
+        });
+
+        const sortedTaskIds = Array.from(taskMap.keys()).sort((a, b) => Number(b) - Number(a));
+        taskFilterEl.innerHTML = '<option value="">All tasks</option>';
+        sortedTaskIds.forEach(taskId => {
+            const stats = taskMap.get(taskId);
+            const option = document.createElement('option');
+            option.value = taskId;
+            option.textContent = `Task ${taskId} (${stats.total}${stats.errors ? `, ${stats.errors} issues` : ''})`;
+            taskFilterEl.appendChild(option);
+        });
+        taskFilterEl.value = activeTaskFilter;
+
+        if (!sortedTaskIds.length) {
+            summaryEl.innerHTML = '<span class="text-muted small">No task-linked logs yet</span>';
+            return;
+        }
+
+        summaryEl.innerHTML = '';
+        sortedTaskIds.slice(0, 12).forEach(taskId => {
+            const stats = taskMap.get(taskId);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = activeTaskFilter === taskId ? 'btn btn-sm btn-danger' : (stats.errors ? 'btn btn-sm btn-outline-danger' : 'btn btn-sm btn-outline-secondary');
+            btn.textContent = `Task ${taskId} · ${stats.total}${stats.errors ? ` · ${stats.errors} issues` : ''}`;
+            btn.title = stats.lastText;
+            btn.onclick = () => setTaskFilter(activeTaskFilter === taskId ? '' : taskId);
+            summaryEl.appendChild(btn);
+        });
+    }
+
     function addRealTimeLog(logText) {
         const level = classifyLevel(logText);
+        const taskId = extractTaskId(logText);
+        const failure = isFailureLog(logText, level);
         const logsContainer = document.getElementById('logs');
         const el = document.createElement('div');
         el.style.cssText = 'margin-bottom:1px; word-break:break-word;';
         el.style.color = levelColor(level);
         el.dataset.level = level;
+        el.dataset.taskId = taskId;
+        el.dataset.failure = failure ? '1' : '0';
         el.textContent = logText;
 
         const kw = document.getElementById('log-filter').value.trim().toLowerCase();
-        const matchesKw = !kw || logText.toLowerCase().includes(kw);
-        const matchesLevel = activeLevelFilter === 'all' || activeLevelFilter === level;
-        el.style.display = (matchesKw && matchesLevel) ? '' : 'none';
+        const entry = { text: logText, level, taskId, isFailure: failure, el };
+        el.style.display = shouldDisplayEntry(entry, kw) ? '' : 'none';
 
         logsContainer.appendChild(el);
-        allLogEntries.push({ text: logText, level, el });
+        allLogEntries.push(entry);
 
         if (allLogEntries.length > 500) {
             const removed = allLogEntries.shift();
@@ -245,24 +337,25 @@
         if (!userScrolledUp && !isSelecting) logsContainer.scrollTop = logsContainer.scrollHeight;
 
         logCount++;
+        refreshTaskSummary();
         updateLogCount();
     }
 
     function updateLogCount() {
         const visible = allLogEntries.filter(e => e.el.style.display !== 'none').length;
+        const total = allLogEntries.length;
         document.getElementById('log-count').textContent =
-            visible === logCount ? `${logCount} entries` : `${visible} / ${logCount} entries`;
+            visible === total ? `${total} entries` : `${visible} / ${total} entries`;
     }
 
     // ── Filters ──────────────────────────────────────────────────────────────
 
     function applyFilters() {
         const kw = document.getElementById('log-filter').value.trim().toLowerCase();
-        allLogEntries.forEach(({ text, level, el }) => {
-            const matchesKw = !kw || text.toLowerCase().includes(kw);
-            const matchesLevel = activeLevelFilter === 'all' || activeLevelFilter === level;
-            el.style.display = (matchesKw && matchesLevel) ? '' : 'none';
+        allLogEntries.forEach(entry => {
+            entry.el.style.display = shouldDisplayEntry(entry, kw) ? '' : 'none';
         });
+        refreshTaskSummary();
         updateLogCount();
     }
 
@@ -282,6 +375,21 @@
                 btn.className = isActive ? 'btn btn-secondary btn-sm active' : 'btn btn-outline-secondary btn-sm';
             }
         });
+        applyFilters();
+    }
+
+    function setTaskFilter(taskId) {
+        activeTaskFilter = taskId || '';
+        document.getElementById('task-filter').value = activeTaskFilter;
+        applyFilters();
+    }
+
+    function clearTaskFilter() {
+        setTaskFilter('');
+    }
+
+    function toggleFailureOnly() {
+        failuresOnly = document.getElementById('failure-only-toggle').checked;
         applyFilters();
     }
 
@@ -331,6 +439,11 @@
         document.getElementById('logs').innerHTML = '';
         allLogEntries = [];
         logCount = 0;
+        activeTaskFilter = '';
+        failuresOnly = false;
+        document.getElementById('task-filter').value = '';
+        document.getElementById('failure-only-toggle').checked = false;
+        refreshTaskSummary();
         updateLogCount();
     }
 

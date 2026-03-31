@@ -1,6 +1,7 @@
 import os
 import configparser
 from typing import Dict, Any, Optional
+from utils.realtime_logger import info, error
 
 
 class ConfigManager:
@@ -171,9 +172,9 @@ class ConfigManager:
             except (OSError, IOError) as e:
                 raise ValueError(f"Cannot write to save path {save_path}: {e}")
 
-            print(f"[Config] Using web scraping mode (Playwright browser automation)")
+            info("[Config] Using web scraping mode (Playwright browser automation)")
 
             return True
         except ValueError as e:
-            print(f"Configuration error: {e}")
+            error(f"[Config] Configuration error: {e}")
             return False

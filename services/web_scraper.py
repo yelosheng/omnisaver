@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import time
 from bs4 import BeautifulSoup
+from utils.realtime_logger import info, warning, error, success, debug
 
 
 class TwitterWebScraper:
@@ -82,7 +83,7 @@ class TwitterWebScraper:
             # Convert to standard Twitter URL
             clean_url = f"https://twitter.com/i/web/status/{tweet_id}"
             
-            print(f"[WebScraper] Fetching tweet from: {clean_url}")
+            info(f"[WebScraper] Fetching tweet from: {clean_url}")
             
             # Send request
             response = self.session.get(clean_url, timeout=self.timeout)
@@ -108,7 +109,7 @@ class TwitterWebScraper:
             return tweet_data
             
         except Exception as e:
-            print(f"[WebScraper] Error fetching tweet {url}: {e}")
+            error(f"[WebScraper] Error fetching tweet {url}: {e}")
             raise e
     
     def _extract_tweet_data(self, soup: BeautifulSoup, tweet_id: str) -> Optional[Dict]:
@@ -197,7 +198,7 @@ class TwitterWebScraper:
             return None
             
         except Exception as e:
-            print(f"[WebScraper] Error extracting tweet data: {e}")
+            warning(f"[WebScraper] Error extracting tweet data: {e}")
             return None
     
     def _extract_from_json_ld(self, soup: BeautifulSoup, tweet_id: str) -> Optional[Dict]:
@@ -240,7 +241,7 @@ class TwitterWebScraper:
             return None
             
         except Exception as e:
-            print(f"[WebScraper] Error extracting from JSON-LD: {e}")
+            warning(f"[WebScraper] Error extracting from JSON-LD: {e}")
             return None
     
     def _extract_from_meta_tags(self, soup: BeautifulSoup, tweet_id: str) -> Optional[Dict]:
@@ -288,7 +289,7 @@ class TwitterWebScraper:
             return None
             
         except Exception as e:
-            print(f"[WebScraper] Error extracting from meta tags: {e}")
+            warning(f"[WebScraper] Error extracting from meta tags: {e}")
             return None
     
     def get_media_info(self, soup: BeautifulSoup) -> Tuple[List[str], List[str]]:
@@ -350,7 +351,7 @@ class TwitterWebScraper:
             return media_urls, media_types
                         
         except Exception as e:
-            print(f"[WebScraper] Error getting media info: {e}")
+            warning(f"[WebScraper] Error getting media info: {e}")
             return [], []
 
     def get_media_urls(self, url: str) -> List[str]:
@@ -372,7 +373,7 @@ class TwitterWebScraper:
             return media_urls
             
         except Exception as e:
-            print(f"[WebScraper] Error getting media URLs: {e}")
+            warning(f"[WebScraper] Error getting media URLs: {e}")
             return []
     
     def get_tweet_data(self, url: str) -> Dict:
@@ -399,13 +400,13 @@ class TwitterWebScraper:
         
         for strategy in strategies:
             try:
-                print(f"[WebScraper] Trying strategy: {strategy.__name__}")
+                debug(f"[WebScraper] Trying strategy: {strategy.__name__}")
                 tweet_data = strategy(tweet_id)
                 if tweet_data and tweet_data.get('text'):
-                    print(f"[WebScraper] Success with {strategy.__name__}")
+                    success(f"[WebScraper] Success with {strategy.__name__}")
                     return tweet_data
             except Exception as e:
-                print(f"[WebScraper] {strategy.__name__} failed: {e}")
+                warning(f"[WebScraper] {strategy.__name__} failed: {e}")
                 last_exception = e
                 continue
         
@@ -549,7 +550,7 @@ class TwitterWebScraper:
             return None
             
         except Exception as e:
-            print(f"[WebScraper] Error extracting from scripts: {e}")
+            warning(f"[WebScraper] Error extracting from scripts: {e}")
             return None
     
     def _extract_from_nitter(self, soup: BeautifulSoup, tweet_id: str) -> Optional[Dict]:
@@ -599,5 +600,5 @@ class TwitterWebScraper:
             return None
             
         except Exception as e:
-            print(f"[WebScraper] Error extracting from Nitter: {e}")
+            warning(f"[WebScraper] Error extracting from Nitter: {e}")
             return None

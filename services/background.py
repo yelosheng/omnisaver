@@ -110,14 +110,17 @@ def check_and_schedule_retry(cursor, task_id, error_message):
                 task_id
             ))
 
-            print(f"[Task {task_id}] Scheduled for retry {retry_count + 1}/{max_retries} at {next_retry_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            warning(
+                f"[Task {task_id}] Scheduled for retry {retry_count + 1}/{max_retries} "
+                f"at {next_retry_time.strftime('%Y-%m-%d %H:%M:%S')}: {error_message}"
+            )
             return True
         else:
-            print(f"[Task {task_id}] Max retries ({max_retries}) reached or error not retry-eligible")
+            warning(f"[Task {task_id}] Retry skipped: max retries reached or error not retry-eligible: {error_message}")
             return False
 
     except Exception as e:
-        print(f"Error in check_and_schedule_retry: {e}")
+        error(f"Error in check_and_schedule_retry: {e}")
         return False
 
 
@@ -847,7 +850,7 @@ def queue_processor():
 
 def task_monitor():
     """任务监控器，定期检查卡住的任务"""
-    print("[Task Monitor] Starting task monitor thread...")
+    info("[Task Monitor] Starting task monitor thread")
 
     while True:
         try:
@@ -864,10 +867,10 @@ def task_monitor():
             ''').fetchall()
 
             if stuck_tasks:
-                print(f"[Task Monitor] Found {len(stuck_tasks)} stuck tasks, recovering...")
+                warning(f"[Task Monitor] Found {len(stuck_tasks)} stuck tasks, recovering")
 
                 for task in stuck_tasks:
-                    print(f"[Task Monitor] Recovering stuck task {task['id']}")
+                    warning(f"[Task Monitor] Recovering stuck task {task['id']}")
                     # 重置为pending状态
                     conn.execute(
                         'UPDATE tasks SET status = ?, error_message = ? WHERE id = ?',
@@ -877,12 +880,12 @@ def task_monitor():
                     enqueue_task(task['id'], task['url'])
 
                 conn.commit()
-                print(f"[Task Monitor] Recovered {len(stuck_tasks)} stuck tasks")
+                success(f"[Task Monitor] Recovered {len(stuck_tasks)} stuck tasks")
 
             conn.close()
 
         except Exception as e:
-            print(f"[Task Monitor] Error in task monitor: {e}")
+            error(f"[Task Monitor] Error in task monitor: {e}")
 
 
 def start_background_thread():
@@ -911,7 +914,7 @@ def auto_fix_stuck_tasks():
         ).fetchall()
 
         if stuck_tasks:
-            print(f"[Auto Fix] Found {len(stuck_tasks)} stuck tasks, auto-fixing...")
+            warning(f"[Auto Fix] Found {len(stuck_tasks)} stuck tasks, auto-fixing")
 
             # 重置为pending
             conn.execute('UPDATE tasks SET status = "pending" WHERE status = "processing"')
@@ -920,14 +923,14 @@ def auto_fix_stuck_tasks():
             # 重新加入队列
             for task in stuck_tasks:
                 enqueue_task(task['id'], task['url'])
-                print(f"[Auto Fix] Requeued task {task['id']}")
+                info(f"[Auto Fix] Requeued task {task['id']}")
 
-            print(f"[Auto Fix] Auto-fixed {len(stuck_tasks)} stuck tasks")
+            success(f"[Auto Fix] Auto-fixed {len(stuck_tasks)} stuck tasks")
 
         conn.close()
 
     except Exception as e:
-        print(f"[Auto Fix] Error in auto fix: {e}")
+        error(f"[Auto Fix] Error in auto fix: {e}")
 
 
 def load_pending_tasks():
@@ -940,10 +943,10 @@ def load_pending_tasks():
     ).fetchall()
 
     if processing_tasks:
-        print(f"[Startup] Found {len(processing_tasks)} stuck processing tasks, resetting to pending...")
+        warning(f"[Startup] Found {len(processing_tasks)} stuck processing tasks, resetting to pending")
         conn.execute('UPDATE tasks SET status = "pending" WHERE status = "processing"')
         conn.commit()
-        print(f"[Startup] Reset {len(processing_tasks)} stuck tasks to pending")
+        success(f"[Startup] Reset {len(processing_tasks)} stuck tasks to pending")
 
     # 加载所有pending任务到队列
     pending_tasks = conn.execute(
@@ -952,14 +955,14 @@ def load_pending_tasks():
 
     for task in pending_tasks:
         if enqueue_task(task['id'], task['url']):
-            print(f"[Startup] Loaded pending task {task['id']} into queue")
+            info(f"[Startup] Loaded pending task {task['id']} into queue")
 
     conn.close()
 
     if pending_tasks:
-        print(f"[Startup] Loaded {len(pending_tasks)} pending tasks into queue")
+        info(f"[Startup] Loaded {len(pending_tasks)} pending tasks into queue")
     else:
-        print("[Startup] No pending tasks found")
+        info("[Startup] No pending tasks found")
 
 
 def _xhs_autosave_worker():

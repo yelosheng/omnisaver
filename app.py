@@ -11,6 +11,7 @@ import subprocess
 import threading
 import logging
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, Response, session, flash
@@ -54,7 +55,10 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF 保护
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 # 导入实时日志系统
-from utils.realtime_logger import log_buffer, log_lock, log, info, error, warning, success
+from utils.realtime_logger import (
+    log_buffer, log_lock, log, info, error, warning, success, debug,
+    get_formatted_logs, get_logs_after, get_latest_seq, format_log_entry,
+)
 from services.db import (
     normalize_path_cross_platform, find_actual_tweet_directory,
     get_current_time, format_time_for_db, parse_time_from_db,
@@ -186,24 +190,24 @@ def init_services():
     global config_manager, twitter_service, media_downloader, file_manager
     
     try:
-        print(f"[init_services] Starting service initialization...")
-        print(f"[init_services] Current global variables: config_manager={config_manager}, twitter_service={twitter_service}")
-        
-        print(f"[init_services] Creating ConfigManager...")
+        info("[Init] Starting service initialization")
+        info(f"[Init] Current globals: config_manager={config_manager is not None}, twitter_service={twitter_service is not None}")
+
+        info("[Init] Creating ConfigManager")
         config_manager = ConfigManager()
-        print(f"[init_services] ConfigManager created: {config_manager}")
-        
-        print(f"[init_services] Validating config...")
+        info("[Init] ConfigManager created")
+
+        info("[Init] Validating config")
         if not config_manager.validate_config():
-            print(f"[init_services] Config validation failed!")
+            error("[Init] Config validation failed")
             return False
-        print(f"[init_services] Config validation passed")
-        
-        print(f"[init_services] Loading config...")
+        success("[Init] Config validation passed")
+
+        info("[Init] Loading config")
         config = config_manager.load_config()
-        print(f"[init_services] Config loaded successfully")
-        
-        print(f"[init_services] Creating TwitterService...")
+        success("[Init] Config loaded successfully")
+
+        info("[Init] Creating TwitterService")
         twitter_service = TwitterService(
             max_retries=config['max_retries'],
             timeout=config['timeout_seconds'],
@@ -211,30 +215,29 @@ def init_services():
             xreach_auth_token=config_manager.get_twitter_auth_token(),
             xreach_ct0=config_manager.get_twitter_ct0()
         )
-        print(f"[init_services] TwitterService created: {twitter_service}")
-        
-        print(f"[init_services] Creating MediaDownloader...")
+        info("[Init] TwitterService created")
+
+        info("[Init] Creating MediaDownloader")
         media_downloader = MediaDownloader(
             max_retries=config['max_retries'],
             timeout=config['timeout_seconds'],
             twitter_auth_token=config_manager.get_twitter_auth_token(),
             twitter_ct0=config_manager.get_twitter_ct0()
         )
-        print(f"[init_services] MediaDownloader created: {media_downloader}")
-        
-        print(f"[init_services] Creating FileManager...")
+        info("[Init] MediaDownloader created")
+
+        info("[Init] Creating FileManager")
         file_manager = FileManager(
             base_path=config['save_path'],
             create_date_folders=config['create_date_folders']
         )
-        print(f"[init_services] FileManager created: {file_manager}")
-        
-        print(f"[init_services] All services created successfully!")
-        print(f"[init_services] Final global variables: config_manager={config_manager}, twitter_service={twitter_service}")
+        info("[Init] FileManager created")
+
+        success("[Init] All services created successfully")
         init_background(config_manager, twitter_service, media_downloader, file_manager)
         return True
     except Exception as e:
-        print(f"[init_services] ERROR: Failed to initialize services: {e}")
+        error(f"[Init] Failed to initialize services: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -770,7 +773,7 @@ def show_tweet(slug):
     """显示推文 - 仅支持随机slug访问 (无需登录，可分享)"""
     # 调试：打印登录状态
     is_logged_in = session.get('logged_in', False)
-    print(f"[DEBUG] /view/{slug} - is_logged_in: {is_logged_in}, session: {dict(session)}")
+    debug(f"[View] /view/{slug} - is_logged_in={is_logged_in}, session_keys={list(dict(session).keys())}")
 
     # 获取任务信息 - 仅通过slug查找，不支持数字ID
     conn = get_db_connection()
@@ -837,7 +840,7 @@ def show_tweet(slug):
             with open(content_txt_file, 'r', encoding='utf-8') as f:
                 tweet_text = f.read().strip()
         except Exception as e:
-            print(f"[DEBUG] Failed to read content.txt: {e}")
+            warning(f"[View] Failed to read content.txt for slug {slug}: {e}")
             tweet_text = ""
 
     # 读取Reader模式HTML内容
@@ -853,13 +856,13 @@ def show_tweet(slug):
                 _reader = _soup.find('div', class_='reader-content')
                 if _reader:
                     tweet_html = str(_reader)
-                    print(f"[DEBUG] Successfully loaded Reader mode content, length: {len(tweet_html)}")
+                    debug(f"[View] Loaded Reader mode content for slug {slug}, length={len(tweet_html)}")
                 else:
                     _body = _soup.find('body')
                     tweet_html = str(_body) if _body else html_content
-                    print(f"[DEBUG] Using fallback HTML content, length: {len(tweet_html)}")
+                    debug(f"[View] Using fallback HTML content for slug {slug}, length={len(tweet_html)}")
         except Exception as e:
-            print(f"[DEBUG] Failed to read HTML file: {e}")
+            warning(f"[View] Failed to read HTML file for slug {slug}: {e}")
             tweet_html = ""
 
     # 构造推文数据
@@ -923,7 +926,7 @@ def show_tweet(slug):
                     tweet_html
                 )
             except Exception as e:
-                print(f"[DEBUG] WeChat markdown render failed: {e}")
+                warning(f"[View] Markdown render failed for {content_type} slug {slug}: {e}")
 
     # YouTube: render content.md as HTML
     if content_type == 'youtube' and not tweet_html:
@@ -960,7 +963,7 @@ def show_tweet(slug):
                     tweet_html
                 )
             except Exception as e:
-                print(f"[DEBUG] YouTube markdown render failed: {e}")
+                warning(f"[View] YouTube markdown render failed for slug {slug}: {e}")
 
     # 兜底检测：DB 中 content_type 可能因以下原因误判为 'tweet'：
     # 1. 通过 /status/ URL 提交的长文（动态检测路径，URL 不含 /article/）
@@ -1103,9 +1106,9 @@ def delete_tweet(task_id):
     except Exception as e:
         return jsonify({'success': False, 'message': f'Delete failed: {str(e)}'})
 
-@app.route('/debug')
+@app.route('/debug', endpoint='debug')
 @login_required
-def debug():
+def debug_page():
     """调试页面"""
     return render_template('debug.html')
 
@@ -1137,7 +1140,7 @@ def reset_stuck_tasks():
         ).fetchall()
         
         if stuck_tasks:
-            print(f"[Reset] Found {len(stuck_tasks)} stuck tasks")
+            warning(f"[Reset] Found {len(stuck_tasks)} stuck tasks")
             # 重置为pending
             conn.execute('UPDATE tasks SET status = "pending" WHERE status = "processing"')
             conn.commit()
@@ -1145,7 +1148,7 @@ def reset_stuck_tasks():
             # 重新加入队列
             for task in stuck_tasks:
                 enqueue_task(task['id'], task['url'])
-                print(f"[Reset] Requeued task {task['id']}")
+                info(f"[Reset] Requeued task {task['id']}")
             
             message = f"Reset {len(stuck_tasks)} stuck tasks and requeued them"
         else:
@@ -1171,11 +1174,11 @@ def force_start_queue():
     global processing_thread
     
     try:
-        print("[Force Start] Force starting queue processor...")
+        warning("[Force Start] Force starting queue processor")
         
         # 检查线程状态
         thread_alive = processing_thread.is_alive() if processing_thread else False
-        print(f"[Force Start] Thread alive: {thread_alive}")
+        info(f"[Force Start] Thread alive: {thread_alive}")
         
         # 强制重置所有processing任务为pending
         conn = get_db_connection()
@@ -1184,7 +1187,7 @@ def force_start_queue():
         ).fetchall()
         
         if processing_tasks:
-            print(f"[Force Start] Resetting {len(processing_tasks)} processing tasks to pending...")
+            warning(f"[Force Start] Resetting {len(processing_tasks)} processing tasks to pending")
             conn.execute('UPDATE tasks SET status = "pending" WHERE status = "processing"')
             conn.commit()
         
@@ -1192,15 +1195,15 @@ def force_start_queue():
         
         # 重新启动线程（如果需要）
         if not thread_alive:
-            print("[Force Start] Starting queue processor thread...")
+            info("[Force Start] Starting queue processor thread")
             start_background_thread()
             
         # 重新加载待处理任务
-        print("[Force Start] Reloading pending tasks...")
+        info("[Force Start] Reloading pending tasks")
         load_pending_tasks()
         
         queue_size = processing_queue.qsize()
-        print(f"[Force Start] Queue size after reload: {queue_size}")
+        success(f"[Force Start] Queue size after reload: {queue_size}")
         
         return jsonify({
             'success': True,
@@ -1208,7 +1211,7 @@ def force_start_queue():
             'queue_size': queue_size
         })
     except Exception as e:
-        print(f"[Force Start] Error: {e}")
+        error(f"[Force Start] Error: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -1420,21 +1423,21 @@ def serve_media(task_id, filename):
 def initialize_app():
     """应用请求前的初始化"""
     if not hasattr(app, '_services_initialized'):
-        print("[Flask] First request - initializing services in Flask context...")
-        print(f"[Flask] Global variables before init: config_manager={config_manager}, twitter_service={twitter_service}")
+        info("[Flask] First request - initializing services in Flask context")
+        debug(f"[Flask] Globals before init: config_manager={config_manager is not None}, twitter_service={twitter_service is not None}")
         
         result = init_services()
-        print(f"[Flask] init_services() returned: {result}")
-        print(f"[Flask] Global variables after init: config_manager={config_manager}, twitter_service={twitter_service}")
+        info(f"[Flask] init_services() returned: {result}")
+        debug(f"[Flask] Globals after init: config_manager={config_manager is not None}, twitter_service={twitter_service is not None}")
         
         if not result:
-            print("[Flask] Failed to initialize services in Flask context!")
+            error("[Flask] Failed to initialize services in Flask context")
         else:
-            print("[Flask] Services initialized successfully in Flask context")
+            success("[Flask] Services initialized successfully in Flask context")
         app._services_initialized = True
     
     if not hasattr(app, '_background_thread_started'):
-        print("[Flask] First request - initializing background thread...")
+        info("[Flask] First request - initializing background thread")
         start_background_thread()
         # 自动检测并修复卡住的任务
         auto_fix_stuck_tasks()
@@ -2203,30 +2206,29 @@ def api_task_status(task_id):
 def stream_logs():
     """实时日志流 - Server-Sent Events"""
     def generate():
+        yield "event: status\ndata: connected\n\n"
+
         # 发送已有的日志
-        with log_lock:
-            for log_entry in log_buffer:
-                yield f"data: {log_entry}\n\n"
-        
+        for log_entry in get_formatted_logs():
+            yield f"data: {log_entry}\n\n"
+
         # 实时推送新日志
-        last_count = len(log_buffer)
+        last_seq = get_latest_seq()
         idle_ticks = 0
         while True:
             try:
-                with log_lock:
-                    current_count = len(log_buffer)
-                    if current_count > last_count:
-                        new_logs = list(log_buffer)[last_count:]
-                        for log_entry in new_logs:
-                            yield f"data: {log_entry}\n\n"
-                        last_count = current_count
-                        idle_ticks = 0
-                    else:
-                        idle_ticks += 1
+                new_logs = get_logs_after(last_seq)
+                if new_logs:
+                    for log_entry in new_logs:
+                        yield f"data: {format_log_entry(log_entry)}\n\n"
+                    last_seq = new_logs[-1]['seq']
+                    idle_ticks = 0
+                else:
+                    idle_ticks += 1
 
                 # 每15秒发一次心跳，防止代理超时断连
                 if idle_ticks >= 30:
-                    yield ": keepalive\n\n"
+                    yield "event: ping\ndata: keepalive\n\n"
                     idle_ticks = 0
 
                 time.sleep(0.5)
@@ -2236,20 +2238,19 @@ def stream_logs():
                 yield f"data: [ERROR] 日志流错误: {str(e)}\n\n"
                 break
     
-    return Response(generate(), mimetype='text/plain', headers={
+    return Response(generate(), mimetype='text/event-stream', headers={
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
         'Access-Control-Allow-Origin': '*'
     })
 
 @app.route('/api/logs/recent')
 def get_recent_logs():
     """获取最近的日志（用于初始化）"""
-    with log_lock:
-        logs = list(log_buffer)
     return jsonify({
         'success': True,
-        'logs': logs
+        'logs': get_formatted_logs()
     })
 
 @app.route('/api/logs/test')
@@ -2380,15 +2381,15 @@ if __name__ == '__main__':
         _tasks_count = _fts_conn.execute("SELECT COUNT(*) FROM tasks WHERE status='completed'").fetchone()[0]
         _fts_conn.close()
         if _fts_count == 0 and _tasks_count > 0:
-            print(f"[FTS] Index empty, rebuilding from {_tasks_count} completed tasks...")
+            info(f"[FTS] Index empty, rebuilding from {_tasks_count} completed tasks")
             n = rebuild_fts_index()
-            print(f"[FTS] Indexed {n} entries.")
+            success(f"[FTS] Indexed {n} entries")
     except Exception as e:
-        print(f"[FTS] Warning: could not check/rebuild index: {e}")
+        warning(f"[FTS] Could not check/rebuild index: {e}")
 
     # 初始化服务
     if not init_services():
-        print("Failed to initialize services. Please check your configuration.")
+        error("[Startup] Failed to initialize services. Please check your configuration.")
         exit(1)
     
     # 启动队列处理线程
@@ -2397,7 +2398,7 @@ if __name__ == '__main__':
     # 加载待处理任务
     load_pending_tasks()
     
-    print("Twitter Saver Web App starting...")
-    print("Access the application at: http://localhost:6201")
+    info("[Startup] Twitter Saver Web App starting")
+    info("[Startup] Access the application at: http://localhost:6201")
 
     app.run(debug=False, host='0.0.0.0', port=6201)
