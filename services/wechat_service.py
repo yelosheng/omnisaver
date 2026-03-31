@@ -25,6 +25,15 @@ class WechatServiceError(Exception):
 class WechatService:
     """WeChat Official Account article archiver."""
 
+    _COOKIES_PATH = os.path.expanduser('~/.agent-reach/wechat/cookies.json')
+    _CAPTCHA_INDICATORS = (
+        'js_verify',
+        'verify_container',
+        '环境异常',
+        '请完成安全验证',
+        '操作频繁',
+    )
+
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
         if base_path is None:
             data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
@@ -55,6 +64,186 @@ class WechatService:
             if m2 and m2.group(1):
                 urls.append(m2.group(1))
         return urls
+
+    @staticmethod
+    def _normalize_rich_text(text: str) -> str:
+        text = text.replace('\xa0', ' ').replace('\u200b', '')
+        text = re.sub(r'\r\n?', '\n', text)
+        text = re.sub(r'[ \t]+\n', '\n', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
+
+    @classmethod
+    def _escape_markdown_headers(cls, text: str) -> str:
+        """Prevent plain text hashtag lines from becoming Markdown headers."""
+        lines = []
+        for line in text.split('\n'):
+            stripped = line.lstrip()
+            if stripped.startswith('#'):
+                indent = line[:len(line) - len(stripped)]
+                lines.append(f'{indent}\\{stripped}')
+            else:
+                lines.append(line)
+        return '\n'.join(lines)
+
+    @classmethod
+    def _extract_share_description_markdown(cls, soup, html: str) -> str:
+        """Extract text from image/share style pages that do not use normal article body."""
+        for selector in ('#js_image_desc', '#js_common_share_desc'):
+            el = soup.select_one(selector)
+            if el:
+                text = cls._normalize_rich_text(el.get_text('\n\n', strip=True))
+                if text:
+                    return cls._escape_markdown_headers(text)
+
+        for element_id in ('js_image_desc', 'js_common_share_desc'):
+            m = re.search(
+                rf'document\.getElementById\([\'"]{element_id}[\'"]\)\.innerHTML\s*=\s*"((?:\\.|[^"\\])*)"',
+                html,
+                re.DOTALL,
+            )
+            if not m:
+                continue
+            try:
+                text = json.loads(f'"{m.group(1)}"')
+            except json.JSONDecodeError:
+                continue
+            text = cls._normalize_rich_text(text)
+            if text:
+                return cls._escape_markdown_headers(text)
+
+        return ''
+
+    @classmethod
+    def _is_captcha_page(cls, html: str) -> bool:
+        return any(indicator in html for indicator in cls._CAPTCHA_INDICATORS)
+
+    @classmethod
+    def _score_rendered_html(cls, html: str) -> int:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(html, 'html.parser')
+        score = 0
+        title_el = soup.select_one('#activity-name') or soup.select_one('.rich_media_title') or soup.select_one('h1')
+        if title_el and title_el.get_text(strip=True):
+            score += 80
+
+        for selector in ('#js_image_desc', '#js_common_share_desc', '#js_content', '.rich_media_content'):
+            el = soup.select_one(selector)
+            if not el:
+                continue
+            text = cls._normalize_rich_text(el.get_text('\n\n', strip=True))
+            score = max(score, len(text) + 80)
+
+        if 'window.picture_page_info_list' in html:
+            score += 40
+
+        return score
+
+    def _fetch_page_html(self, url: str, headless: bool = True) -> str:
+        from camoufox.async_api import AsyncCamoufox
+
+        async def _fetch() -> str:
+            async with AsyncCamoufox(headless=headless) as browser:
+                page = await browser.new_page()
+                if os.path.exists(self._COOKIES_PATH):
+                    try:
+                        cookies_list = json.loads(Path(self._COOKIES_PATH).read_text(encoding='utf-8'))
+                        valid_cookies = []
+                        for c in cookies_list if isinstance(cookies_list, list) else []:
+                            if not isinstance(c, dict) or not c.get('name'):
+                                continue
+                            valid_cookies.append({
+                                'name': c['name'],
+                                'value': c.get('value', ''),
+                                'domain': c.get('domain', '.mp.weixin.qq.com'),
+                                'path': c.get('path', '/'),
+                            })
+                        if valid_cookies:
+                            await page.context.add_cookies(valid_cookies)
+                            info(f'Loaded {len(valid_cookies)} WeChat cookies from {self._COOKIES_PATH}')
+                    except Exception as e:
+                        warning(f'Failed to load WeChat cookies: {e}')
+                await page.goto(url, wait_until='domcontentloaded')
+
+                async def _safe_page_content():
+                    last_error = None
+                    for _ in range(8):
+                        try:
+                            return await page.content()
+                        except Exception as e:
+                            last_error = e
+                            await asyncio.sleep(0.5)
+                    raise last_error
+
+                async def _read_runtime_share():
+                    return await page.evaluate(
+                        """
+                        () => {
+                            const normalize = (text) => (text || '')
+                                .replace(/\\u00a0/g, ' ')
+                                .replace(/\\u200b/g, '')
+                                .replace(/[ \\t]+\\n/g, '\\n')
+                                .replace(/\\n{3,}/g, '\\n\\n')
+                                .trim();
+
+                            const shareEl = document.querySelector('#js_image_desc') || document.querySelector('#js_common_share_desc');
+                            if (!shareEl) return null;
+                            return {
+                                id: shareEl.id || 'js_image_desc',
+                                className: shareEl.className || '',
+                                html: shareEl.innerHTML || '',
+                                text: normalize(shareEl.innerText || ''),
+                            };
+                        }
+                        """
+                    )
+
+                runtime_payload = None
+                for _ in range(40):
+                    await asyncio.sleep(0.5)
+                    html = await _safe_page_content()
+                    if self._is_captcha_page(html):
+                        raise WechatServiceError(
+                            'WeChat verification/CAPTCHA detected. Please retry after solving verification in a browser session.'
+                        )
+                    runtime_payload = await _read_runtime_share()
+                    if runtime_payload and len((runtime_payload.get('text') or '').strip()) >= 120:
+                        break
+
+                html = await _safe_page_content()
+                runtime_payload = runtime_payload or await _read_runtime_share()
+                runtime_payload = {'share': runtime_payload} if runtime_payload else {'share': None}
+                final_html = html
+                share_payload = runtime_payload.get('share')
+                if share_payload and share_payload.get('html') and len((share_payload.get('text') or '').strip()) >= 120:
+                    from bs4 import BeautifulSoup
+
+                    soup = BeautifulSoup(final_html, 'html.parser')
+                    existing = soup.select_one('#js_image_desc') or soup.select_one('#js_common_share_desc')
+                    if existing:
+                        existing.decompose()
+
+                    injected = soup.new_tag('p', id=share_payload.get('id') or 'js_image_desc')
+                    class_name = share_payload.get('className', '')
+                    if class_name:
+                        injected['class'] = class_name.split()
+                    fragment = BeautifulSoup(share_payload['html'], 'html.parser')
+                    for child in list(fragment.contents):
+                        injected.append(child)
+                    if soup.body:
+                        soup.body.append(injected)
+                    else:
+                        soup.append(injected)
+                    final_html = str(soup)
+
+                return final_html
+
+        def _run(coro):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                return ex.submit(asyncio.run, coro).result()
+
+        return _run(_fetch())
 
     @staticmethod
     def extract_article_id(url: str) -> str:
@@ -94,7 +283,6 @@ class WechatService:
             raise WechatServiceError(f'Invalid WeChat article URL: {url}')
 
         try:
-            from wechat_to_md.scraper import fetch_page_html
             from wechat_to_md.parser import extract_metadata, process_content
             from wechat_to_md.converter import build_markdown, convert_html_to_markdown
             from bs4 import BeautifulSoup
@@ -106,13 +294,8 @@ class WechatService:
 
         info(f'Fetching WeChat article: {url}')
 
-        def _run(coro):
-            """Run a coroutine safely whether or not an event loop is already running."""
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                return ex.submit(asyncio.run, coro).result()
-
         # Fetch and parse
-        html = _run(fetch_page_html(url, headless=True))
+        html = self._fetch_page_html(url, headless=True)
         soup = BeautifulSoup(html, 'html.parser')
         meta = extract_metadata(soup, html, url=url)
 
@@ -176,6 +359,17 @@ class WechatService:
 
         # Convert content to markdown (with video placeholders in place)
         md_body = convert_html_to_markdown(patched_html, parsed.code_blocks)
+
+        runtime_text_md = self._extract_share_description_markdown(soup, html)
+        if runtime_text_md:
+            existing_text = self._normalize_rich_text(re.sub(r'!\[[^\]]*\]\([^)]*\)', '', md_body))
+            runtime_compact = re.sub(r'\s+', '', runtime_text_md)
+            existing_compact = re.sub(r'\s+', '', existing_text)
+            if runtime_compact and len(runtime_compact) > len(existing_compact):
+                info('Using runtime-rendered WeChat text as the primary article body')
+                md_body = runtime_text_md
+            elif runtime_compact and runtime_compact not in existing_compact:
+                md_body = (md_body.rstrip() + '\n\n' + runtime_text_md + '\n').strip()
 
         # Extract image URLs directly from the converted markdown (authoritative source)
         # Pattern: ![alt](URL) — URL may contain #imgIndex=N fragments
