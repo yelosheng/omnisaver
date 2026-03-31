@@ -2210,18 +2210,26 @@ def stream_logs():
         
         # 实时推送新日志
         last_count = len(log_buffer)
+        idle_ticks = 0
         while True:
             try:
                 with log_lock:
                     current_count = len(log_buffer)
                     if current_count > last_count:
-                        # 发送新增的日志
                         new_logs = list(log_buffer)[last_count:]
                         for log_entry in new_logs:
                             yield f"data: {log_entry}\n\n"
                         last_count = current_count
-                
-                time.sleep(0.5)  # 每0.5秒检查一次新日志
+                        idle_ticks = 0
+                    else:
+                        idle_ticks += 1
+
+                # 每15秒发一次心跳，防止代理超时断连
+                if idle_ticks >= 30:
+                    yield ": keepalive\n\n"
+                    idle_ticks = 0
+
+                time.sleep(0.5)
             except GeneratorExit:
                 break
             except Exception as e:

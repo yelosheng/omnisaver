@@ -42,6 +42,21 @@ class WechatService:
         return bool(re.match(r'https?://mp\.weixin\.qq\.com/', url))
 
     @staticmethod
+    def _extract_carousel_image_urls(html: str) -> list:
+        """Extract image URLs from XHS-style carousel (window.picture_page_info_list)."""
+        m = re.search(r'window\.picture_page_info_list\s*=\s*\[(.*?)\]\.slice\(', html, re.DOTALL)
+        if not m:
+            return []
+        block = m.group(1)
+        urls = []
+        # Split into individual items; take the FIRST cdn_url in each (top-level image, not nested)
+        for item in re.split(r'\},\s*\{', block):
+            m2 = re.search(r"cdn_url\s*:\s*['\"]([^'\"]+)['\"]", item)
+            if m2 and m2.group(1):
+                urls.append(m2.group(1))
+        return urls
+
+    @staticmethod
     def extract_article_id(url: str) -> str:
         """Return a stable short ID for the article URL."""
         parsed = urllib.parse.urlparse(url)
@@ -100,6 +115,16 @@ class WechatService:
         html = _run(fetch_page_html(url, headless=True))
         soup = BeautifulSoup(html, 'html.parser')
         meta = extract_metadata(soup, html, url=url)
+
+        # Fallback for newer XHS-style article format that uses different selectors
+        if not meta.title:
+            title_el = soup.select_one('.rich_media_title') or soup.select_one('h1')
+            if title_el:
+                meta.title = title_el.get_text(strip=True)
+        if not meta.author:
+            author_el = soup.select_one('.wx_follow_nickname')
+            if author_el:
+                meta.author = author_el.get_text(strip=True)
 
         if not meta.title:
             raise WechatServiceError('Could not extract article title — page may be a CAPTCHA or invalid URL')
@@ -205,6 +230,47 @@ class WechatService:
                 if last_err:
                     warning(f'Image {idx} download failed after 3 attempts: {last_err}')
                     seen[md_url] = md_url  # keep remote URL on failure
+
+        # For XHS-style carousel articles: images are in JS data, not in the HTML content.
+        # Extract from window.picture_page_info_list and append to markdown.
+        carousel_urls = self._extract_carousel_image_urls(html)
+        if carousel_urls:
+            img_dir = post_dir / 'images'
+            img_dir.mkdir(exist_ok=True)
+            carousel_lines = []
+            idx = image_count + 1  # continue numbering after any inline images
+            for c_url in carousel_urls:
+                last_err = None
+                for attempt in range(3):
+                    try:
+                        if attempt:
+                            import time as _t; _t.sleep(1.5 * attempt)
+                        req = urllib.request.Request(
+                            c_url,
+                            headers={
+                                'User-Agent': 'Mozilla/5.0',
+                                'Referer': 'https://mp.weixin.qq.com/',
+                            }
+                        )
+                        with urllib.request.urlopen(req, timeout=20) as resp:
+                            data = resp.read()
+                            ct = resp.headers.get('Content-Type', '')
+                            ext = '.png' if 'png' in ct else '.webp' if 'webp' in ct else '.gif' if 'gif' in ct else '.jpg'
+                            fname = f'{idx:02d}{ext}'
+                            (img_dir / fname).write_bytes(data)
+                            carousel_lines.append(f'![图{idx}](images/{fname})')
+                            image_count += 1
+                            idx += 1
+                            last_err = None
+                            break
+                    except Exception as e:
+                        last_err = e
+                if last_err:
+                    warning(f'Carousel image {idx} download failed: {last_err}')
+                    carousel_lines.append(f'![图{idx}]({c_url})')
+                    idx += 1
+            if carousel_lines:
+                md_body = md_body.rstrip() + '\n\n' + '\n\n'.join(carousel_lines) + '\n'
 
         # Download videos and replace inline placeholders in markdown
         video_count = 0

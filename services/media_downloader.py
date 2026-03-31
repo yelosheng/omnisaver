@@ -147,7 +147,7 @@ class MediaDownloader:
                 cmd.append(tweet_url)
 
                 info(f"[MediaDownloader] yt-dlp download for tweet (slots {indices}): {tweet_url}")
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                result = subprocess.run(cmd, capture_output=True, text=True)
                 if cookies_file:
                     try:
                         os.unlink(cookies_file.name)
