@@ -142,12 +142,10 @@
                             <i class="bi bi-search" style="font-size:0.8rem;"></i>
                         </button>
                     </form>
-                    <div id="status-indicator" class="text-light">
+                    <div id="status-indicator" class="text-light d-flex align-items-center gap-1">
                         <small>
-                            <i id="queue-icon" class="bi bi-list-task"></i>
-                            <span id="queue-size">Queue: 0</span> |
-                            <i id="processing-icon" class="bi bi-pause-circle"></i>
-                            <span id="processing-status">Idle</span>
+                            <i id="queue-icon" class="bi bi-check-circle"></i><span id="queue-size"></span>
+                            <i id="processing-icon" class="bi bi-arrow-repeat" style="display:none"></i>
                         </small>
                     </div>
                     <div class="dropdown">
@@ -224,26 +222,23 @@
                 .then(data => {
                     // Update queue count
                     const queueSize = data.queue_size;
-                    document.getElementById('queue-size').textContent = `Queue: ${queueSize}`;
-
-                    // Update queue icon
+                    const queueSizeEl = document.getElementById('queue-size');
                     const queueIcon = document.getElementById('queue-icon');
                     if (queueSize > 0) {
                         queueIcon.className = 'bi bi-hourglass-split';
+                        queueSizeEl.textContent = queueSize;
                     } else {
                         queueIcon.className = 'bi bi-check-circle';
+                        queueSizeEl.textContent = '';
                     }
 
-                    // Update processing status text and icon
+                    // Update processing icon
                     const processingIcon = document.getElementById('processing-icon');
                     if (data.is_processing) {
-                        document.getElementById('processing-status').textContent = 'Processing...';
-                        processingIcon.className = 'bi bi-arrow-repeat';
-                        // Add spin animation
+                        processingIcon.style.display = '';
                         processingIcon.style.animation = 'spin 1s linear infinite';
                     } else {
-                        document.getElementById('processing-status').textContent = 'Idle';
-                        processingIcon.className = 'bi bi-pause-circle';
+                        processingIcon.style.display = 'none';
                         processingIcon.style.animation = '';
                     }
                 })
