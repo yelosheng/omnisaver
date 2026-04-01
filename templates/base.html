@@ -133,16 +133,14 @@
                     </li>
                 </ul>
                 <div class="d-flex align-items-center gap-3">
-                    <form class="d-none d-lg-flex" onsubmit="navSearch(event)" style="margin:0;">
-                        <div class="input-group input-group-sm">
-                            <input type="text" id="nav-search-input" class="form-control" placeholder="Search..."
-                                   style="width:160px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff;"
-                                   onfocus="this.style.background='rgba(255,255,255,0.25)'"
-                                   onblur="this.style.background='rgba(255,255,255,0.15)'">
-                            <button class="btn btn-outline-light btn-sm" type="submit">
-                                <i class="bi bi-search"></i>
-                            </button>
-                        </div>
+                    <form class="d-none d-lg-flex" onsubmit="navSearch(event)" style="margin:0;position:relative;">
+                        <input type="text" id="nav-search-input" class="form-control form-control-sm" placeholder="Search..."
+                               style="width:180px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff;padding-right:2rem;"
+                               onfocus="this.style.background='rgba(255,255,255,0.25)'"
+                               onblur="this.style.background='rgba(255,255,255,0.15)'">
+                        <button type="submit" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;padding:0;color:rgba(255,255,255,0.7);cursor:pointer;">
+                            <i class="bi bi-search" style="font-size:0.8rem;"></i>
+                        </button>
                     </form>
                     <div id="status-indicator" class="text-light">
                         <small>
