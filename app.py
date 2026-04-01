@@ -500,6 +500,13 @@ def saved():
     return render_template('saved.html')
 
 
+@app.route('/search')
+@login_required
+def search():
+    """搜索页面"""
+    return render_template('search.html')
+
+
 @app.route('/retries')
 @login_required
 def retries():
