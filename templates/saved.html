@@ -28,57 +28,6 @@
     </div>
 </div>
 
-<!-- Search + filter bar -->
-<div class="card mb-4">
-    <div class="card-body">
-        <div class="input-group mb-2">
-            <input type="text" id="search-input" class="form-control" placeholder="Search tweets or authors..."
-                onkeypress="handleSearchKeyPress(event)">
-            <button class="btn btn-primary" onclick="performSearch()">
-                <i class="bi bi-search"></i> <span class="d-none d-sm-inline">Search</span>
-            </button>
-        </div>
-        <!-- Filter row -->
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            <!-- Platform multi-select -->
-            <div class="dropdown" id="platform-dropdown">
-                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
-                        id="platformDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                    <i class="bi bi-funnel"></i> 平台
-                </button>
-                <ul class="dropdown-menu" id="platform-menu">
-                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="tweet"> Twitter</label></li>
-                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="wechat"> 微信</label></li>
-                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="youtube"> YouTube</label></li>
-                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="xhs"> 小红书</label></li>
-                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="webpage"> 网页</label></li>
-                </ul>
-            </div>
-            <!-- Quick date buttons -->
-            <div class="btn-group btn-group-sm" role="group">
-                <button class="btn btn-outline-secondary date-quick" data-range="today">今天</button>
-                <button class="btn btn-outline-secondary date-quick" data-range="week">本周</button>
-                <button class="btn btn-outline-secondary date-quick" data-range="month">本月</button>
-                <button class="btn btn-outline-secondary date-quick" data-range="year">今年</button>
-            </div>
-            <!-- Custom date range -->
-            <input type="date" id="date-from" class="form-control form-control-sm" style="width:140px">
-            <span class="text-muted">→</span>
-            <input type="date" id="date-to" class="form-control form-control-sm" style="width:140px">
-            <!-- Clear filters -->
-            <button class="btn btn-outline-danger btn-sm" onclick="clearFilters()" id="clear-filters-btn" style="display:none">
-                <i class="bi bi-x-circle"></i> 清除筛选
-            </button>
-        </div>
-        <div id="search-status" class="mt-2 hidden">
-            <small class="text-muted">
-                <span id="search-results-info"></span>
-                <button class="btn btn-link btn-sm p-0 ms-2" onclick="clearSearch()">Clear</button>
-            </small>
-        </div>
-    </div>
-</div>
-
 <div class="card">
     <div class="card-body">
         <div id="loading" class="text-center py-4">
@@ -365,10 +314,6 @@
         const v = parseInt(localStorage.getItem('savedPerPage') || '12', 10);
         return (v >= 3 && v <= 99 && v % 3 === 0) ? v : 12;
     })();
-    let currentSearchQuery = '';
-    let currentContentTypes = [];  // selected platform values
-    let currentDateFrom = '';
-    let currentDateTo = '';
     let isLoading = false;
     let hasMoreData = true;
     let isInitialLoad = true;
@@ -394,7 +339,7 @@
         currentPage = 1;
         hasMoreData = true;
         totalPages = 1;
-        loadSaved(1, currentSearchQuery, false);
+        loadSaved(1, false);
     }
 
     // --- View mode ---
@@ -406,7 +351,7 @@
         hasMoreData = true;
         totalPages = 1;
         applyViewMode();
-        loadSaved(1, currentSearchQuery, false);
+        loadSaved(1, false);
     }
 
     function applyViewMode() {
@@ -447,7 +392,7 @@
     function goToPage(page) {
         page = Math.max(1, Math.min(totalPages, Math.round(page)));
         if (page === currentPage) return;
-        loadSaved(page, currentSearchQuery, false);
+        loadSaved(page, false);
         window.scrollTo(0, 0);
     }
 
@@ -460,20 +405,19 @@
         currentPage = 1;
         hasMoreData = true;
         totalPages = 1;
-        loadSaved(1, currentSearchQuery, false);
+        loadSaved(1, false);
     }
 
     // --- End view mode ---
 
     // Load saved tweets list
-    function loadSaved(page = 1, searchQuery = '', append = false) {
+    function loadSaved(page = 1, append = false) {
         // Prevent duplicate loading
         if (isLoading) return;
 
         const loading = document.getElementById('loading');
         const container = document.getElementById('saved-container');
         const noSaved = document.getElementById('no-saved');
-        const searchStatus = document.getElementById('search-status');
         const lazyLoading = document.getElementById('lazy-loading');
         const noMoreData = document.getElementById('no-more-data');
 
@@ -496,19 +440,6 @@
             per_page: perPage
         });
 
-        if (searchQuery) {
-            params.append('search', searchQuery);
-        }
-        if (currentContentTypes.length) {
-            params.append('content_type', currentContentTypes.join(','));
-        }
-        if (currentDateFrom) {
-            params.append('date_from', currentDateFrom);
-        }
-        if (currentDateTo) {
-            params.append('date_to', currentDateTo);
-        }
-
         fetch(`/api/saved?${params}`)
             .then(response => response.json())
             .then(data => {
@@ -525,23 +456,10 @@
                     }
 
                     // No data on first load
-                    const hasActiveFilters = currentContentTypes.length > 0 || currentDateFrom || currentDateTo || searchQuery;
-                    if (searchQuery) {
-                        noSaved.innerHTML = `
-                            <i class="bi bi-search large-icon"></i>
-                            <p class="text-muted mt-2">No tweets matching "${searchQuery}"</p>
-                        `;
-                    } else if (hasActiveFilters) {
-                        noSaved.innerHTML = `
-                            <i class="bi bi-funnel large-icon"></i>
-                            <p class="text-muted mt-2">没有符合筛选条件的内容</p>
-                        `;
-                    } else {
-                        noSaved.innerHTML = `
-                            <i class="bi bi-archive large-icon"></i>
-                            <p class="text-muted mt-2">No saved tweets</p>
-                        `;
-                    }
+                    noSaved.innerHTML = `
+                        <i class="bi bi-archive large-icon"></i>
+                        <p class="text-muted mt-2">No saved content</p>
+                    `;
                     showElement(noSaved);
                     if (viewMode === 'paginated') {
                         hideElement(document.getElementById('pagination-controls'));
@@ -577,14 +495,6 @@
                 }
 
                 isInitialLoad = false;
-
-                // Update search status display
-                if (searchQuery && !append) {
-                    document.getElementById('search-results-info').textContent = `Found ${data.total} results for "${searchQuery}"`;
-                    showElement(searchStatus);
-                } else if (!searchQuery && !append) {
-                    hideElement(searchStatus);
-                }
             })
             .catch(error => {
                 console.error('Error loading saved tweets:', error);
@@ -598,123 +508,6 @@
                     showNotification('Failed to load more tweets', 'error');
                 }
             });
-    }
-
-    // Perform search
-    function performSearch() {
-        const searchInput = document.getElementById('search-input');
-        const searchQuery = searchInput.value.trim();
-        currentSearchQuery = searchQuery;
-        currentPage = 1;
-        hasMoreData = true;
-        hideElement(document.getElementById('no-more-data'));
-        loadSaved(1, searchQuery, false);
-    }
-
-    // Clear search
-    function clearSearch() {
-        document.getElementById('search-input').value = '';
-        currentSearchQuery = '';
-        currentPage = 1;
-        hasMoreData = true;
-        hideElement(document.getElementById('search-status'));
-        hideElement(document.getElementById('no-more-data'));
-        loadSaved(1, '', false);
-    }
-
-
-    // Handle search box Enter key
-    function handleSearchKeyPress(event) {
-        if (event.key === 'Enter') {
-            performSearch();
-        }
-    }
-
-    // Get selected platform checkboxes
-    function getSelectedPlatforms() {
-        return Array.from(document.querySelectorAll('.platform-cb:checked')).map(cb => cb.value);
-    }
-
-    // Update platform button label
-    function updatePlatformLabel() {
-        const selected = getSelectedPlatforms();
-        const btn = document.getElementById('platformDropdownBtn');
-        btn.innerHTML = selected.length
-            ? `<i class="bi bi-funnel-fill"></i> 平台 (${selected.length})`
-            : `<i class="bi bi-funnel"></i> 平台`;
-        updateClearBtn();
-    }
-
-    // Show/hide clear filters button
-    function updateClearBtn() {
-        const hasFilter = getSelectedPlatforms().length > 0 ||
-                          document.getElementById('date-from').value ||
-                          document.getElementById('date-to').value;
-        document.getElementById('clear-filters-btn').style.display = hasFilter ? '' : 'none';
-    }
-
-    // Quick date range buttons
-    document.querySelectorAll('.date-quick').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.date-quick').forEach(b => b.classList.remove('active', 'btn-secondary'));
-            document.querySelectorAll('.date-quick').forEach(b => b.classList.add('btn-outline-secondary'));
-            this.classList.remove('btn-outline-secondary');
-            this.classList.add('btn-secondary', 'active');
-
-            const today = new Date();
-            const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-            let from = '', to = fmt(today);
-            const range = this.dataset.range;
-            if (range === 'today') {
-                from = fmt(today);
-            } else if (range === 'week') {
-                const d = new Date(today); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-                from = fmt(d);
-            } else if (range === 'month') {
-                from = fmt(new Date(today.getFullYear(), today.getMonth(), 1));
-            } else if (range === 'year') {
-                from = `${today.getFullYear()}-01-01`;
-            }
-            document.getElementById('date-from').value = from;
-            document.getElementById('date-to').value = to;
-            applyFilters();
-        });
-    });
-
-    // Platform checkboxes trigger reload
-    document.querySelectorAll('.platform-cb').forEach(cb => {
-        cb.addEventListener('change', () => { updatePlatformLabel(); applyFilters(); });
-    });
-
-    // Custom date inputs trigger reload
-    ['date-from', 'date-to'].forEach(id => {
-        document.getElementById(id).addEventListener('change', () => { updateClearBtn(); applyFilters(); });
-    });
-
-    function applyFilters() {
-        currentContentTypes = getSelectedPlatforms();
-        currentDateFrom = document.getElementById('date-from').value;
-        currentDateTo = document.getElementById('date-to').value;
-        currentPage = 1;
-        hasMoreData = true;
-        loadSaved(1, currentSearchQuery, false);
-    }
-
-    function clearFilters() {
-        document.querySelectorAll('.platform-cb').forEach(cb => cb.checked = false);
-        document.querySelectorAll('.date-quick').forEach(b => {
-            b.classList.remove('active', 'btn-secondary');
-            b.classList.add('btn-outline-secondary');
-        });
-        document.getElementById('date-from').value = '';
-        document.getElementById('date-to').value = '';
-        currentContentTypes = [];
-        currentDateFrom = '';
-        currentDateTo = '';
-        currentPage = 1;
-        hasMoreData = true;
-        updatePlatformLabel();
-        loadSaved(1, currentSearchQuery, false);
     }
 
     // Render saved tweets
@@ -824,7 +617,7 @@
 
         const nextPage = currentPage + 1;
 
-        loadSaved(nextPage, currentSearchQuery, true);
+        loadSaved(nextPage, true);
     }
 
     // Check whether more data needs to be loaded
@@ -897,7 +690,7 @@
                                     // Reset state and reload
                                     currentPage = 1;
                                     hasMoreData = true;
-                                    loadSaved(1, currentSearchQuery, false);
+                                    loadSaved(1, false);
                                 }
                             }, 300);
                         }
