@@ -107,6 +107,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('search') }}">
+                            <i class="bi bi-search"></i> Search
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('debug') }}">
                             <i class="bi bi-bug"></i> Debug
                         </a>
@@ -128,6 +133,17 @@
                     </li>
                 </ul>
                 <div class="d-flex align-items-center gap-3">
+                    <form class="d-none d-lg-flex" onsubmit="navSearch(event)" style="margin:0;">
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="nav-search-input" class="form-control" placeholder="Search..."
+                                   style="width:160px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff;"
+                                   onfocus="this.style.background='rgba(255,255,255,0.25)'"
+                                   onblur="this.style.background='rgba(255,255,255,0.15)'">
+                            <button class="btn btn-outline-light btn-sm" type="submit">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </form>
                     <div id="status-indicator" class="text-light">
                         <small>
                             <i id="queue-icon" class="bi bi-list-task"></i>
@@ -239,6 +255,12 @@
         // Periodically update status
         setInterval(updateStatus, 2000);
         updateStatus();
+
+        function navSearch(e) {
+            e.preventDefault();
+            const q = document.getElementById('nav-search-input').value.trim();
+            if (q) window.location.href = '/search?q=' + encodeURIComponent(q);
+        }
     </script>
 
     {% block scripts %}{% endblock %}
