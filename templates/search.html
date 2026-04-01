@@ -1,0 +1,414 @@
+{% extends "base.html" %}
+
+{% block title %}Search - OmniSaver{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-search"></i> Search</h2>
+</div>
+
+<!-- Search + filter bar -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="input-group mb-2">
+            <input type="text" id="search-input" class="form-control" placeholder="Search content or authors..."
+                onkeypress="handleSearchKeyPress(event)" autofocus>
+            <button class="btn btn-primary" onclick="performSearch()">
+                <i class="bi bi-search"></i> <span class="d-none d-sm-inline">Search</span>
+            </button>
+        </div>
+        <!-- Filter row -->
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <!-- Platform multi-select -->
+            <div class="dropdown" id="platform-dropdown">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                        id="platformDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                    <i class="bi bi-funnel"></i> 平台
+                </button>
+                <ul class="dropdown-menu" id="platform-menu">
+                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="tweet"> Twitter</label></li>
+                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="wechat"> 微信</label></li>
+                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="youtube"> YouTube</label></li>
+                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="xhs"> 小红书</label></li>
+                    <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="webpage"> 网页</label></li>
+                </ul>
+            </div>
+            <!-- Quick date buttons -->
+            <div class="btn-group btn-group-sm" role="group">
+                <button class="btn btn-outline-secondary date-quick" data-range="today">今天</button>
+                <button class="btn btn-outline-secondary date-quick" data-range="week">本周</button>
+                <button class="btn btn-outline-secondary date-quick" data-range="month">本月</button>
+                <button class="btn btn-outline-secondary date-quick" data-range="year">今年</button>
+            </div>
+            <!-- Custom date range -->
+            <input type="date" id="date-from" class="form-control form-control-sm" style="width:140px">
+            <span class="text-muted">→</span>
+            <input type="date" id="date-to" class="form-control form-control-sm" style="width:140px">
+            <!-- Clear filters -->
+            <button class="btn btn-outline-danger btn-sm" onclick="clearFilters()" id="clear-filters-btn" style="display:none">
+                <i class="bi bi-x-circle"></i> 清除筛选
+            </button>
+        </div>
+        <div id="search-status" class="mt-2" style="display:none">
+            <small class="text-muted">
+                <span id="search-results-info"></span>
+                <button class="btn btn-link btn-sm p-0 ms-2" onclick="clearSearch()">Clear</button>
+            </small>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="loading" class="text-center py-4" style="display:none">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <div id="empty-state" class="text-center py-4">
+            <i class="bi bi-search" style="font-size:3rem;color:#6c757d;"></i>
+            <p class="text-muted mt-2">输入关键词开始搜索</p>
+        </div>
+
+        <div id="saved-container" style="display:none">
+            <div class="row" id="saved-grid"></div>
+
+            <!-- Pagination controls -->
+            <div id="pagination-controls" class="d-flex justify-content-center align-items-center mt-3 gap-1 flex-wrap" style="display:none !important">
+                <button class="btn btn-outline-secondary btn-sm" id="btn-first" onclick="goToPage(1)" title="First page">
+                    <i class="bi bi-chevron-double-left"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-prev10" onclick="goToPage(currentPage - 10)" title="Back 10 pages">
+                    <i class="bi bi-chevron-left"></i>10
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-prev" onclick="goToPage(currentPage - 1)" title="Previous page">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <div class="d-flex align-items-center gap-1">
+                    <input type="number" id="page-input" class="form-control form-control-sm text-center" style="width:62px;"
+                           min="1" onkeydown="if(event.key==='Enter') goToInputPage()">
+                    <span class="text-muted small">/ <span id="page-total">1</span></span>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-next" onclick="goToPage(currentPage + 1)" title="Next page">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-next10" onclick="goToPage(currentPage + 10)" title="Forward 10 pages">
+                    10<i class="bi bi-chevron-right"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-last" onclick="goToPage(totalPages)" title="Last page">
+                    <i class="bi bi-chevron-double-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="no-saved" class="text-center py-4" style="display:none">
+            <i class="bi bi-search" style="font-size:3rem;color:#6c757d;"></i>
+            <p class="text-muted mt-2">No results found</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .user-avatar { width:48px;height:48px;border-radius:50%;background:#f7f9fa;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden; }
+    .user-avatar i { font-size:24px;color:#657786; }
+    .user-info { flex:1; }
+    .display-name { font-weight:bold;font-size:15px;color:#14171a;line-height:1.2; }
+    .username { font-size:14px;color:#657786;line-height:1.2; }
+    .tweet-preview { border-left:3px solid #1da1f2;padding:8px 12px;background:#f8f9fa;border-radius:4px; }
+    .tweet-preview p { font-size:14px;line-height:1.4;margin-bottom:0;color:#14171a; }
+    .placeholder-box { background-color:transparent;border:none;border-radius:6px;height:240px;overflow:hidden;position:relative; }
+    .placeholder-box .media-preview { width:100%;height:240px;object-fit:cover;border-radius:6px;display:block; }
+    .avatar-small { width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;border-radius:50%!important;background:#f7f9fa;display:flex!important;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden!important; }
+    .notification { position:fixed;top:20px;right:20px;z-index:10000;min-width:300px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);transform:translateX(100%);transition:transform .3s ease; }
+    .notification.show { transform:translateX(0); }
+    .notification-success { background:#d4edda;border:1px solid #c3e6cb;color:#155724; }
+    .notification-error { background:#f8d7da;border:1px solid #f5c6cb;color:#721c24; }
+    .notification-content { padding:12px 16px;display:flex;align-items:center;gap:8px; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const PER_PAGE = 20;
+    let currentPage = 1;
+    let totalPages = 1;
+    let currentSearchQuery = '';
+    let currentContentTypes = [];
+    let currentDateFrom = '';
+    let currentDateTo = '';
+    let isLoading = false;
+
+    // --- DOM helpers ---
+    function show(id) { document.getElementById(id).style.display = ''; }
+    function hide(id) { document.getElementById(id).style.display = 'none'; }
+
+    // --- Search ---
+    function performSearch() {
+        const q = document.getElementById('search-input').value.trim();
+        currentSearchQuery = q;
+        currentPage = 1;
+        // Update URL without reload so Back works
+        const url = new URL(window.location);
+        if (q) { url.searchParams.set('q', q); } else { url.searchParams.delete('q'); }
+        window.history.replaceState({}, '', url);
+        loadSearch(1);
+    }
+
+    function clearSearch() {
+        document.getElementById('search-input').value = '';
+        currentSearchQuery = '';
+        window.history.replaceState({}, '', '/search');
+        hide('search-status');
+        hide('saved-container');
+        hide('no-saved');
+        show('empty-state');
+    }
+
+    function handleSearchKeyPress(e) {
+        if (e.key === 'Enter') performSearch();
+    }
+
+    // --- Filters ---
+    function getSelectedPlatforms() {
+        return Array.from(document.querySelectorAll('.platform-cb:checked')).map(cb => cb.value);
+    }
+
+    function updatePlatformLabel() {
+        const selected = getSelectedPlatforms();
+        const btn = document.getElementById('platformDropdownBtn');
+        btn.innerHTML = selected.length
+            ? `<i class="bi bi-funnel-fill"></i> 平台 (${selected.length})`
+            : `<i class="bi bi-funnel"></i> 平台`;
+        updateClearBtn();
+    }
+
+    function updateClearBtn() {
+        const hasFilter = getSelectedPlatforms().length > 0 ||
+                          document.getElementById('date-from').value ||
+                          document.getElementById('date-to').value;
+        document.getElementById('clear-filters-btn').style.display = hasFilter ? '' : 'none';
+    }
+
+    function applyFilters() {
+        currentContentTypes = getSelectedPlatforms();
+        currentDateFrom = document.getElementById('date-from').value;
+        currentDateTo = document.getElementById('date-to').value;
+        currentPage = 1;
+        loadSearch(1);
+    }
+
+    function clearFilters() {
+        document.querySelectorAll('.platform-cb').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.date-quick').forEach(b => {
+            b.classList.remove('active', 'btn-secondary');
+            b.classList.add('btn-outline-secondary');
+        });
+        document.getElementById('date-from').value = '';
+        document.getElementById('date-to').value = '';
+        currentContentTypes = [];
+        currentDateFrom = '';
+        currentDateTo = '';
+        currentPage = 1;
+        updatePlatformLabel();
+        loadSearch(1);
+    }
+
+    document.querySelectorAll('.platform-cb').forEach(cb => {
+        cb.addEventListener('change', () => { updatePlatformLabel(); applyFilters(); });
+    });
+    ['date-from', 'date-to'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => { updateClearBtn(); applyFilters(); });
+    });
+    document.querySelectorAll('.date-quick').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.date-quick').forEach(b => {
+                b.classList.remove('active', 'btn-secondary');
+                b.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-secondary', 'active');
+            const today = new Date();
+            const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            let from = '', to = fmt(today);
+            const range = this.dataset.range;
+            if (range === 'today') { from = fmt(today); }
+            else if (range === 'week') { const d = new Date(today); d.setDate(d.getDate() - ((d.getDay()+6)%7)); from = fmt(d); }
+            else if (range === 'month') { from = fmt(new Date(today.getFullYear(), today.getMonth(), 1)); }
+            else if (range === 'year') { from = `${today.getFullYear()}-01-01`; }
+            document.getElementById('date-from').value = from;
+            document.getElementById('date-to').value = to;
+            applyFilters();
+        });
+    });
+
+    // --- Pagination ---
+    function goToPage(page) {
+        page = Math.max(1, Math.min(totalPages, Math.round(page)));
+        if (page === currentPage) return;
+        loadSearch(page);
+        window.scrollTo(0, 0);
+    }
+
+    function goToInputPage() {
+        const val = parseInt(document.getElementById('page-input').value, 10);
+        if (!isNaN(val)) goToPage(val);
+    }
+
+    function updatePaginationControls() {
+        const atFirst = currentPage <= 1;
+        const atLast = currentPage >= totalPages;
+        document.getElementById('btn-first').disabled = atFirst;
+        document.getElementById('btn-prev10').disabled = atFirst;
+        document.getElementById('btn-prev').disabled = atFirst;
+        document.getElementById('btn-next').disabled = atLast;
+        document.getElementById('btn-next10').disabled = atLast;
+        document.getElementById('btn-last').disabled = atLast;
+        document.getElementById('page-input').value = currentPage;
+        document.getElementById('page-total').textContent = totalPages;
+    }
+
+    // --- Load ---
+    function loadSearch(page) {
+        if (isLoading) return;
+        isLoading = true;
+
+        hide('empty-state');
+        hide('saved-container');
+        hide('no-saved');
+        show('loading');
+
+        const params = new URLSearchParams({ page, per_page: PER_PAGE });
+        if (currentSearchQuery) params.append('search', currentSearchQuery);
+        if (currentContentTypes.length) params.append('content_type', currentContentTypes.join(','));
+        if (currentDateFrom) params.append('date_from', currentDateFrom);
+        if (currentDateTo) params.append('date_to', currentDateTo);
+
+        fetch(`/api/saved?${params}`)
+            .then(r => r.json())
+            .then(data => {
+                isLoading = false;
+                hide('loading');
+
+                if (data.saved.length === 0) {
+                    show('no-saved');
+                    document.getElementById('no-saved').innerHTML = currentSearchQuery
+                        ? `<i class="bi bi-search" style="font-size:3rem;color:#6c757d;"></i><p class="text-muted mt-2">No results for "${currentSearchQuery}"</p>`
+                        : `<i class="bi bi-funnel" style="font-size:3rem;color:#6c757d;"></i><p class="text-muted mt-2">没有符合筛选条件的内容</p>`;
+                    hide('search-status');
+                    return;
+                }
+
+                currentPage = page;
+                totalPages = Math.ceil((data.total || 0) / PER_PAGE) || 1;
+                renderResults(data.saved);
+                show('saved-container');
+                // show pagination only if more than 1 page
+                const pc = document.getElementById('pagination-controls');
+                pc.style.display = totalPages > 1 ? '' : 'none';
+                updatePaginationControls();
+
+                // search status
+                if (currentSearchQuery) {
+                    document.getElementById('search-results-info').textContent = `Found ${data.total} results for "${currentSearchQuery}"`;
+                    show('search-status');
+                } else {
+                    hide('search-status');
+                }
+            })
+            .catch(() => {
+                isLoading = false;
+                hide('loading');
+                showNotification('Failed to load results', 'error');
+            });
+    }
+
+    // --- Render ---
+    function renderResults(saved) {
+        const grid = document.getElementById('saved-grid');
+        grid.innerHTML = '';
+        saved.forEach(item => {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4 mb-4';
+
+            let sourceBadge = '';
+            if (item.content_type === 'xhs') {
+                sourceBadge = `<img src="/static/xhs.ico" title="XiaoHongShu" style="width:22px;height:22px;object-fit:contain;flex-shrink:0;">`;
+            } else if (item.content_type === 'wechat') {
+                sourceBadge = `<svg title="WeChat" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#07C160" style="flex-shrink:0;"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-7.064-6.088v-.034zm-2.545 2.507c.539 0 .975.44.975.982a.978.978 0 0 1-.975.982.978.978 0 0 1-.975-.982c0-.542.436-.982.975-.982zm4.943 0c.539 0 .975.44.975.982a.978.978 0 0 1-.975.982.978.978 0 0 1-.975-.982c0-.542.436-.982.975-.982z"/></svg>`;
+            } else if (item.content_type === 'youtube') {
+                sourceBadge = `<svg title="YouTube" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#FF0000" style="flex-shrink:0;"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`;
+            } else if (item.content_type === 'webpage') {
+                sourceBadge = `<svg title="Web" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+            } else {
+                const label = item.is_thread ? 'Thread' : 'Tweet';
+                sourceBadge = `<svg title="${label}" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#1d9bf0" style="flex-shrink:0;"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`;
+            }
+
+            col.innerHTML = `
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="d-flex align-items-center">
+                                <div class="user-avatar me-3">
+                                    ${item.has_avatar
+                                        ? `<img src="${item.avatar_url}" alt="Avatar" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`
+                                        : '<i class="bi bi-person-circle"></i>'}
+                                </div>
+                                <div class="user-info">
+                                    <div class="display-name">${item.author_name || item.author_username}</div>
+                                    ${(item.content_type === 'tweet' || item.content_type === 'article') ? `<div class="username">@${item.author_username}</div>` : ''}
+                                </div>
+                            </div>
+                            <div>${sourceBadge}</div>
+                        </div>
+                        <div class="tweet-preview mb-3">
+                            <p class="mb-2 text-dark">${item.preview_text || 'Preview unavailable'}</p>
+                        </div>
+                        ${item.has_media_preview
+                            ? `<div class="placeholder-box mb-3"><img src="/media/${item.id}/preview" alt="Media preview" class="media-preview"></div>`
+                            : ''}
+                        <div class="mb-3">
+                            <small class="text-muted"><i class="bi bi-calendar"></i> ${item.processed_at}</small>
+                        </div>
+                        ${item.is_thread ? `<p class="text-info small"><i class="bi bi-collection"></i> Thread (${item.tweet_count} tweets)</p>` : ''}
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <a href="/view/${item.share_slug || item.id}" class="btn btn-primary btn-sm me-1" target="_blank">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                <a href="${item.url}" class="btn btn-outline-secondary btn-sm" target="_blank">
+                                    <i class="bi bi-box-arrow-up-right"></i> Original
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            grid.appendChild(col);
+        });
+    }
+
+    // --- Notification ---
+    function showNotification(message, type) {
+        const n = document.createElement('div');
+        n.className = `notification notification-${type}`;
+        n.innerHTML = `<div class="notification-content"><i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i><span>${message}</span></div>`;
+        document.body.appendChild(n);
+        setTimeout(() => n.classList.add('show'), 100);
+        setTimeout(() => { n.classList.remove('show'); setTimeout(() => n.remove(), 300); }, 3000);
+    }
+
+    // --- Init: read ?q= param ---
+    (function init() {
+        const params = new URLSearchParams(window.location.search);
+        const q = params.get('q') || '';
+        if (q) {
+            document.getElementById('search-input').value = q;
+            currentSearchQuery = q;
+            loadSearch(1);
+        }
+    })();
+</script>
+{% endblock %}
