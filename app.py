@@ -959,6 +959,12 @@ def show_tweet(slug):
                     lambda m: f'/media/{task_id}/videos/{m.group(1)}',
                     md_text
                 )
+                # Auto-link bare URLs in description (skip already-linked ones)
+                md_text = re.sub(
+                    r'(?<!\]\()(https?://[^\s<>\[\]()]+)',
+                    r'[\1](\1)',
+                    md_text
+                )
                 tweet_html = _md.markdown(md_text, extensions=['nl2br', 'tables'])
                 # Replace video links with inline <video> players
                 tweet_html = re.sub(

@@ -6,6 +6,20 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-archive"></i> Saved Content</h2>
     <div class="d-flex align-items-center gap-2">
+        <!-- Platform multi-select -->
+        <div class="dropdown" id="platform-dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                    id="platformDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                <i class="bi bi-funnel"></i> 平台
+            </button>
+            <ul class="dropdown-menu" id="platform-menu">
+                <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="tweet"> Twitter</label></li>
+                <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="wechat"> 微信</label></li>
+                <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="youtube"> YouTube</label></li>
+                <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="xhs"> 小红书</label></li>
+                <li><label class="dropdown-item"><input type="checkbox" class="platform-cb me-2" value="webpage"> 网页</label></li>
+            </ul>
+        </div>
         <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
             <button type="button" class="btn btn-outline-secondary" id="btn-infinite"
                     onclick="setViewMode('infinite')" title="Infinite Scroll">
@@ -408,6 +422,34 @@
         loadSaved(1, false);
     }
 
+    // --- Platform filter ---
+
+    function getSelectedPlatforms() {
+        return Array.from(document.querySelectorAll('#platform-menu .platform-cb:checked')).map(cb => cb.value);
+    }
+
+    function updatePlatformBtnLabel() {
+        const selected = getSelectedPlatforms();
+        const btn = document.getElementById('platformDropdownBtn');
+        if (selected.length === 0) {
+            btn.innerHTML = '<i class="bi bi-funnel"></i> 平台';
+        } else {
+            btn.innerHTML = `<i class="bi bi-funnel-fill"></i> 平台 (${selected.length})`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('#platform-menu .platform-cb').forEach(cb => {
+            cb.addEventListener('change', () => {
+                updatePlatformBtnLabel();
+                currentPage = 1;
+                hasMoreData = true;
+                totalPages = 1;
+                loadSaved(1, false);
+            });
+        });
+    });
+
     // --- End view mode ---
 
     // Load saved tweets list
@@ -439,6 +481,11 @@
             page: page,
             per_page: perPage
         });
+
+        const selectedPlatforms = getSelectedPlatforms();
+        if (selectedPlatforms.length) {
+            params.set('content_type', selectedPlatforms.join(','));
+        }
 
         fetch(`/api/saved?${params}`)
             .then(response => response.json())
