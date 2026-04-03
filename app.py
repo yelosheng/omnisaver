@@ -24,6 +24,7 @@ from services.user_manager import UserManager
 from services.xhs_service import XHSService, XHSServiceError
 from services.wechat_service import WechatService, WechatServiceError
 from services.youtube_service import YoutubeService, YoutubeServiceError
+from services.douyin_service import DouyinService, DouyinServiceError
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
 
@@ -329,6 +330,8 @@ def submit_url():
     content_type = 'tweet'
     if YoutubeService.is_valid_youtube_url(url):
         content_type = 'youtube'
+    elif DouyinService.is_valid_douyin_url(url):
+        content_type = 'douyin'
     elif XHSService.is_valid_xhs_url(url):
         content_type = 'xhs'
     elif WechatService.is_valid_wechat_url(url):
@@ -336,18 +339,24 @@ def submit_url():
     elif TwitterURLParser.is_valid_twitter_url(url):
         content_type = 'tweet'
     else:
-        # Try XHS share text extraction (handles xhslink.com short URLs too)
-        extracted = XHSService.extract_url_from_share_text(url)
-        if extracted and extracted != url:
-            extracted = XHSService.resolve_xhslink(extracted)
-            extracted = XHSService.normalize_xhs_url(extracted)
-        if extracted and XHSService.is_valid_xhs_url(extracted):
-            url = extracted
-            content_type = 'xhs'
-        elif WebpageService.is_valid_webpage_url(url):
-            content_type = 'webpage'
+        # Try Douyin share text extraction (mobile app shares a text blob with embedded URL)
+        douyin_extracted = DouyinService.extract_url_from_share_text(url)
+        if douyin_extracted:
+            url = douyin_extracted
+            content_type = 'douyin'
         else:
-            return jsonify({'success': False, 'message': 'Unsupported URL. Please enter a valid http/https URL.'})
+            # Try XHS share text extraction (handles xhslink.com short URLs too)
+            extracted = XHSService.extract_url_from_share_text(url)
+            if extracted and extracted != url:
+                extracted = XHSService.resolve_xhslink(extracted)
+                extracted = XHSService.normalize_xhs_url(extracted)
+            if extracted and XHSService.is_valid_xhs_url(extracted):
+                url = extracted
+                content_type = 'xhs'
+            elif WebpageService.is_valid_webpage_url(url):
+                content_type = 'webpage'
+            else:
+                return jsonify({'success': False, 'message': 'Unsupported URL. Please enter a valid http/https URL.'})
 
     # Normalize XHS URL
     if content_type == 'xhs':
@@ -898,7 +907,7 @@ def show_tweet(slug):
         )
 
     # XHS / WeChat articles: render content.md as HTML with local image paths
-    if content_type in ('xhs', 'wechat') and not tweet_html:
+    if content_type in ('xhs', 'wechat', 'douyin') and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
         if os.path.exists(content_md_file):
             try:
@@ -919,6 +928,12 @@ def show_tweet(slug):
                 )
                 md_text = _re.sub(
                     r'videos/(video\d+\.\w+)',
+                    lambda m: f'/media/{task_id}/videos/{m.group(1)}',
+                    md_text
+                )
+                # Rewrite Douyin/YouTube-style video.mp4 path
+                md_text = _re.sub(
+                    r'videos/(video\.\w+)',
                     lambda m: f'/media/{task_id}/videos/{m.group(1)}',
                     md_text
                 )
@@ -994,7 +1009,7 @@ def show_tweet(slug):
 
     # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube', 'webpage') and tweet_html
+        content_type in ('wechat', 'youtube', 'douyin', 'webpage') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
@@ -1017,7 +1032,8 @@ def show_tweet(slug):
             page_title = first_line[:80] + ('…' if len(first_line) > 80 else '')
     if not page_title:
         _type_labels = {'tweet': 'Tweet', 'article': 'Article', 'xhs': 'XHS Post',
-                        'wechat': 'WeChat Article', 'youtube': 'YouTube Video', 'webpage': 'Webpage'}
+                        'wechat': 'WeChat Article', 'youtube': 'YouTube Video', 'webpage': 'Webpage',
+                        'douyin': 'Douyin/TikTok'}
         page_title = _type_labels.get(content_type, 'Content')
 
     tweet_data = {
@@ -1680,6 +1696,8 @@ def api_submit():
         _ct = 'tweet'
         if YoutubeService.is_valid_youtube_url(url):
             _ct = 'youtube'
+        elif DouyinService.is_valid_douyin_url(url):
+            _ct = 'douyin'
         elif XHSService.is_valid_xhs_url(url):
             _ct = 'xhs'
         elif WechatService.is_valid_wechat_url(url):
@@ -1687,22 +1705,27 @@ def api_submit():
         elif TwitterURLParser.is_valid_twitter_url(url):
             _ct = 'tweet'
         else:
-            extracted = XHSService.extract_url_from_share_text(url)
-            if extracted and extracted != url:
-                extracted = XHSService.resolve_xhslink(extracted)
-                extracted = XHSService.normalize_xhs_url(extracted)
-            if extracted and XHSService.is_valid_xhs_url(extracted):
-                url = extracted
-                _ct = 'xhs'
-            elif WebpageService.is_valid_webpage_url(url):
-                _ct = 'webpage'
+            douyin_extracted = DouyinService.extract_url_from_share_text(url)
+            if douyin_extracted:
+                url = douyin_extracted
+                _ct = 'douyin'
             else:
-                return jsonify({
-                    'success': False,
-                    'error': 'Unsupported URL',
-                    'message': f'Cannot process URL: {url}',
-                    'url': url
-                }), 400
+                extracted = XHSService.extract_url_from_share_text(url)
+                if extracted and extracted != url:
+                    extracted = XHSService.resolve_xhslink(extracted)
+                    extracted = XHSService.normalize_xhs_url(extracted)
+                if extracted and XHSService.is_valid_xhs_url(extracted):
+                    url = extracted
+                    _ct = 'xhs'
+                elif WebpageService.is_valid_webpage_url(url):
+                    _ct = 'webpage'
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Unsupported URL',
+                        'message': f'Cannot process URL: {url}',
+                        'url': url
+                    }), 400
 
         # 检查URL是否已存在
         conn = get_db_connection()
@@ -1769,7 +1792,10 @@ def api_submit():
 @login_required
 def settings_page():
     youtube_api_key = config_manager.get_youtube_api_key() if config_manager else ''
-    return render_template('settings.html', youtube_api_key=youtube_api_key or '')
+    douyin_cookie = config_manager.get_douyin_cookie() if config_manager else ''
+    return render_template('settings.html',
+                           youtube_api_key=youtube_api_key or '',
+                           douyin_cookie=douyin_cookie or '')
 
 
 @app.route('/api/xhs/settings', methods=['GET'])
@@ -1814,6 +1840,16 @@ def api_set_youtube_api_key():
     key = str(data.get('key', '')).strip()
     if config_manager:
         config_manager.set_youtube_api_key(key)
+    return jsonify({'success': True})
+
+
+@app.route('/api/settings/douyin-cookie', methods=['POST'])
+@login_required
+def api_set_douyin_cookie():
+    data = request.get_json() or {}
+    cookie = str(data.get('cookie', '')).strip()
+    if config_manager:
+        config_manager.set_douyin_cookie(cookie)
     return jsonify({'success': True})
 
 
