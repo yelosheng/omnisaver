@@ -306,20 +306,23 @@ class XHSService:
         (post_dir / 'content.txt').write_text(desc, encoding='utf-8')
 
         # content.md — richer markdown
+        safe_desc = re.sub(r'(?m)^#', r'\#', desc)
+        safe_title = re.sub(r'^#', r'\#', title)
+
         md = '\n'.join([
-            f"# {note.get('title', '')}",
+            f"# {safe_title}",
             '',
             f"**作者**: {author_name}  ",
             f"**发布时间**: {post_date}  ",
             f"**IP归属**: {note.get('ipLocation', '')}  ",
             f"**类型**: {'视频' if post_type == 'video' else '图文'}  ",
-            f"**点赞**: {interact.get('likedCount', '')}  "
-            f"**收藏**: {interact.get('collectedCount', '')}  "
+            f"**点赞**: {interact.get('likedCount', '')}  ",
+            f"**收藏**: {interact.get('collectedCount', '')}  ",
             f"**评论**: {interact.get('commentCount', '')}",
             '',
             '---',
             '',
-            desc,
+            safe_desc,
             '',
             '---',
             '',

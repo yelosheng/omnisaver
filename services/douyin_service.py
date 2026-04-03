@@ -222,8 +222,12 @@ class DouyinService:
         (post_dir / 'content.txt').write_text(description, encoding='utf-8')
 
         # --- content.md ---
+        # Escape hashtags at the start of lines to prevent them being treated as H1 headers
+        safe_description = re.sub(r'(?m)^#', r'\#', description)
+        safe_title_md = re.sub(r'^#', r'\#', title)
+
         md = '\n'.join([
-            f'# {title}',
+            f'# {safe_title_md}',
             '',
             f'**作者**: {uploader}  ',
             f'**发布时间**: {date_str}  ',
@@ -234,7 +238,7 @@ class DouyinService:
             '',
             '---',
             '',
-            description,
+            safe_description,
         ])
         (post_dir / 'content.md').write_text(md, encoding='utf-8')
 

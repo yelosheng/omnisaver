@@ -285,8 +285,11 @@ class YoutubeService:
         (post_dir / 'content.txt').write_text(description, encoding='utf-8')
 
         # --- content.md ---
+        safe_description = re.sub(r'(?m)^#', r'\#', description)
+        safe_title = re.sub(r'^#', r'\#', title)
+
         md = '\n'.join([
-            f'# {title}',
+            f'# {safe_title}',
             '',
             f'**频道**: {channel}  ',
             f'**发布时间**: {date_str}  ',
@@ -299,7 +302,7 @@ class YoutubeService:
             '',
             '---',
             '',
-            description,
+            safe_description,
         ])
         (post_dir / 'content.md').write_text(md, encoding='utf-8')
 

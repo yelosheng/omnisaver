@@ -154,7 +154,9 @@ class WebpageService:
             ) or ''
         if not md_content:
             md_content = plain
-        header_lines = [f'# {title}', '']
+        
+        safe_title = re.sub(r'^#', r'\#', title)
+        header_lines = [f'# {safe_title}', '']
         if author:
             header_lines.append(f'**Author**: {author}  ')
         header_lines += [f'**Site**: {sitename}  ', f'**Source**: {url}  ']

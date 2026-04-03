@@ -659,8 +659,9 @@ class WechatService:
         (post_dir / 'content.txt').write_text(plain, encoding='utf-8')
 
         # content.md — full markdown with header
+        safe_title = re.sub(r'^#', r'\#', meta.title)
         full_md = '\n'.join([
-            f'# {meta.title}',
+            f'# {safe_title}',
             '',
             f'**作者**: {meta.author}  ',
             f'**发布时间**: {meta.publish_time}  ',
