@@ -1792,10 +1792,7 @@ def api_submit():
 @login_required
 def settings_page():
     youtube_api_key = config_manager.get_youtube_api_key() if config_manager else ''
-    douyin_cookie = config_manager.get_douyin_cookie() if config_manager else ''
-    return render_template('settings.html',
-                           youtube_api_key=youtube_api_key or '',
-                           douyin_cookie=douyin_cookie or '')
+    return render_template('settings.html', youtube_api_key=youtube_api_key or '')
 
 
 @app.route('/api/xhs/settings', methods=['GET'])
@@ -1846,11 +1843,27 @@ def api_set_youtube_api_key():
 @app.route('/api/settings/douyin-cookie', methods=['POST'])
 @login_required
 def api_set_douyin_cookie():
-    data = request.get_json() or {}
-    cookie = str(data.get('cookie', '')).strip()
-    if config_manager:
-        config_manager.set_douyin_cookie(cookie)
-    return jsonify({'success': True})
+    """Save Douyin/TikTok cookies from Cookie-Editor JSON export."""
+    data = request.get_json()
+    if not data or not data.get('cookies'):
+        return jsonify({'success': False, 'error': 'No cookie data provided'}), 400
+    try:
+        cookies = json.loads(data['cookies'])
+        if not isinstance(cookies, list):
+            return jsonify({'success': False, 'error': 'Expected a JSON array of cookies'}), 400
+        # Convert Cookie-Editor JSON to cookie header string: name=value; name2=value2
+        cookie_str = '; '.join(
+            f"{c['name']}={c['value']}"
+            for c in cookies
+            if c.get('name') and c.get('value') is not None
+        )
+        if config_manager:
+            config_manager.set_douyin_cookie(cookie_str)
+        return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies.'})
+    except json.JSONDecodeError:
+        return jsonify({'success': False, 'error': 'Invalid JSON format'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/settings/config', methods=['POST'])

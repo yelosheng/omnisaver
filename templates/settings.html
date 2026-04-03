@@ -139,19 +139,17 @@
                 </h5>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-2">yt-dlp 下载抖音/TikTok 视频需要浏览器 Cookie。在浏览器 DevTools → Network 中找到任意抖音/TikTok 请求，复制其 <code>Cookie</code> 请求头的值粘贴到此处。</p>
+                <p class="text-muted small mb-2">yt-dlp 下载抖音/TikTok 视频需要浏览器 Cookie。用 <a href="https://cookie-editor.cgagnier.ca/" target="_blank">Cookie-Editor</a>（Chrome 扩展）在登录抖音/TikTok 后导出 JSON，粘贴到此处。</p>
+                <div id="douyin-cookie-status" class="mb-3"></div>
                 <div class="mb-3">
-                    <label class="form-label"><strong>Cookie 字符串</strong></label>
-                    <textarea class="form-control font-monospace" id="douyin-cookie-input" rows="4"
-                              placeholder="sessionid=xxx; passport_csrf_token=yyy; ..."
-                              style="font-size:0.8rem;">{{ douyin_cookie }}</textarea>
+                    <label class="form-label"><strong>Cookie JSON</strong></label>
+                    <textarea class="form-control font-monospace" id="douyin-cookie-input" rows="6"
+                              placeholder='Paste Cookie-Editor JSON export here...'
+                              style="font-size:0.8rem;"></textarea>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary" onclick="saveDouyinCookie()">
-                        <i class="bi bi-check-lg"></i> Save Cookie
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="clearDouyinCookie()">
-                        Clear
+                        <i class="bi bi-check-lg"></i> Save Cookies
                     </button>
                 </div>
                 <div id="douyin-cookie-result" class="mt-2" style="display:none;"></div>
@@ -183,28 +181,30 @@ async function saveYouTubeKey() {
 
 // ── Douyin / TikTok Cookie ────────────────────────────────────────
 async function saveDouyinCookie() {
-    const cookie = document.getElementById('douyin-cookie-input').value.trim();
+    const cookies = document.getElementById('douyin-cookie-input').value.trim();
     const result = document.getElementById('douyin-cookie-result');
+    if (!cookies) {
+        result.style.display = 'block';
+        result.className = 'mt-2 alert alert-warning';
+        result.textContent = 'Please paste Cookie-Editor JSON first.';
+        return;
+    }
     try {
         const resp = await fetch('/api/settings/douyin-cookie', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cookie })
+            body: JSON.stringify({ cookies })
         });
         const data = await resp.json();
         result.style.display = 'block';
         result.className = 'mt-2 alert alert-' + (data.success ? 'success' : 'danger');
-        result.textContent = data.success ? 'Cookie saved.' : (data.error || 'Failed');
+        result.textContent = data.success ? data.message : (data.error || 'Failed');
+        if (data.success) document.getElementById('douyin-cookie-input').value = '';
     } catch (e) {
         result.style.display = 'block';
         result.className = 'mt-2 alert alert-danger';
         result.textContent = 'Network error: ' + e.message;
     }
-}
-
-async function clearDouyinCookie() {
-    document.getElementById('douyin-cookie-input').value = '';
-    await saveDouyinCookie();
 }
 
 // ── XHS Cookies ─────────────────────────────────────────────────
