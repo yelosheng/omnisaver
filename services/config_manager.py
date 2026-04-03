@@ -111,6 +111,17 @@ class ConfigManager:
         with open(self.config_file, 'w', encoding='utf-8') as f:
             self.config.write(f)
 
+    def get_douyin_cookie(self) -> str:
+        """Get Douyin/TikTok cookie string for yt-dlp --add-headers."""
+        return self.config.get('douyin', 'cookie', fallback='')
+
+    def set_douyin_cookie(self, cookie: str) -> None:
+        """Persist Douyin/TikTok cookie string to config file."""
+        if 'douyin' not in self.config:
+            self.config['douyin'] = {}
+        self.config['douyin']['cookie'] = cookie
+        self._save()
+
     def load_config(self) -> Dict[str, Any]:
         """Load all configuration and return dictionary"""
         return {
