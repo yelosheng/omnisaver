@@ -19,19 +19,22 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 - **Multi-platform support:**
   - **Twitter/X** — save tweets, full threads, long-form articles, and videos
   - **YouTube** — save video metadata, subtitles, and channel info
+  - **Douyin (抖音) / TikTok** — save videos without watermarks via Playwright (no cookies needed)
   - **XiaoHongShu (小红书)** — save image posts and videos via Telegram bot or REST API
   - **WeChat articles (微信公众号)** — save articles with images and formatting
   - **Any webpage** — Pocket-style read-it-later for any `http/https` URL; uses Firefox Reader Mode algorithm (Mozilla Readability.js) to extract clean article content with images
 - **Full Twitter thread fetching** — when Twitter credentials are configured, entire reply chains are saved as a single archive with all media embedded inline
 - **Twitter long-form articles** — automatically detects and saves full article content from `/status/` URLs
 - **Twitter video downloads** — downloads videos via yt-dlp; authenticated downloads supported when credentials are configured
+- **Douyin/TikTok Native Scraper** — uses Playwright to bypass API restrictions and fetch unwatermarked videos directly from the original source
 - Unified URL input — paste any supported URL on the homepage; content type is auto-detected
 - Tampermonkey userscript adds save buttons on Twitter/X tweets and YouTube video pages/thumbnails
 - Saves content in multiple formats: plain text, Markdown, Reader-mode HTML
 - Saves complete metadata (author, timestamp, stats) as JSON
 - Built-in task queue with automatic retry on failure (exponential backoff)
+- **Redownload tasks** — manually trigger a full redownload for any task directly from the Tasks page
 - Web UI with real-time log streaming, task monitoring, and content browsing
-- Saved page shows a platform badge (X, YouTube, 小红书, WeChat, or 🌐 Web) on each card
+- Saved page shows a platform badge (X, YouTube, Douyin, 小红书, WeChat, or 🌐 Web) on each card
 - **YouTube descriptions with clickable links** — bare URLs in video descriptions are automatically rendered as hyperlinks in the viewer
 - **Enhanced search:** full-text search across content and article titles; filter by platform (multi-select), date range (quick presets or custom); all filters combine
 - Supports infinite scroll and pagination (toggle per preference)
