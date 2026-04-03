@@ -1607,10 +1607,52 @@ def api_reset_retries(task_id):
         info(f"[Reset Retries] Task {task_id} reset and added to queue: {task_url}")
         
         return jsonify({'success': True, 'message': 'Retry count reset, task requeued'})
-        
+
     except Exception as e:
         return jsonify({'success': False, 'message': f'Reset failed: {str(e)}'})
 
+
+@app.route('/api/redownload/<int:task_id>', methods=['POST'])
+@login_required
+def api_redownload(task_id):
+    """强制重新下载指定任务"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 首先获取任务URL
+        task = cursor.execute(
+            'SELECT url FROM tasks WHERE id = ?', (task_id,)
+        ).fetchone()
+
+        if not task:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Task not found'})
+
+        task_url = task['url']
+
+        # 重置所有状态，使其重新进入队列
+        cursor.execute("""
+            UPDATE tasks SET 
+                status = 'pending',
+                retry_count = 0,
+                next_retry_time = NULL,
+                processed_at = NULL,
+                error_message = 'Manual redownload requested'
+            WHERE id = ?
+        """, (task_id,))
+
+        conn.commit()
+        conn.close()
+
+        # 将任务加入处理队列
+        enqueue_task(task_id, task_url)
+        info(f"[Redownload] Task {task_id} forced to redownload: {task_url}")
+
+        return jsonify({'success': True, 'message': 'Task added to redownload queue'})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Redownload failed: {str(e)}'})
 @app.route('/api/delete-retry-task/<int:task_id>', methods=['POST'])
 def api_delete_retry_task(task_id):
     """删除重试任务"""

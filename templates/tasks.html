@@ -169,6 +169,11 @@
 
             // Actions
             let actions = '<div class="btn-group">';
+            
+            if (task.status !== 'processing') {
+                actions += `<button class="btn btn-sm btn-outline-info" onclick="redownloadTask(${task.id}, this)" title="Redownload"><i class="bi bi-cloud-download"></i></button>`;
+            }
+
             if (task.status === 'completed') {
                 const viewUrl = task.share_slug ? `/view/${task.share_slug}` : `/view/${task.id}`;
                 actions += `<a href="${viewUrl}" class="btn btn-sm btn-outline-primary" target="_blank" title="View"><i class="bi bi-eye"></i></a>`;
@@ -235,6 +240,18 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
         btn.disabled = true;
         return () => { btn.innerHTML = orig; btn.disabled = false; };
+    }
+
+    function redownloadTask(taskId, btn) {
+        if (!confirm('Are you sure you want to redownload this task? This will reset its status and try again.')) return;
+        const restore = btnSpinner(btn);
+        fetch(`/api/redownload/${taskId}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                showToast(data.message, data.success ? 'success' : 'error');
+                if (data.success) loadTasks(currentPage); else restore();
+            })
+            .catch(() => { showToast('Redownload request failed', 'error'); restore(); });
     }
 
     function retryNow(taskId, btn) {
