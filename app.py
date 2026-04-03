@@ -940,7 +940,7 @@ def show_tweet(slug):
                 tweet_html = _md.markdown(md_text, extensions=['nl2br', 'tables'])
                 # Replace video links with inline <video> players
                 tweet_html = _re.sub(
-                    r'<a href="(/media/\d+/videos/video\d+\.[^"]+)">视频[^<]*</a>',
+                    r'<a href="(/media/\d+/videos/video[\d.]*\.[^"]+)">视频[^<]*</a>',
                     lambda m: (
                         f'<video controls style="max-width:100%;margin:8px 0">'
                         f'<source src="{m.group(1)}" type="video/mp4"></video>'

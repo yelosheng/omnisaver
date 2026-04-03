@@ -29,9 +29,9 @@ class DouyinService:
     _URL_RE = re.compile(
         r'https?://(?:'
         r'(?:www\.|m\.)?douyin\.com/video/\d+'
-        r'|v\.douyin\.com/\S+'
+        r'|v\.douyin\.com/[\w/-]+'
         r'|(?:www\.)?tiktok\.com/@[^/]+/video/\d+'
-        r'|vm\.tiktok\.com/\S+'
+        r'|vm\.tiktok\.com/[\w/-]+'
         r')'
     )
 
@@ -39,8 +39,8 @@ class DouyinService:
                  douyin_cookie: str = None):
         if base_path is None:
             data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
-            base_path = str(Path(data_dir) / 'saved_douyin')
-        self.base_path = Path(base_path)
+            base_path = str(Path(data_dir))
+        self.base_path = Path(base_path) / 'saved_douyin'
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.create_date_folders = create_date_folders
         self.douyin_cookie = douyin_cookie or ''
