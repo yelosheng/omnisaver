@@ -183,8 +183,15 @@ class DouyinService:
         if 'playwm' in play_addr:
             play_addr = play_addr.replace('playwm', 'play')
 
-        # Extract cover image
+        # Extract images
         cover_url = item.get('video', {}).get('cover', {}).get('url_list', [''])[0]
+        avatar_url = ''
+        author_info = item.get('author', {})
+        for k in ['avatar_medium', 'avatar_thumb', 'avatar_larger']:
+            node = author_info.get(k)
+            if isinstance(node, dict) and node.get('url_list'):
+                avatar_url = node['url_list'][0]
+                break
 
         # Directory creation
         safe_folder_title = re.sub(r'[^\w\u4e00-\u9fff\- ]', '', title_safe)[:40].strip()
@@ -218,6 +225,13 @@ class DouyinService:
             except Exception as e:
                 warning(f"Cover download failed: {e}")
 
+        # Download Avatar
+        if avatar_url:
+            try:
+                self._download_file(avatar_url, post_dir / 'avatar.jpg')
+            except Exception as e:
+                warning(f"Avatar download failed: {e}")
+
         # --- content.txt ---
         (post_dir / 'content.txt').write_text(description, encoding='utf-8')
 
@@ -250,6 +264,7 @@ class DouyinService:
             'upload_date': pub_date.strftime('%Y%m%d'),
             'uploader': uploader,
             'uploader_id': uploader_id,
+            'avatar': avatar_url,
             'duration': duration_ms,
             'duration_string': duration,
             'thumbnail': cover_url,
