@@ -255,6 +255,34 @@ def _make_handlers(submit_callback: Callable):
                 await update.message.reply_text(f"❌ YouTube submit failed: {e}")
             return
 
+        # Douyin / TikTok URL
+        from services.douyin_service import DouyinService
+        douyin_url = DouyinService.extract_url_from_share_text(text)
+        if douyin_url:
+            try:
+                from app import processing_queue, get_db_connection, format_time_for_db, get_current_time
+                conn = get_db_connection()
+                existing = conn.execute('SELECT id, status FROM tasks WHERE url = ?', (douyin_url,)).fetchone()
+                if existing:
+                    conn.close()
+                    await update.message.reply_text(
+                        f"⚠️ Already queued/saved (task #{existing['id']}, status: {existing['status']})"
+                    )
+                else:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO tasks (url, status, created_at, content_type) VALUES (?, 'pending', ?, 'douyin')",
+                        (douyin_url, format_time_for_db(get_current_time()))
+                    )
+                    task_id = cursor.lastrowid
+                    conn.commit()
+                    conn.close()
+                    processing_queue.put((task_id, douyin_url))
+                    await update.message.reply_text(f"✅ Added to queue (task #{task_id})")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Douyin submit failed: {e}")
+            return
+
         # Twitter/X URL
         url = _extract_twitter_url(text)
         if not url:
@@ -286,7 +314,7 @@ def _make_handlers(submit_callback: Callable):
                     await update.message.reply_text(f"❌ Webpage submit failed: {e}")
                 return
             await update.message.reply_text(
-                "❌ No supported URL found. Supports: Twitter/X, XiaoHongShu, WeChat, YouTube, or any webpage URL."
+                "❌ No supported URL found. Supports: Twitter/X, XiaoHongShu, WeChat, YouTube, Douyin/TikTok, or any webpage URL."
             )
             return
 

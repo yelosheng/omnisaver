@@ -328,10 +328,14 @@ def submit_url():
 
     # Detect content type
     content_type = 'tweet'
-    if YoutubeService.is_valid_youtube_url(url):
-        content_type = 'youtube'
-    elif DouyinService.is_valid_douyin_url(url):
+    
+    # Try Douyin share text extraction first (mobile app shares a text blob with embedded URL)
+    douyin_extracted = DouyinService.extract_url_from_share_text(url)
+    if douyin_extracted:
+        url = douyin_extracted
         content_type = 'douyin'
+    elif YoutubeService.is_valid_youtube_url(url):
+        content_type = 'youtube'
     elif XHSService.is_valid_xhs_url(url):
         content_type = 'xhs'
     elif WechatService.is_valid_wechat_url(url):
@@ -339,24 +343,18 @@ def submit_url():
     elif TwitterURLParser.is_valid_twitter_url(url):
         content_type = 'tweet'
     else:
-        # Try Douyin share text extraction (mobile app shares a text blob with embedded URL)
-        douyin_extracted = DouyinService.extract_url_from_share_text(url)
-        if douyin_extracted:
-            url = douyin_extracted
-            content_type = 'douyin'
+        # Try XHS share text extraction (handles xhslink.com short URLs too)
+        extracted = XHSService.extract_url_from_share_text(url)
+        if extracted and extracted != url:
+            extracted = XHSService.resolve_xhslink(extracted)
+            extracted = XHSService.normalize_xhs_url(extracted)
+        if extracted and XHSService.is_valid_xhs_url(extracted):
+            url = extracted
+            content_type = 'xhs'
+        elif WebpageService.is_valid_webpage_url(url):
+            content_type = 'webpage'
         else:
-            # Try XHS share text extraction (handles xhslink.com short URLs too)
-            extracted = XHSService.extract_url_from_share_text(url)
-            if extracted and extracted != url:
-                extracted = XHSService.resolve_xhslink(extracted)
-                extracted = XHSService.normalize_xhs_url(extracted)
-            if extracted and XHSService.is_valid_xhs_url(extracted):
-                url = extracted
-                content_type = 'xhs'
-            elif WebpageService.is_valid_webpage_url(url):
-                content_type = 'webpage'
-            else:
-                return jsonify({'success': False, 'message': 'Unsupported URL. Please enter a valid http/https URL.'})
+            return jsonify({'success': False, 'message': 'Unsupported URL. Please enter a valid http/https URL.'})
 
     # Normalize XHS URL
     if content_type == 'xhs':
@@ -1694,10 +1692,13 @@ def api_submit():
         
         # Detect content type (same logic as submit_url)
         _ct = 'tweet'
-        if YoutubeService.is_valid_youtube_url(url):
-            _ct = 'youtube'
-        elif DouyinService.is_valid_douyin_url(url):
+        
+        douyin_extracted = DouyinService.extract_url_from_share_text(url)
+        if douyin_extracted:
+            url = douyin_extracted
             _ct = 'douyin'
+        elif YoutubeService.is_valid_youtube_url(url):
+            _ct = 'youtube'
         elif XHSService.is_valid_xhs_url(url):
             _ct = 'xhs'
         elif WechatService.is_valid_wechat_url(url):
@@ -1705,27 +1706,22 @@ def api_submit():
         elif TwitterURLParser.is_valid_twitter_url(url):
             _ct = 'tweet'
         else:
-            douyin_extracted = DouyinService.extract_url_from_share_text(url)
-            if douyin_extracted:
-                url = douyin_extracted
-                _ct = 'douyin'
+            extracted = XHSService.extract_url_from_share_text(url)
+            if extracted and extracted != url:
+                extracted = XHSService.resolve_xhslink(extracted)
+                extracted = XHSService.normalize_xhs_url(extracted)
+            if extracted and XHSService.is_valid_xhs_url(extracted):
+                url = extracted
+                _ct = 'xhs'
+            elif WebpageService.is_valid_webpage_url(url):
+                _ct = 'webpage'
             else:
-                extracted = XHSService.extract_url_from_share_text(url)
-                if extracted and extracted != url:
-                    extracted = XHSService.resolve_xhslink(extracted)
-                    extracted = XHSService.normalize_xhs_url(extracted)
-                if extracted and XHSService.is_valid_xhs_url(extracted):
-                    url = extracted
-                    _ct = 'xhs'
-                elif WebpageService.is_valid_webpage_url(url):
-                    _ct = 'webpage'
-                else:
-                    return jsonify({
-                        'success': False,
-                        'error': 'Unsupported URL',
-                        'message': f'Cannot process URL: {url}',
-                        'url': url
-                    }), 400
+                return jsonify({
+                    'success': False,
+                    'error': 'Unsupported URL',
+                    'message': f'Cannot process URL: {url}',
+                    'url': url
+                }), 400
 
         # 检查URL是否已存在
         conn = get_db_connection()
@@ -1838,32 +1834,6 @@ def api_set_youtube_api_key():
     if config_manager:
         config_manager.set_youtube_api_key(key)
     return jsonify({'success': True})
-
-
-@app.route('/api/settings/douyin-cookie', methods=['POST'])
-@login_required
-def api_set_douyin_cookie():
-    """Save Douyin/TikTok cookies from Cookie-Editor JSON export."""
-    data = request.get_json()
-    if not data or not data.get('cookies'):
-        return jsonify({'success': False, 'error': 'No cookie data provided'}), 400
-    try:
-        cookies = json.loads(data['cookies'])
-        if not isinstance(cookies, list):
-            return jsonify({'success': False, 'error': 'Expected a JSON array of cookies'}), 400
-        # Convert Cookie-Editor JSON to cookie header string: name=value; name2=value2
-        cookie_str = '; '.join(
-            f"{c['name']}={c['value']}"
-            for c in cookies
-            if c.get('name') and c.get('value') is not None
-        )
-        if config_manager:
-            config_manager.set_douyin_cookie(cookie_str)
-        return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies.'})
-    except json.JSONDecodeError:
-        return jsonify({'success': False, 'error': 'Invalid JSON format'}), 400
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/settings/config', methods=['POST'])
@@ -2386,7 +2356,7 @@ def telegram_status():
     """Return current bot status, owner info, and whether a token is configured."""
     import configparser as cp
     from services.telegram_bot import get_status
-    cfg = cp.ConfigParser()
+    cfg = cp.ConfigParser(interpolation=None)
     if os.path.exists('config.ini'):
         cfg.read('config.ini')
     token_configured = bool(cfg.get('telegram', 'bot_token', fallback='').strip())
@@ -2406,7 +2376,7 @@ def telegram_config():
     if not token:
         return jsonify({'success': False, 'error': 'Token is required'}), 400
 
-    cfg = cp.ConfigParser()
+    cfg = cp.ConfigParser(interpolation=None)
     if os.path.exists('config.ini'):
         cfg.read('config.ini')
     if 'telegram' not in cfg:

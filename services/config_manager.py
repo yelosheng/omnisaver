@@ -9,7 +9,9 @@ class ConfigManager:
 
     def __init__(self, config_file: str = "config.ini"):
         self.config_file = config_file
-        self.config = configparser.ConfigParser()
+        # Cookie values may contain URL-encoded `%xx` sequences; disable
+        # interpolation so they are persisted verbatim in config.ini.
+        self.config = configparser.ConfigParser(interpolation=None)
         self._load_config_file()
     
     def _load_config_file(self):
@@ -110,18 +112,6 @@ class ConfigManager:
         self.config['ai']['youtube_api_key'] = api_key
         with open(self.config_file, 'w', encoding='utf-8') as f:
             self.config.write(f)
-
-    def get_douyin_cookie(self) -> str:
-        """Get Douyin/TikTok cookie string for yt-dlp --add-headers."""
-        return self.config.get('douyin', 'cookie', fallback='')
-
-    def set_douyin_cookie(self, cookie: str) -> None:
-        """Persist Douyin/TikTok cookie string to config file."""
-        if 'douyin' not in self.config:
-            self.config['douyin'] = {}
-        self.config['douyin']['cookie'] = cookie
-        self._save()
-
     def load_config(self) -> Dict[str, Any]:
         """Load all configuration and return dictionary"""
         return {

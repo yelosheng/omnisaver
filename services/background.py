@@ -295,9 +295,7 @@ def make_douyin_service():
     from services.douyin_service import DouyinService
     base_path = _config_manager.get_save_path() if _config_manager else os.path.join(DATA_DIR, 'saved_douyin')
     create_date_folders = _config_manager.get_create_date_folders() if _config_manager else True
-    douyin_cookie = _config_manager.get_douyin_cookie() if _config_manager else ''
-    return DouyinService(base_path, create_date_folders=create_date_folders,
-                         douyin_cookie=douyin_cookie)
+    return DouyinService(base_path, create_date_folders=create_date_folders)
 
 
 def process_xhs_task(task_id: int, url: str):
