@@ -35,6 +35,35 @@ class WeiboService:
     def is_valid_weibo_url(cls, url: str) -> bool:
         return bool(cls._URL_RE.search(url))
 
+    @classmethod
+    def extract_url_from_share_text(cls, text: str) -> str:
+        """
+        Extract a Weibo URL from a share text blob.
+        Returns the first matched URL, or '' if none found.
+        """
+        m = cls._URL_RE.search(text)
+        return m.group(0).rstrip('/') if m else ''
+
+    def _clean_html(self, html_text: str) -> str:
+        """Convert Weibo HTML text to clean plain text while preserving line breaks and emojis."""
+        if not html_text:
+            return ""
+        # 1. Replace <br /> or <br> with newlines
+        text = re.sub(r'<br\s*/?>', '\n', html_text)
+        # 2. Extract alt text from <img> tags (usually emojis)
+        text = re.sub(r'<img[^>]*alt="([^"]*)"[^>]*>', r'\1', text)
+        # 3. Replace <a> tags but keep their text content
+        # We use a non-greedy match for the tag and recursive stripping for the content
+        text = re.sub(r'<a[^>]*>(.*?)</a>', lambda m: re.sub(r'<[^>]+>', '', m.group(1)), text, flags=re.DOTALL)
+        # 4. Strip all other remaining HTML tags
+        text = re.sub(r'<[^>]+>', '', text)
+        # 5. Unescape HTML entities (like &nbsp; or &quot;)
+        import html
+        text = html.unescape(text)
+        # 6. Clean up excessive whitespace
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
+
     async def _fetch_metadata_async(self, url: str) -> dict:
         """Use Playwright to get Weibo metadata."""
         # Convert to mobile URL if needed
@@ -116,9 +145,16 @@ class WeiboService:
 
         # Extract fields
         mid = str(status.get('id', ''))
+        
+        # Prefer longTextContent if available
         text_html = status.get('text', '')
-        # Clean HTML from text for description
-        text_raw = re.sub(r'<[^>]+>', '', text_html)
+        if status.get('isLongText'):
+            # m.weibo.cn sometimes puts longText inside the root status object if fetched via Playwright
+            long_text_obj = status.get('longText')
+            if isinstance(long_text_obj, dict) and long_text_obj.get('longTextContent'):
+                text_html = long_text_obj['longTextContent']
+        
+        text_raw = self._clean_html(text_html)
         
         user = status.get('user', {})
         author_name = user.get('screen_name', 'Unknown')
