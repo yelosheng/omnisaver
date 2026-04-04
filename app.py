@@ -26,6 +26,7 @@ from services.wechat_service import WechatService, WechatServiceError
 from services.youtube_service import YoutubeService, YoutubeServiceError
 from services.douyin_service import DouyinService, DouyinServiceError
 from services.weibo_service import WeiboService, WeiboServiceError
+from services.bilibili_service import BilibiliService, BilibiliServiceError
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
 
@@ -333,6 +334,7 @@ def submit_url():
     # Try Douyin share text extraction first (mobile app shares a text blob with embedded URL)
     douyin_extracted = DouyinService.extract_url_from_share_text(url)
     weibo_extracted = WeiboService.extract_url_from_share_text(url)
+    bilibili_extracted = BilibiliService.extract_url_from_share_text(url)
     
     if douyin_extracted:
         url = douyin_extracted
@@ -340,6 +342,9 @@ def submit_url():
     elif weibo_extracted:
         url = weibo_extracted
         content_type = 'weibo'
+    elif bilibili_extracted:
+        url = bilibili_extracted
+        content_type = 'bilibili'
     elif YoutubeService.is_valid_youtube_url(url):
         content_type = 'youtube'
     elif XHSService.is_valid_xhs_url(url):
@@ -913,7 +918,7 @@ def show_tweet(slug):
         )
 
     # XHS / WeChat articles: render content.md as HTML with local image paths
-    if content_type in ('xhs', 'wechat', 'douyin', 'weibo') and not tweet_html:
+    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili') and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
         if os.path.exists(content_md_file):
             try:
@@ -1015,7 +1020,7 @@ def show_tweet(slug):
 
     # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'webpage') and tweet_html
+        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'webpage') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
@@ -1039,7 +1044,7 @@ def show_tweet(slug):
     if not page_title:
         _type_labels = {'tweet': 'Tweet', 'article': 'Article', 'xhs': 'XHS Post',
                         'wechat': 'WeChat Article', 'youtube': 'YouTube Video', 'webpage': 'Webpage',
-                        'douyin': 'Douyin/TikTok', 'weibo': 'Weibo Post'}
+                        'douyin': 'Douyin/TikTok', 'weibo': 'Weibo Post', 'bilibili': 'Bilibili Video'}
         page_title = _type_labels.get(content_type, 'Content')
 
     tweet_data = {
@@ -1745,6 +1750,7 @@ def api_submit():
         
         douyin_extracted = DouyinService.extract_url_from_share_text(url)
         weibo_extracted = WeiboService.extract_url_from_share_text(url)
+        bilibili_extracted = BilibiliService.extract_url_from_share_text(url)
         
         if douyin_extracted:
             url = douyin_extracted
@@ -1752,6 +1758,9 @@ def api_submit():
         elif weibo_extracted:
             url = weibo_extracted
             _ct = 'weibo'
+        elif bilibili_extracted:
+            url = bilibili_extracted
+            _ct = 'bilibili'
         elif YoutubeService.is_valid_youtube_url(url):
             _ct = 'youtube'
         elif XHSService.is_valid_xhs_url(url):

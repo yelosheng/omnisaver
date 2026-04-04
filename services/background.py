@@ -306,6 +306,63 @@ def make_weibo_service():
     return WeiboService(base_path, create_date_folders=create_date_folders)
 
 
+def make_bilibili_service():
+    """Instantiate BilibiliService with configured save path."""
+    from services.bilibili_service import BilibiliService
+    base_path = _config_manager.get_save_path() if _config_manager else os.path.join(DATA_DIR, 'saved_tweets')
+    create_date_folders = _config_manager.get_create_date_folders() if _config_manager else True
+    return BilibiliService(base_path, create_date_folders=create_date_folders)
+
+
+def process_bilibili_task(task_id: int, url: str):
+    """Queue worker handler for Bilibili tasks."""
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            'UPDATE tasks SET status = ?, processed_at = ? WHERE id = ?',
+            ('processing', format_time_for_db(get_current_time()), task_id)
+        )
+        conn.commit()
+        conn.close()
+
+        svc = make_bilibili_service()
+        result = svc.save_video(url)
+        slug = generate_unique_slug()
+        now = format_time_for_db(get_current_time())
+
+        conn = get_db_connection()
+        conn.execute(
+            '''UPDATE tasks SET status='completed', processed_at=?, tweet_id=?, 
+               author_username=?, author_name=?, save_path=?, tweet_text=?, 
+               share_slug=?, media_count=?, content_type='bilibili' WHERE id=?''',
+            (now, result['video_id'],
+             result.get('author_username', ''), result.get('author_name', ''),
+             result['save_path'], result.get('tweet_text', '')[:500],
+             slug, result.get('media_count', 0),
+             task_id)
+        )
+
+        full_text = _read_full_text(result['save_path']) or result.get('tweet_text', '')
+        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''),
+                   full_text, title=result.get('title'))
+        conn.commit()
+        conn.close()
+        success(f'[Bilibili Task {task_id}] Saved: {result.get("title", url)}')
+
+    except Exception as e:
+        error(f'[Bilibili Task {task_id}] Failed: {e}')
+        try:
+            conn2 = get_db_connection()
+            conn2.execute(
+                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
+                (str(e)[:500], task_id)
+            )
+            conn2.commit()
+            conn2.close()
+        except Exception:
+            pass
+
+
 def process_weibo_task(task_id: int, url: str):
     """Queue worker handler for Weibo tasks."""
     conn = get_db_connection()
@@ -917,6 +974,8 @@ def queue_processor():
                     process_douyin_task(task_id, url)
                 elif _content_type == 'weibo':
                     process_weibo_task(task_id, url)
+                elif _content_type == 'bilibili':
+                    process_bilibili_task(task_id, url)
                 elif _content_type == 'webpage':
                     process_webpage_task(task_id, url)
                 else:

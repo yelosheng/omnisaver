@@ -19,6 +19,7 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 - **Multi-platform support:**
   - **Twitter/X** — save tweets, full threads, long-form articles, and videos
   - **YouTube** — save video metadata, subtitles, and channel info
+  - **Bilibili (哔哩哔哩)** — save video metadata and high-quality videos
   - **Douyin (抖音) / TikTok** — save videos without watermarks via Playwright (no cookies needed)
   - **Weibo (微博)** — save posts, images, and videos via Playwright (no cookies needed)
   - **XiaoHongShu (小红书)** — save image posts and videos via Telegram bot or REST API
