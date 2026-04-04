@@ -71,30 +71,40 @@ class KuaishouService:
 
             # Try to extract data from various possible sources
             meta = await page.evaluate('''() => {
-                const getTxt = (sel) => document.querySelector(sel)?.innerText?.trim() || '';
+                function getTxt(sel) {
+                    var el = document.querySelector(sel);
+                    return el ? el.innerText.trim() : '';
+                }
                 
-                const video = document.querySelector('video');
-                let video_src = video ? video.src : '';
+                var video = document.querySelector('video');
+                var video_src = video ? video.src : '';
                 
                 // If src is empty or blob, look for source tags
                 if (!video_src && video) {
-                    const srcTag = video.querySelector('source');
+                    var srcTag = video.querySelector('source');
                     if (srcTag) video_src = srcTag.src;
                 }
                 
-                const poster = video ? video.poster : '';
+                var poster = video ? video.poster : '';
                 
-                let author = getTxt('.user-info .name') || getTxt('.author-name') || getTxt('.nickname') || getTxt('.name-text');
-                let desc = getTxt('.desc-area .desc') || getTxt('.video-description') || getTxt('.caption') || getTxt('.description');
-                let avatar = document.querySelector('.user-info .avatar img, .author-avatar img, .avatar-img')?.src || '';
+                var author = getTxt('.user-info .name') || getTxt('.author-name') || getTxt('.nickname') || getTxt('.name-text');
+                var desc = getTxt('.desc-area .desc') || getTxt('.video-description') || getTxt('.caption') || getTxt('.description');
+                
+                var avatarImg = document.querySelector('.user-info .avatar img, .author-avatar img, .avatar-img');
+                var avatar = avatarImg ? avatarImg.src : '';
 
-                // Fallback for author from body text if still empty
+                // Fallback for author: look for the specific pattern in body text
                 if (!author) {
-                    const match = document.body.innerText.match(/(.*?)\\n的作品原声/);
-                    if (match) author = match[1].trim();
+                    var lines = document.body.innerText.split('\\n');
+                    for (var i = 0; i < lines.length; i++) {
+                        if (lines[i].indexOf('的作品原声') !== -1 && i > 0) {
+                            author = lines[i-1].trim();
+                            break;
+                        }
+                    }
                 }
 
-                return { video_src, poster, author, desc, avatar };
+                return { video_src: video_src, poster: poster, author: author, desc: desc, avatar: avatar };
             }''')
             
             await browser.close()
