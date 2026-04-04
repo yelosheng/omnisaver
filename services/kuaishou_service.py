@@ -21,7 +21,7 @@ class KuaishouService:
 
     _URL_RE = re.compile(
         r'https?://(?:'
-        r'(?:www\.)?kuaishou\.com/(?:short-video/|f/|video/)[\w-]+'
+        r'(?:www\.)?kuaishou\.com/(?:short-video/|f/|video/|photo/)[\w-]+'
         r'|v\.kuaishou\.com/[\w-]+'
         r')'
     )
@@ -47,22 +47,23 @@ class KuaishouService:
         return m.group(0) if m else ''
 
     async def _fetch_metadata_async(self, url: str) -> dict:
-        """Use Playwright to get Kuaishou metadata with request interception."""
+        """Use Playwright with smart redirection to get Kuaishou metadata."""
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
-            # Switch to Desktop UA to support both mobile and desktop links
-            context = await browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                viewport={'width': 1280, 'height': 800}
-            )
+            
+            # Smart choice: Always try mobile emulation first as it is more likely to give clean URLs
+            is_desktop_link = 'short-video' in url or 'photo' in url
+            
+            ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1'
+            viewport = {'width': 375, 'height': 812}
+            
+            context = await browser.new_context(user_agent=ua, viewport=viewport)
             page = await context.new_page()
             
-            # Intercept network requests to find real video URL
             captured_video_url = []
             async def handle_response(response):
                 r_url = response.url
-                # Broader check: media type or common Kuaishou video patterns
-                is_video = '.mp4' in r_url or 'video' in r_url or 'v2.a.yximgs.com' in r_url or 'short-video' in r_url
+                is_video = '.mp4' in r_url or 'video' in r_url or 'v2.a.yximgs.com' in r_url
                 if is_video and not r_url.startswith('blob:'):
                     if response.request.resource_type in ['media', 'fetch', 'xhr']:
                         captured_video_url.append(r_url)
@@ -71,26 +72,22 @@ class KuaishouService:
             
             info(f"Navigating to Kuaishou: {url}")
             try:
-                # Use networkidle to ensure background scripts and video init are done
-                await page.goto(url, wait_until='networkidle', timeout=30000)
+                await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                # Wait for redirection and basic elements
+                await asyncio.sleep(2)
                 
-                # Try to trigger play by clicking the center of the page
+                # If still on desktop-like path, try to trigger something
                 try:
-                    await page.mouse.click(640, 400)
+                    await page.wait_for_selector('video', timeout=5000)
                 except:
-                    pass
-                    
-                try:
-                    await page.wait_for_selector('video', timeout=10000)
-                except:
-                    pass
+                    # If no video found, try to scroll or click
+                    await page.mouse.wheel(0, 500)
+                    await asyncio.sleep(1)
             except Exception as e:
                 warning(f"Kuaishou navigation timeout/error, continuing: {e}")
 
-            # Give it more time to start the stream
-            await asyncio.sleep(5)
+            await asyncio.sleep(3)
 
-            # Try to extract data with zero special characters or backslashes
             meta = await page.evaluate('''() => {
                 var v = document.querySelector('video');
                 var video_src = v ? v.src : '';
@@ -100,14 +97,12 @@ class KuaishouService:
                 var desc = '';
                 var avatar = '';
 
-                // Desktop site often has author in .user-name or similar
-                var aEl = document.querySelector('.user-info .name, .author-name, .user-name, .nickname');
+                var aEl = document.querySelector('.user-info .name, .author-name, .user-name, .nickname, .name-text');
                 if (aEl) author = aEl.innerText.trim();
                 
-                var dEl = document.querySelector('.desc-area .desc, .video-description, .video-info .info, .caption');
+                var dEl = document.querySelector('.desc-area .desc, .video-description, .video-info .info, .caption, .description');
                 if (dEl) desc = dEl.innerText.trim();
 
-                // 1. Get all images to find avatar and poster if still empty
                 var imgs = Array.from(document.querySelectorAll('img'));
                 for (var i = 0; i < imgs.length; i++) {
                     var src = imgs[i].src;
@@ -115,7 +110,6 @@ class KuaishouService:
                     if (!poster && src.indexOf('upic') !== -1) poster = src;
                 }
 
-                // 2. Fallback parse body text for author and description
                 if (!author) {
                     var bodyText = document.body.innerText;
                     var lines = bodyText.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -137,7 +131,6 @@ class KuaishouService:
                 };
             }''')
             
-            # Use intercepted URL if DOM src is missing or is a blob
             if (not meta.get('video_src') or meta.get('video_src').startswith('blob:')) and captured_video_url:
                 meta['video_src'] = captured_video_url[0]
             
@@ -178,7 +171,7 @@ class KuaishouService:
         avatar_url = meta.get('avatar')
         
         # Unique ID from video URL or original URL
-        video_id_match = re.search(r'video/([\w-]+)', video_src) or re.search(r'video/([\w-]+)', url)
+        video_id_match = re.search(r'video/([\w-]+)', video_src) or re.search(r'video/([\w-]+)', url) or re.search(r'photo/([\w-]+)', url)
         video_id = video_id_match.group(1) if video_id_match else datetime.now().strftime('%H%M%S')
 
         now = datetime.now()
