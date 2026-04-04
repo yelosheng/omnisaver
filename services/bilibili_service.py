@@ -5,8 +5,11 @@ import shutil
 import subprocess
 import tempfile
 import urllib.request
+import asyncio
 from datetime import datetime
 from pathlib import Path
+
+from playwright.async_api import async_playwright
 
 from utils.realtime_logger import info, warning, success
 
@@ -74,6 +77,50 @@ class BilibiliService:
             warning(f"Could not resolve Bilibili short URL {url}: {e}")
             return url
 
+    async def _fetch_avatar_url_async(self, url: str) -> str:
+        """Use Playwright to get Bilibili uploader avatar."""
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            )
+            page = await context.new_page()
+            try:
+                # Use domcontentloaded for speed
+                await page.goto(url, wait_until='domcontentloaded', timeout=20000)
+                # Extract face URL from INITIAL_STATE
+                face = await page.evaluate('''() => {
+                    if (window.__INITIAL_STATE__ && window.__INITIAL_STATE__.videoData && window.__INITIAL_STATE__.videoData.owner) {
+                        return window.__INITIAL_STATE__.videoData.owner.face;
+                    }
+                    return null;
+                }''')
+                if not face:
+                    # Fallback
+                    face = await page.evaluate('''() => {
+                        const img = document.querySelector('.up-avatar img, .up-face img');
+                        return img ? img.src : null;
+                    }''')
+                return face
+            except Exception as e:
+                warning(f"Bilibili avatar fetch failed: {e}")
+                return ""
+            finally:
+                await browser.close()
+
+    def _download_file(self, url: str, dest_path: Path):
+        """Helper to download a file with urllib."""
+        if not url: return
+        req = urllib.request.Request(
+            url, 
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.bilibili.com/'
+            }
+        )
+        with urllib.request.urlopen(req, timeout=60) as response, open(dest_path, 'wb') as out_file:
+            shutil.copyfileobj(response, out_file)
+
     # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------
@@ -89,7 +136,6 @@ class BilibiliService:
         info(f'Fetching Bilibili metadata: {url}')
 
         # --- metadata ---
-        # Note: Bilibili often needs a specific User-Agent and Referer
         meta_cmd = [
             'yt-dlp', '--dump-json', '--no-playlist',
             '--no-check-certificate',
@@ -101,7 +147,6 @@ class BilibiliService:
         
         if meta_result.returncode != 0:
             err = meta_result.stderr.strip()[:300]
-            # Try once more without extra headers if it failed
             warning(f"yt-dlp metadata failed with headers, retrying simple: {err}")
             meta_result = subprocess.run(['yt-dlp', '--dump-json', '--no-playlist', url], capture_output=True, text=True, timeout=60)
             
@@ -116,7 +161,6 @@ class BilibiliService:
         uploader_id = meta.get('uploader_id') or meta.get('channel_id', '')
         description = meta.get('description', '')
         upload_date = meta.get('upload_date', '')  # YYYYMMDD
-        view_count = meta.get('view_count', 0)
         duration = meta.get('duration_string') or str(meta.get('duration', ''))
 
         # Parse upload date for folder naming
@@ -167,8 +211,12 @@ class BilibiliService:
         )
         
         # --- avatar ---
-        avatar_url = meta.get('uploader_url') # yt-dlp doesn't always give avatar
-        # We'll skip avatar for now or try to get from meta if available
+        try:
+            avatar_url = asyncio.run(self._fetch_avatar_url_async(url))
+            if avatar_url:
+                self._download_file(avatar_url, post_dir / 'avatar.jpg')
+        except Exception as e:
+            warning(f"Bilibili avatar processing failed: {e}")
         
         # --- content.txt ---
         (post_dir / 'content.txt').write_text(description, encoding='utf-8')
