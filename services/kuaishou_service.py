@@ -70,7 +70,7 @@ class KuaishouService:
             await asyncio.sleep(1)
 
             # Try to extract data from various possible sources
-            meta = await page.evaluate('''() => {
+            meta = await page.evaluate(r'''() => {
                 function getTxt(sel) {
                     var el = document.querySelector(sel);
                     return el ? el.innerText.trim() : '';
@@ -95,7 +95,7 @@ class KuaishouService:
 
                 // Fallback for author: look for the specific pattern in body text
                 if (!author) {
-                    var lines = document.body.innerText.split('\\n');
+                    var lines = document.body.innerText.split('\n');
                     for (var i = 0; i < lines.length; i++) {
                         if (lines[i].indexOf('的作品原声') !== -1 && i > 0) {
                             author = lines[i-1].trim();
