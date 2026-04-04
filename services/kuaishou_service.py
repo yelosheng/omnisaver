@@ -134,12 +134,13 @@ class KuaishouService:
             return meta
 
     def _download_file(self, url: str, dest_path: Path):
-        """Helper to download a file with urllib."""
+        """Helper to download a file with urllib, adding Referer to bypass blocks."""
         if not url: return
-        req = urllib.request.Request(
-            url, 
-            headers={'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1'}
-        )
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': 'https://www.kuaishou.com/'
+        }
+        req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=60) as response, open(dest_path, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
 
