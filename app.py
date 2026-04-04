@@ -332,9 +332,14 @@ def submit_url():
     
     # Try Douyin share text extraction first (mobile app shares a text blob with embedded URL)
     douyin_extracted = DouyinService.extract_url_from_share_text(url)
+    weibo_extracted = WeiboService.extract_url_from_share_text(url)
+    
     if douyin_extracted:
         url = douyin_extracted
         content_type = 'douyin'
+    elif weibo_extracted:
+        url = weibo_extracted
+        content_type = 'weibo'
     elif YoutubeService.is_valid_youtube_url(url):
         content_type = 'youtube'
     elif XHSService.is_valid_xhs_url(url):
@@ -1010,7 +1015,7 @@ def show_tweet(slug):
 
     # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube', 'douyin', 'webpage') and tweet_html
+        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'webpage') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
@@ -1739,9 +1744,14 @@ def api_submit():
         _ct = 'tweet'
         
         douyin_extracted = DouyinService.extract_url_from_share_text(url)
+        weibo_extracted = WeiboService.extract_url_from_share_text(url)
+        
         if douyin_extracted:
             url = douyin_extracted
             _ct = 'douyin'
+        elif weibo_extracted:
+            url = weibo_extracted
+            _ct = 'weibo'
         elif YoutubeService.is_valid_youtube_url(url):
             _ct = 'youtube'
         elif XHSService.is_valid_xhs_url(url):

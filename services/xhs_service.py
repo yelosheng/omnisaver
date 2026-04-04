@@ -278,7 +278,13 @@ class XHSService:
         note = data['data']['note']
         post_type = note.get('type', 'normal')
 
-        title = note.get('title') or 'untitled'
+        desc = note.get('desc', '')
+        title = note.get('title')
+        if not title or title.strip() == '':
+            # Fallback to first line of description if title is missing
+            first_line = desc.splitlines()[0].strip() if desc else ''
+            title = first_line[:60] if first_line else 'untitled'
+
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d')
         folder_name = f'{date_str}_{feed_id}'
@@ -292,12 +298,13 @@ class XHSService:
         interact = note.get('interactInfo', {})
         ts = note.get('time', 0)
         post_date = datetime.fromtimestamp(ts / 1000).strftime('%Y-%m-%d %H:%M') if ts else 'unknown'
-        desc = note.get('desc', '')
         author_username = user.get('userId', '') or user.get('id', '')
         author_name = user.get('nickname', '') or user.get('nickName', '')
 
         # metadata.json (no comments)
         clean = {k: v for k, v in note.items() if k not in ('comments', 'commentList')}
+        # Ensure title is present and correct in metadata
+        clean['title'] = title
         (post_dir / 'metadata.json').write_text(
             json.dumps(clean, ensure_ascii=False, indent=2), encoding='utf-8'
         )

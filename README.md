@@ -20,6 +20,7 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
   - **Twitter/X** — save tweets, full threads, long-form articles, and videos
   - **YouTube** — save video metadata, subtitles, and channel info
   - **Douyin (抖音) / TikTok** — save videos without watermarks via Playwright (no cookies needed)
+  - **Weibo (微博)** — save posts, images, and videos via Playwright (no cookies needed)
   - **XiaoHongShu (小红书)** — save image posts and videos via Telegram bot or REST API
   - **WeChat articles (微信公众号)** — save articles with images and formatting
   - **Any webpage** — Pocket-style read-it-later for any `http/https` URL; uses Firefox Reader Mode algorithm (Mozilla Readability.js) to extract clean article content with images
