@@ -1,6 +1,6 @@
 # 新增平台保存功能开发指南
 
-本文档描述为 OmniSaver 新增一个保存平台（如抖音、微博、Bilibili 等）所需的全部改动，以及每一步的技术规范。
+本文档描述为 OmniSaver 新增一个保存平台（如抖音、微博、Bilibili、Instagram 等）所需的全部改动，以及每一步的技术规范。
 
 ---
 
@@ -24,7 +24,7 @@ app.py                           ← 修改：URL 检测、路由提交、视图
 
 ### 接口规范
 
-参考文件：`services/douyin_service.py`、`services/weibo_service.py`
+参考文件：`services/douyin_service.py`、`services/weibo_service.py`、`services/instagram_service.py`
 
 ```python
 class <Platform>ServiceError(Exception):

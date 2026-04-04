@@ -339,6 +339,34 @@ def _make_handlers(submit_callback: Callable):
                 await update.message.reply_text(f"❌ Kuaishou submit failed: {e}")
             return
 
+        # Instagram URL
+        from services.instagram_service import InstagramService
+        instagram_url = InstagramService.extract_url_from_share_text(text)
+        if instagram_url:
+            try:
+                from app import processing_queue, get_db_connection, format_time_for_db, get_current_time
+                conn = get_db_connection()
+                existing = conn.execute('SELECT id, status FROM tasks WHERE url = ?', (instagram_url,)).fetchone()
+                if existing:
+                    conn.close()
+                    await update.message.reply_text(
+                        f"⚠️ Already queued/saved (task #{existing['id']}, status: {existing['status']})"
+                    )
+                else:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO tasks (url, status, created_at, content_type) VALUES (?, 'pending', ?, 'instagram')",
+                        (instagram_url, format_time_for_db(get_current_time()))
+                    )
+                    task_id = cursor.lastrowid
+                    conn.commit()
+                    conn.close()
+                    processing_queue.put((task_id, instagram_url))
+                    await update.message.reply_text(f"✅ Added to queue (task #{task_id})")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Instagram submit failed: {e}")
+            return
+
         # Bilibili URL
         from services.bilibili_service import BilibiliService
         bilibili_url = BilibiliService.extract_url_from_share_text(text)

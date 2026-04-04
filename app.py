@@ -28,6 +28,7 @@ from services.douyin_service import DouyinService, DouyinServiceError
 from services.weibo_service import WeiboService, WeiboServiceError
 from services.bilibili_service import BilibiliService, BilibiliServiceError
 from services.kuaishou_service import KuaishouService, KuaishouServiceError
+from services.instagram_service import InstagramService, InstagramServiceError
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
 
@@ -337,6 +338,7 @@ def submit_url():
     weibo_extracted = WeiboService.extract_url_from_share_text(url)
     bilibili_extracted = BilibiliService.extract_url_from_share_text(url)
     kuaishou_extracted = KuaishouService.extract_url_from_share_text(url)
+    instagram_extracted = InstagramService.extract_url_from_share_text(url)
     
     if douyin_extracted:
         url = douyin_extracted
@@ -350,12 +352,17 @@ def submit_url():
     elif kuaishou_extracted:
         url = kuaishou_extracted
         content_type = 'kuaishou'
+    elif instagram_extracted:
+        url = instagram_extracted
+        content_type = 'instagram'
     elif YoutubeService.is_valid_youtube_url(url):
         content_type = 'youtube'
     elif XHSService.is_valid_xhs_url(url):
         content_type = 'xhs'
     elif WechatService.is_valid_wechat_url(url):
         content_type = 'wechat'
+    elif InstagramService.is_valid_instagram_url(url):
+        content_type = 'instagram'
     elif WeiboService.is_valid_weibo_url(url):
         content_type = 'weibo'
     elif TwitterURLParser.is_valid_twitter_url(url):
@@ -1758,6 +1765,7 @@ def api_submit():
         weibo_extracted = WeiboService.extract_url_from_share_text(url)
         bilibili_extracted = BilibiliService.extract_url_from_share_text(url)
         kuaishou_extracted = KuaishouService.extract_url_from_share_text(url)
+        instagram_extracted = InstagramService.extract_url_from_share_text(url)
         
         if douyin_extracted:
             url = douyin_extracted
@@ -1771,12 +1779,17 @@ def api_submit():
         elif kuaishou_extracted:
             url = kuaishou_extracted
             _ct = 'kuaishou'
+        elif instagram_extracted:
+            url = instagram_extracted
+            _ct = 'instagram'
         elif YoutubeService.is_valid_youtube_url(url):
             _ct = 'youtube'
         elif XHSService.is_valid_xhs_url(url):
             _ct = 'xhs'
         elif WechatService.is_valid_wechat_url(url):
             _ct = 'wechat'
+        elif InstagramService.is_valid_instagram_url(url):
+            _ct = 'instagram'
         elif WeiboService.is_valid_weibo_url(url):
             _ct = 'weibo'
         elif TwitterURLParser.is_valid_twitter_url(url):
@@ -2265,6 +2278,90 @@ def api_submit_youtube():
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         error(f'YouTube submit error: {e}')
+        return jsonify({'success': False, 'error': 'Internal server error', 'message': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Instagram helpers and routes
+# ---------------------------------------------------------------------------
+
+@app.route('/api/submit/instagram', methods=['POST'])
+@login_required
+def api_submit_instagram():
+    """Submit an Instagram URL for archiving.
+    
+    Request body (JSON): {"url": "https://www.instagram.com/reel/..."}
+    """
+    try:
+        url = None
+        if request.is_json:
+            data = request.get_json()
+            url = data.get('url') if data else None
+        if not url and request.form:
+            url = request.form.get('url')
+        if not url and request.data:
+            url = request.data.decode('utf-8').strip()
+        if not url:
+            url = request.args.get('url')
+
+        if not url:
+            return jsonify({'success': False, 'error': 'URL is required'}), 400
+
+        # Try to extract URL from share text
+        extracted = InstagramService.extract_url_from_share_text(url)
+        if extracted:
+            url = extracted
+
+        if not InstagramService.is_valid_instagram_url(url):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid Instagram URL',
+                'message': 'Expected: https://www.instagram.com/reel/..., /p/..., /tv/...',
+                'url': url
+            }), 400
+
+        # Check duplicate
+        conn = get_db_connection()
+        existing = conn.execute('SELECT id, status FROM tasks WHERE url = ?', (url,)).fetchone()
+        
+        if existing and existing['status'] == 'completed':
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'Instagram post already archived',
+                'task_id': existing['id'],
+                'status': 'completed'
+            }), 200
+
+        if existing:
+            task_id = existing['id']
+            conn.execute('UPDATE tasks SET status="pending", error_message=NULL WHERE id=?', (task_id,))
+        else:
+            cursor = conn.execute(
+                'INSERT INTO tasks (url, status, content_type) VALUES (?, "pending", "instagram")',
+                (url,)
+            )
+            task_id = cursor.lastrowid
+        
+        conn.commit()
+        conn.close()
+
+        enqueue_task(task_id, url)
+        info(f'[Instagram Submit] Task {task_id} queued. Queue size: {processing_queue.qsize()}')
+
+        return jsonify({
+            'success': True,
+            'message': 'Instagram post added to queue',
+            'task_id': task_id,
+            'url': url,
+            'status': 'pending',
+            'queue_size': processing_queue.qsize()
+        }), 201
+
+    except InstagramServiceError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        error(f'Instagram submit error: {e}')
         return jsonify({'success': False, 'error': 'Internal server error', 'message': str(e)}), 500
 
 
