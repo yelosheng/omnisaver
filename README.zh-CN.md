@@ -20,6 +20,7 @@
   - **Twitter/X** —— 保存推文、完整串推、长文 Article 和视频
   - **YouTube** —— 保存视频元数据、字幕和频道信息
   - **Bilibili (哔哩哔哩)** —— 保存视频元数据和高清视频文件
+  - **快手 (Kuaishou)** —— 通过 Playwright 原生抓取视频（无需 Cookie）
   - **抖音 (Douyin) / TikTok** —— 通过 Playwright 原生抓取无水印视频（无需 Cookie）
   - **小红书（XHS）** —— 通过 Telegram 机器人或 REST API 保存图文帖和视频
   - **微信公众号** —— 保存文章全文、图片和排版

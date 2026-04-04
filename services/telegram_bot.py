@@ -311,6 +311,62 @@ def _make_handlers(submit_callback: Callable):
                 await update.message.reply_text(f"❌ Weibo submit failed: {e}")
             return
 
+        # Kuaishou URL
+        from services.kuaishou_service import KuaishouService
+        kuaishou_url = KuaishouService.extract_url_from_share_text(text)
+        if kuaishou_url:
+            try:
+                from app import processing_queue, get_db_connection, format_time_for_db, get_current_time
+                conn = get_db_connection()
+                existing = conn.execute('SELECT id, status FROM tasks WHERE url = ?', (kuaishou_url,)).fetchone()
+                if existing:
+                    conn.close()
+                    await update.message.reply_text(
+                        f"⚠️ Already queued/saved (task #{existing['id']}, status: {existing['status']})"
+                    )
+                else:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO tasks (url, status, created_at, content_type) VALUES (?, 'pending', ?, 'kuaishou')",
+                        (kuaishou_url, format_time_for_db(get_current_time()))
+                    )
+                    task_id = cursor.lastrowid
+                    conn.commit()
+                    conn.close()
+                    processing_queue.put((task_id, kuaishou_url))
+                    await update.message.reply_text(f"✅ Added to queue (task #{task_id})")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Kuaishou submit failed: {e}")
+            return
+
+        # Bilibili URL
+        from services.bilibili_service import BilibiliService
+        bilibili_url = BilibiliService.extract_url_from_share_text(text)
+        if bilibili_url:
+            try:
+                from app import processing_queue, get_db_connection, format_time_for_db, get_current_time
+                conn = get_db_connection()
+                existing = conn.execute('SELECT id, status FROM tasks WHERE url = ?', (bilibili_url,)).fetchone()
+                if existing:
+                    conn.close()
+                    await update.message.reply_text(
+                        f"⚠️ Already queued/saved (task #{existing['id']}, status: {existing['status']})"
+                    )
+                else:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO tasks (url, status, created_at, content_type) VALUES (?, 'pending', ?, 'bilibili')",
+                        (bilibili_url, format_time_for_db(get_current_time()))
+                    )
+                    task_id = cursor.lastrowid
+                    conn.commit()
+                    conn.close()
+                    processing_queue.put((task_id, bilibili_url))
+                    await update.message.reply_text(f"✅ Added to queue (task #{task_id})")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Bilibili submit failed: {e}")
+            return
+
         # Twitter/X URL
         url = _extract_twitter_url(text)
         if not url:
@@ -342,7 +398,7 @@ def _make_handlers(submit_callback: Callable):
                     await update.message.reply_text(f"❌ Webpage submit failed: {e}")
                 return
             await update.message.reply_text(
-                "❌ No supported URL found. Supports: Twitter/X, XiaoHongShu, WeChat, YouTube, Douyin/TikTok, Weibo, or any webpage URL."
+                "❌ No supported URL found. Supports: Twitter/X, XiaoHongShu, WeChat, YouTube, Douyin/TikTok, Weibo, Bilibili, Kuaishou, or any webpage URL."
             )
             return
 
