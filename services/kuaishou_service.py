@@ -60,9 +60,10 @@ class KuaishouService:
             # Intercept network requests to find real video URL
             captured_video_url = []
             async def handle_response(response):
-                # Look for mp4 or video content types in common Kuaishou CDNs
                 r_url = response.url
-                if ('.mp4' in r_url or 'video' in r_url) and not r_url.startswith('blob:'):
+                # Broader check: media type or common Kuaishou video patterns
+                is_video = '.mp4' in r_url or 'video' in r_url or 'v2.a.yximgs.com' in r_url or 'short-video' in r_url
+                if is_video and not r_url.startswith('blob:'):
                     if response.request.resource_type in ['media', 'fetch', 'xhr']:
                         captured_video_url.append(r_url)
             
@@ -70,8 +71,15 @@ class KuaishouService:
             
             info(f"Navigating to Kuaishou: {url}")
             try:
-                # For desktop URLs, networkidle is more reliable to capture the stream
-                await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                # Use networkidle to ensure background scripts and video init are done
+                await page.goto(url, wait_until='networkidle', timeout=30000)
+                
+                # Try to trigger play by clicking the center of the page
+                try:
+                    await page.mouse.click(640, 400)
+                except:
+                    pass
+                    
                 try:
                     await page.wait_for_selector('video', timeout=10000)
                 except:
@@ -79,7 +87,8 @@ class KuaishouService:
             except Exception as e:
                 warning(f"Kuaishou navigation timeout/error, continuing: {e}")
 
-            await asyncio.sleep(3)
+            # Give it more time to start the stream
+            await asyncio.sleep(5)
 
             # Try to extract data with zero special characters or backslashes
             meta = await page.evaluate('''() => {
