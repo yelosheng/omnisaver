@@ -59,7 +59,6 @@ class KuaishouService:
             info(f"Navigating to Kuaishou: {url}")
             try:
                 await page.goto(url, wait_until='domcontentloaded', timeout=30000)
-                # Wait up to 5 seconds for video to appear
                 try:
                     await page.wait_for_selector('video', timeout=5000)
                 except:
@@ -69,42 +68,18 @@ class KuaishouService:
 
             await asyncio.sleep(1)
 
-            # Try to extract data from various possible sources
-            meta = await page.evaluate(r'''() => {
-                function getTxt(sel) {
-                    var el = document.querySelector(sel);
-                    return el ? el.innerText.trim() : '';
-                }
-                
-                var video = document.querySelector('video');
-                var video_src = video ? video.src : '';
-                
-                // If src is empty or blob, look for source tags
-                if (!video_src && video) {
-                    var srcTag = video.querySelector('source');
-                    if (srcTag) video_src = srcTag.src;
-                }
-                
-                var poster = video ? video.poster : '';
-                
-                var author = getTxt('.user-info .name') || getTxt('.author-name') || getTxt('.nickname') || getTxt('.name-text');
-                var desc = getTxt('.desc-area .desc') || getTxt('.video-description') || getTxt('.caption') || getTxt('.description');
-                
-                var avatarImg = document.querySelector('.user-info .avatar img, .author-avatar img, .avatar-img');
-                var avatar = avatarImg ? avatarImg.src : '';
-
-                // Fallback for author: look for the specific pattern in body text
-                if (!author) {
-                    var lines = document.body.innerText.split(String.fromCharCode(10));
-                    for (var i = 0; i < lines.length; i++) {
-                        if (lines[i].indexOf('\u7684\u4f5c\u54c1\u539f\u58f0') !== -1 && i > 0) {
-                            author = lines[i-1].trim();
-                            break;
-                        }
-                    }
-                }
-
-                return { video_src: video_src, poster: poster, author: author, desc: desc, avatar: avatar };
+            # Try to extract data with zero special characters or backslashes
+            meta = await page.evaluate('''() => {
+                var v = document.querySelector('video');
+                var a = document.querySelector('.user-info .name') || document.querySelector('.author-name');
+                var d = document.querySelector('.desc-area .desc') || document.querySelector('.video-description');
+                return {
+                    video_src: v ? v.src : '',
+                    poster: v ? v.poster : '',
+                    author: a ? a.innerText.trim() : '',
+                    desc: d ? d.innerText.trim() : '',
+                    avatar: ''
+                };
             }''')
             
             await browser.close()
@@ -143,7 +118,6 @@ class KuaishouService:
         avatar_url = meta.get('avatar')
         
         # Unique ID from video URL or original URL
-        # e.g. short-video/3xwkve6hrvajb5c
         video_id_match = re.search(r'video/([\w-]+)', video_src) or re.search(r'video/([\w-]+)', url)
         video_id = video_id_match.group(1) if video_id_match else datetime.now().strftime('%H%M%S')
 
