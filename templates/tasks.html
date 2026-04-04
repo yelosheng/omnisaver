@@ -243,7 +243,6 @@
     }
 
     function redownloadTask(taskId, btn) {
-        if (!confirm('Are you sure you want to redownload this task? This will reset its status and try again.')) return;
         const restore = btnSpinner(btn);
         fetch(`/api/redownload/${taskId}`, { method: 'POST' })
             .then(r => r.json())
