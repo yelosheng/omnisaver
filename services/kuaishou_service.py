@@ -95,9 +95,9 @@ class KuaishouService:
 
                 // Fallback for author: look for the specific pattern in body text
                 if (!author) {
-                    var lines = document.body.innerText.split('\n');
+                    var lines = document.body.innerText.split(String.fromCharCode(10));
                     for (var i = 0; i < lines.length; i++) {
-                        if (lines[i].indexOf('的作品原声') !== -1 && i > 0) {
+                        if (lines[i].indexOf('\u7684\u4f5c\u54c1\u539f\u58f0') !== -1 && i > 0) {
                             author = lines[i-1].trim();
                             break;
                         }
