@@ -47,7 +47,7 @@ class KuaishouService:
         return m.group(0) if m else ''
 
     async def _fetch_metadata_async(self, url: str) -> dict:
-        """Use Playwright to get Kuaishou metadata."""
+        """Use Playwright to get Kuaishou metadata with request interception."""
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
@@ -55,6 +55,17 @@ class KuaishouService:
                 viewport={'width': 375, 'height': 812}
             )
             page = await context.new_page()
+            
+            # Intercept network requests to find real video URL
+            captured_video_url = []
+            async def handle_response(response):
+                # Look for mp4 or video content types in common Kuaishou CDNs
+                r_url = response.url
+                if '.mp4' in r_url or 'video' in r_url:
+                    if response.request.resource_type in ['media', 'fetch', 'xhr']:
+                        captured_video_url.append(r_url)
+            
+            page.on('response', handle_response)
             
             info(f"Navigating to Kuaishou: {url}")
             try:
@@ -66,7 +77,7 @@ class KuaishouService:
             except Exception as e:
                 warning(f"Kuaishou navigation timeout/error, continuing: {e}")
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
             # Try to extract data with zero special characters or backslashes
             meta = await page.evaluate('''() => {
@@ -81,6 +92,10 @@ class KuaishouService:
                     avatar: ''
                 };
             }''')
+            
+            # Use intercepted URL if DOM src is missing or is a blob
+            if (not meta.get('video_src') or meta.get('video_src').startswith('blob:')) and captured_video_url:
+                meta['video_src'] = captured_video_url[0]
             
             await browser.close()
             return meta
