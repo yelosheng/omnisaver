@@ -77,14 +77,22 @@ class <Platform>Service:
             metadata.json    — 含 title 字段，用于视图页标题和 saved 列表标题
             content.md       — Markdown 正文（需处理 # 标签转义：re.sub(r'(?m)^#', r'\#', text)）
             content.txt      — 纯文本正文（备选）
-            avatar.jpg       — 作者头像（可选，前端会自动识别显示）
+            avatar.jpg       — 作者头像。**强烈建议抓取**：只要保存目录下存在此文件，前端列表和详情页会自动识别并显示作者头像。
             images/          — 图片目录
             videos/          — 视频目录
             thumbnails/      — 视频缩略图（可选）
         """
         ...
-```
 
+        ### 作者头像处理规范
+
+        为了保持 UI 的一致性，建议在 `save_xxx` 方法中包含以下逻辑：
+        1. 从平台元数据中提取作者头像的原始 URL。
+        2. 使用 `urllib` 或 `requests` 下载该图片。
+        3. 将其保存为 `post_dir / 'avatar.jpg'`。
+        4. 系统后端 (`app.py`) 会自动检测该文件的存在，并将其转化为前端可用的 `avatar_url`。
+
+        ### 保存目录结构
 ---
 
 ## 步骤二：在 `services/background.py` 注册
