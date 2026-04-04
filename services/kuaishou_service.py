@@ -82,14 +82,47 @@ class KuaishouService:
             # Try to extract data with zero special characters or backslashes
             meta = await page.evaluate('''() => {
                 var v = document.querySelector('video');
-                var a = document.querySelector('.user-info .name') || document.querySelector('.author-name');
-                var d = document.querySelector('.desc-area .desc') || document.querySelector('.video-description');
+                var video_src = v ? v.src : '';
+                var poster = v ? v.poster : '';
+                
+                var author = '';
+                var desc = '';
+                var avatar = '';
+
+                // 1. Get all images to find avatar and poster
+                var imgs = Array.from(document.querySelectorAll('img'));
+                for (var i = 0; i < imgs.length; i++) {
+                    var src = imgs[i].src;
+                    if (src.indexOf('uhead') !== -1) avatar = src; // Common avatar CDN
+                    if (!poster && src.indexOf('upic') !== -1) poster = src; // Common poster CDN
+                }
+
+                // 2. Parse body text for author and description
+                var bodyText = document.body.innerText;
+                var lines = bodyText.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
+                
+                // Typical mobile share page structure:
+                // ...
+                // @
+                // AuthorName
+                // #Tag1 #Tag2 Description
+                // ...
+                for (var j = 0; j < lines.length; j++) {
+                    if (lines[j] === '@' && j + 1 < lines.length) {
+                        author = lines[j+1];
+                        if (j + 2 < lines.length) {
+                            desc = lines[j+2];
+                        }
+                        break;
+                    }
+                }
+
                 return {
-                    video_src: v ? v.src : '',
-                    poster: v ? v.poster : '',
-                    author: a ? a.innerText.trim() : '',
-                    desc: d ? d.innerText.trim() : '',
-                    avatar: ''
+                    video_src: video_src,
+                    poster: poster,
+                    author: author,
+                    desc: desc,
+                    avatar: avatar
                 };
             }''')
             
