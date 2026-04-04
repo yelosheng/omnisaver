@@ -67,8 +67,30 @@ class InstagramService:
                 await page.goto(url, wait_until='domcontentloaded', timeout=30000)
                 await asyncio.sleep(5)
                 
-                # 1. Try to find all images by clicking "Next" via JS to avoid overlay interception
-                for _ in range(6): # Limit carousel hunting
+                # We need to collect images dynamically while clicking
+                all_imgs = []
+                for _ in range(10): # Limit carousel hunting
+                    imgs = await page.evaluate('''() => {
+                        const getBestSrc = (img) => {
+                            if (!img) return "";
+                            if (img.srcset) {
+                                const sources = img.srcset.split(',').map(s => {
+                                    const [url, size] = s.trim().split(' ');
+                                    return { url, width: parseInt(size) || 0 };
+                                });
+                                if (sources.length > 0) {
+                                    return sources.sort((a, b) => b.width - a.width)[0].url;
+                                }
+                            }
+                            return img.src;
+                        };
+                        const postArea = document.querySelector('article') || document.body;
+                        return Array.from(postArea.querySelectorAll('img'))
+                            .filter(img => img.src.includes('scontent') && !img.src.includes('150x150') && !img.src.includes('34x34'))
+                            .map(img => getBestSrc(img));
+                    }''')
+                    all_imgs.extend(imgs)
+
                     clicked = await page.evaluate('''() => {
                         const btn = document.querySelector('button[aria-label="Next"], button._af19');
                         if (btn) {
@@ -84,7 +106,6 @@ class InstagramService:
                 res = await page.evaluate('''() => {
                     const getTxt = (s) => document.querySelector(s)?.innerText?.trim() || "";
                     
-                    // Helper to get highest res image from img element (using srcset)
                     const getBestSrc = (img) => {
                         if (!img) return "";
                         if (img.srcset) {
@@ -109,21 +130,16 @@ class InstagramService:
                     // Description
                     const desc = getTxt('div._a9zs, h1._ap3a');
                     
-                    // Post Images: Only look inside the main post area to avoid avatars/suggested posts
-                    const postArea = document.querySelector('article') || document.body;
-                    const imgs = Array.from(postArea.querySelectorAll('img'))
-                        .filter(img => {
-                            // Exclude avatar
-                            if (avatar && img.src === avatar) return false;
-                            const alt = img.getAttribute('alt') || "";
-                            // Include if it's likely a post content image
-                            return img.src.includes('scontent') && !img.src.includes('150x150');
-                        })
-                        .map(img => getBestSrc(img));
-                    
-                    return { avatar, author, desc, images: [...new Set(imgs)] };
+                    return { avatar, author, desc };
                 }''')
+                
+                # Filter out avatar from the accumulated images and get unique
+                final_images = list(set(all_imgs))
+                if res.get('avatar') and res.get('avatar') in final_images:
+                    final_images.remove(res['avatar'])
+                
                 meta.update(res)
+                meta['images'] = final_images
             except Exception as e:
                 warning(f"Instagram Playwright extraction failed: {e}")
             finally:
