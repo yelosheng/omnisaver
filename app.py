@@ -25,6 +25,7 @@ from services.xhs_service import XHSService, XHSServiceError
 from services.wechat_service import WechatService, WechatServiceError
 from services.youtube_service import YoutubeService, YoutubeServiceError
 from services.douyin_service import DouyinService, DouyinServiceError
+from services.weibo_service import WeiboService, WeiboServiceError
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
 
@@ -340,6 +341,8 @@ def submit_url():
         content_type = 'xhs'
     elif WechatService.is_valid_wechat_url(url):
         content_type = 'wechat'
+    elif WeiboService.is_valid_weibo_url(url):
+        content_type = 'weibo'
     elif TwitterURLParser.is_valid_twitter_url(url):
         content_type = 'tweet'
     else:
@@ -905,7 +908,7 @@ def show_tweet(slug):
         )
 
     # XHS / WeChat articles: render content.md as HTML with local image paths
-    if content_type in ('xhs', 'wechat', 'douyin') and not tweet_html:
+    if content_type in ('xhs', 'wechat', 'douyin', 'weibo') and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
         if os.path.exists(content_md_file):
             try:
@@ -1031,7 +1034,7 @@ def show_tweet(slug):
     if not page_title:
         _type_labels = {'tweet': 'Tweet', 'article': 'Article', 'xhs': 'XHS Post',
                         'wechat': 'WeChat Article', 'youtube': 'YouTube Video', 'webpage': 'Webpage',
-                        'douyin': 'Douyin/TikTok'}
+                        'douyin': 'Douyin/TikTok', 'weibo': 'Weibo Post'}
         page_title = _type_labels.get(content_type, 'Content')
 
     tweet_data = {
@@ -1745,6 +1748,8 @@ def api_submit():
             _ct = 'xhs'
         elif WechatService.is_valid_wechat_url(url):
             _ct = 'wechat'
+        elif WeiboService.is_valid_weibo_url(url):
+            _ct = 'weibo'
         elif TwitterURLParser.is_valid_twitter_url(url):
             _ct = 'tweet'
         else:
