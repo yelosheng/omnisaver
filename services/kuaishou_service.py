@@ -58,40 +58,40 @@ class KuaishouService:
             
             info(f"Navigating to Kuaishou: {url}")
             try:
-                await page.goto(url, wait_until='networkidle', timeout=30000)
+                await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                # Wait up to 5 seconds for video to appear
+                try:
+                    await page.wait_for_selector('video', timeout=5000)
+                except:
+                    pass
             except Exception as e:
                 warning(f"Kuaishou navigation timeout/error, continuing: {e}")
 
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
 
             # Try to extract data from various possible sources
             meta = await page.evaluate('''() => {
+                const getTxt = (sel) => document.querySelector(sel)?.innerText?.trim() || '';
+                
                 const video = document.querySelector('video');
-                const video_src = video ? video.src : '';
+                let video_src = video ? video.src : '';
+                
+                // If src is empty or blob, look for source tags
+                if (!video_src && video) {
+                    const srcTag = video.querySelector('source');
+                    if (srcTag) video_src = srcTag.src;
+                }
+                
                 const poster = video ? video.poster : '';
                 
-                // Try to find author and description in the DOM
-                // These selectors are common in Kuaishou mobile share pages
-                let author = '';
-                let desc = '';
-                let avatar = '';
+                let author = getTxt('.user-info .name') || getTxt('.author-name') || getTxt('.nickname') || getTxt('.name-text');
+                let desc = getTxt('.desc-area .desc') || getTxt('.video-description') || getTxt('.caption') || getTxt('.description');
+                let avatar = document.querySelector('.user-info .avatar img, .author-avatar img, .avatar-img')?.src || '';
 
-                // Try different common selectors
-                const authorEl = document.querySelector('.user-info .name, .author-name, .nickname, .name-text');
-                if (authorEl) author = authorEl.innerText.trim();
-                
-                const descEl = document.querySelector('.desc-area .desc, .video-description, .caption, .description');
-                if (descEl) desc = descEl.innerText.trim();
-                
-                const avatarEl = document.querySelector('.user-info .avatar img, .author-avatar img, .avatar-img');
-                if (avatarEl) avatar = avatarEl.src;
-
-                // If still empty, try to get from the text content
-                if (!author || !desc) {
-                    const bodyText = document.body.innerText;
-                    // Usually "Author\n的作品原声"
-                    const authorMatch = bodyText.match(/(.*?)\n的作品原声/);
-                    if (authorMatch) author = authorMatch[1].trim();
+                // Fallback for author from body text if still empty
+                if (!author) {
+                    const match = document.body.innerText.match(/(.*?)\\n的作品原声/);
+                    if (match) author = match[1].trim();
                 }
 
                 return { video_src, poster, author, desc, avatar };
