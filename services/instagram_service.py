@@ -53,7 +53,7 @@ class InstagramService:
         return m.group(0) if m else ''
 
     async def _fetch_metadata_playwright(self, url: str) -> dict:
-        """Use Playwright as a robust fallback for metadata and avatar."""
+        """Use Playwright to get HD metadata, carousel images and HD avatar."""
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
@@ -63,15 +63,38 @@ class InstagramService:
             
             meta = {'avatar': '', 'images': [], 'author': '', 'desc': ''}
             try:
+                info(f"Playwright: Navigating to {url}")
                 await page.goto(url, wait_until='domcontentloaded', timeout=30000)
-                await asyncio.sleep(4)
+                await asyncio.sleep(5)
                 
+                # 1. Try to find all images by clicking "Next" if carousel exists
+                for _ in range(5): # Limit carousel hunting
+                    next_btn = await page.query_selector('button[aria-label="Next"], button._af19')
+                    if not next_btn: break
+                    await next_btn.click()
+                    await asyncio.sleep(1)
+
                 res = await page.evaluate('''() => {
                     const getTxt = (s) => document.querySelector(s)?.innerText?.trim() || "";
                     
-                    // Avatar: look for profile pic in header or specific IG classes
-                    const avatarImg = document.querySelector('header img, canvas + img, img[alt*="profile picture"], img._aa8j');
-                    const avatar = avatarImg ? avatarImg.src : "";
+                    // Helper to get highest res image from img element (using srcset)
+                    const getBestSrc = (img) => {
+                        if (!img) return "";
+                        if (img.srcset) {
+                            const sources = img.srcset.split(',').map(s => {
+                                const [url, size] = s.trim().split(' ');
+                                return { url, width: parseInt(size) || 0 };
+                            });
+                            if (sources.length > 0) {
+                                return sources.sort((a, b) => b.width - a.width)[0].url;
+                            }
+                        }
+                        return img.src;
+                    };
+
+                    // HD Avatar
+                    const avatarImg = document.querySelector('header img, img[alt*="profile picture"], img._aa8j');
+                    const avatar = getBestSrc(avatarImg);
                     
                     // Author
                     const author = getTxt('header h2, header span, a._acan');
@@ -79,10 +102,17 @@ class InstagramService:
                     // Description
                     const desc = getTxt('div._a9zs, h1._ap3a');
                     
-                    // All images (for carousel) - filter out small icons
-                    const imgs = Array.from(document.querySelectorAll('img'))
-                        .map(img => img.src)
-                        .filter(src => src.includes('scontent') && !src.includes('150x150'));
+                    // Post Images: Only look inside the main post area to avoid avatars/suggested posts
+                    const postArea = document.querySelector('article') || document.body;
+                    const imgs = Array.from(postArea.querySelectorAll('img'))
+                        .filter(img => {
+                            // Exclude avatar
+                            if (avatar && img.src === avatar) return false;
+                            const alt = img.getAttribute('alt') || "";
+                            // Include if it's likely a post content image
+                            return img.src.includes('scontent') && !img.src.includes('150x150');
+                        })
+                        .map(img => getBestSrc(img));
                     
                     return { avatar, author, desc, images: [...new Set(imgs)] };
                 }''')
@@ -110,18 +140,16 @@ class InstagramService:
         if not self.is_valid_instagram_url(url):
             raise InstagramServiceError(f'Invalid Instagram URL: {url}')
 
-        # Normalize URL but keep /p/ or /reel/
+        # Normalize URL
         m = self._URL_RE.search(url)
         video_id = m.group(1)
-        # Keep original type if possible, default to /p/ for generic support
-        clean_url = url.split('?')[0].rstrip('/') + '/'
+        clean_url = f"https://www.instagram.com/p/{video_id}/"
 
         info(f'Fetching Instagram metadata: {clean_url}')
 
         # 1. Get Metadata via yt-dlp
         meta = {}
         try:
-            # Add referer to bypass simple blocks
             cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--referer', 'https://www.instagram.com/', clean_url]
             meta_result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if meta_result.returncode == 0:
@@ -129,7 +157,7 @@ class InstagramService:
         except Exception as e:
             warning(f"yt-dlp metadata failed: {e}")
 
-        # 2. Get Avatar and Fallback metadata via Playwright
+        # 2. Get Avatar and HD carousel data via Playwright
         pw_meta = asyncio.run(self._fetch_metadata_playwright(clean_url))
         
         uploader = meta.get('uploader') or pw_meta.get('author') or 'Instagram User'
@@ -152,11 +180,10 @@ class InstagramService:
 
         media_count = 0
 
-        # 3. Download Video if exists
+        # 3. Download Video if exists (priority)
         vid_dir = post_dir / 'videos'
         vid_dir.mkdir(exist_ok=True)
         
-        # Check if yt-dlp found video formats
         has_video = False
         if meta.get('formats'):
             info(f'Downloading Instagram video: {uploader}')
@@ -176,19 +203,29 @@ class InstagramService:
         img_dir = post_dir / 'images'
         img_dir.mkdir(exist_ok=True)
         
-        # Use yt-dlp thumbnails as a high-quality image source if not a video
+        # Combine high-res image sources
         img_urls = []
-        if not has_video:
-            # yt-dlp 'requested_thumbnails' or 'thumbnails' often contains the slide images for IG
-            if 'thumbnails' in meta:
-                # Filter for high res
-                img_urls = [t['url'] for t in meta['thumbnails'] if t.get('width', 0) > 400]
         
-        # Fallback to Playwright captured images if yt-dlp found nothing
-        if not img_urls and pw_meta.get('images'):
-            img_urls = pw_meta['images']
+        # If yt-dlp has multiple entries, it's a carousel
+        if meta.get('_type') == 'playlist' and 'entries' in meta:
+            img_urls = [e['url'] for e in meta['entries'] if e.get('url')]
+        elif 'thumbnails' in meta:
+            # Only pick the largest one if not a playlist
+            best_thumb = sorted(meta['thumbnails'], key=lambda x: x.get('width', 0), reverse=True)[0]['url']
+            img_urls = [best_thumb]
 
-        for i, img_url in enumerate(img_urls[:10]): # Limit to 10 images
+        # Use Playwright found images as supplementary source (often better for carousels)
+        pw_imgs = pw_meta.get('images', [])
+        for p_img in pw_imgs:
+            if p_img not in img_urls:
+                img_urls.append(p_img)
+
+        # Remove avatar from images list if detected
+        avatar_url = pw_meta.get('avatar')
+        img_urls = [u for u in img_urls if u != avatar_url]
+
+        # Download found images
+        for i, img_url in enumerate(img_urls[:15]): # Increase limit to 15
             dest = img_dir / f'{i+1:02d}.jpg'
             self._download_file(img_url, dest)
             media_count += 1
@@ -200,9 +237,9 @@ class InstagramService:
             thumb_dir.mkdir(exist_ok=True)
             self._download_file(thumb_url, thumb_dir / 'cover.jpg')
 
-        # 6. Download Avatar
-        avatar_url = pw_meta.get('avatar')
+        # 6. Download HD Avatar
         if avatar_url:
+            info(f"Downloading HD avatar: {avatar_url[:50]}...")
             self._download_file(avatar_url, post_dir / 'avatar.jpg')
 
         # --- content.txt / content.md ---
@@ -220,7 +257,7 @@ class InstagramService:
         if (vid_dir / 'video.mp4').exists():
             md_lines.append('[视频](videos/video.mp4)\n')
         
-        # Add images to markdown
+        # Add all unique images to markdown
         for f in sorted(img_dir.glob('*.jpg')):
             md_lines.append(f'![Image](images/{f.name})')
             
@@ -245,7 +282,7 @@ class InstagramService:
             json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf-8'
         )
 
-        success(f'Instagram content saved to {post_dir}')
+        success(f'Instagram content saved to {post_dir} ({media_count} files)')
         return {
             'video_id': video_id,
             'title': description[:100],
