@@ -67,12 +67,19 @@ class InstagramService:
                 await page.goto(url, wait_until='domcontentloaded', timeout=30000)
                 await asyncio.sleep(5)
                 
-                # 1. Try to find all images by clicking "Next" if carousel exists
-                for _ in range(5): # Limit carousel hunting
-                    next_btn = await page.query_selector('button[aria-label="Next"], button._af19')
-                    if not next_btn: break
-                    await next_btn.click()
-                    await asyncio.sleep(1)
+                # 1. Try to find all images by clicking "Next" via JS to avoid overlay interception
+                for _ in range(6): # Limit carousel hunting
+                    clicked = await page.evaluate('''() => {
+                        const btn = document.querySelector('button[aria-label="Next"], button._af19');
+                        if (btn) {
+                            btn.click();
+                            return true;
+                        }
+                        return false;
+                    }''')
+                    if not clicked:
+                        break
+                    await asyncio.sleep(1.5)
 
                 res = await page.evaluate('''() => {
                     const getTxt = (s) => document.querySelector(s)?.innerText?.trim() || "";
