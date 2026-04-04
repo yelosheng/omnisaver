@@ -124,8 +124,11 @@ class InstagramService:
                     const avatarImg = document.querySelector('header img, img[alt*="profile picture"], img._aa8j');
                     const avatar = getBestSrc(avatarImg);
                     
-                    // Author
-                    const author = getTxt('header h2, header span, a._acan');
+                    const authorEl = document.querySelector('header h2, header span, a._acan');
+                    let author = authorEl ? authorEl.innerText.trim() : "";
+                    if (author.toLowerCase().includes('continue') || author.toLowerCase().includes('log in') || author.toLowerCase().includes('instagram')) {
+                        author = "";
+                    }
                     
                     // Description
                     const desc = getTxt('div._a9zs, h1._ap3a');
@@ -145,6 +148,46 @@ class InstagramService:
             finally:
                 await browser.close()
             return meta
+
+    async def _fetch_metadata_embed_fallback(self, url: str) -> dict:
+        """Fallback to Instagram embed URL to bypass login walls for single videos/images."""
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            )
+            page = await context.new_page()
+            
+            # Convert to embed URL
+            m = self._URL_RE.search(url)
+            if not m: return {}
+            embed_url = f"https://www.instagram.com/p/{m.group(1)}/embed/captioned/"
+            
+            try:
+                info(f"Playwright Fallback: Navigating to {embed_url}")
+                await page.goto(embed_url, wait_until='networkidle', timeout=30000)
+                
+                res = await page.evaluate('''() => {
+                    const video = document.querySelector('video');
+                    const author = document.querySelector('.UsernameText')?.innerText?.trim() || '';
+                    const desc = document.querySelector('.Caption')?.innerText?.trim() || '';
+                    const avatar = document.querySelector('.Avatar img')?.src || '';
+                    const poster = video?.poster || document.querySelector('.EmbeddedMediaImage')?.src || '';
+                    
+                    return {
+                        video_src: video?.src || '',
+                        author,
+                        desc,
+                        avatar,
+                        poster
+                    };
+                }''')
+                return res
+            except Exception as e:
+                warning(f"Instagram Embed fallback extraction failed: {e}")
+                return {}
+            finally:
+                await browser.close()
 
     def _download_file(self, url: str, dest_path: Path):
         if not url: return
@@ -221,6 +264,29 @@ class InstagramService:
                     shutil.move(tmp_out, str(vid_dir / 'video.mp4'))
                     media_count += 1
                     has_video = True
+
+        # Fallback to embed URL for video if yt-dlp failed (e.g. rate limit/login wall)
+        if not has_video:
+            embed_meta = asyncio.run(self._fetch_metadata_embed_fallback(clean_url))
+            if embed_meta.get('video_src'):
+                info(f'Fallback: Downloading video from embed URL')
+                try:
+                    self._download_file(embed_meta['video_src'], vid_dir / 'video.mp4')
+                    if (vid_dir / 'video.mp4').exists():
+                        media_count += 1
+                        has_video = True
+                        # Update metadata if missing
+                        if embed_meta.get('author') and (uploader == 'Instagram User' or 'continue' in uploader.lower()):
+                            uploader = embed_meta['author']
+                            uploader_id = uploader
+                        if description == 'No description' and embed_meta.get('desc'):
+                            description = embed_meta['desc']
+                        if not pw_meta.get('avatar') and embed_meta.get('avatar'):
+                            pw_meta['avatar'] = embed_meta['avatar']
+                        if not meta.get('thumbnail') and embed_meta.get('poster'):
+                            meta['thumbnail'] = embed_meta['poster']
+                except Exception as e:
+                    warning(f"Fallback video download failed: {e}")
 
         # 4. Download Images (Slide/Carousel support)
         img_dir = post_dir / 'images'
