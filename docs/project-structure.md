@@ -41,6 +41,8 @@ twitter_collector/
 │   ├── douyin_service.py         # 抖音下载：Playwright 模拟移动端抓取无水印视频
 │   ├── weibo_service.py          # 微博下载：Playwright 抓取正文（含长文）、图片和视频
 │   ├── bilibili_service.py       # Bilibili 下载：yt-dlp 获取视频，Playwright 获取头像
+│   ├── kuaishou_service.py       # 快手下载：Playwright 拦截真实流地址和元数据
+│   ├── instagram_service.py      # Instagram 下载：yt-dlp 与 Playwright Embed Fallback 双重保障
 │   ├── webpage_service.py        # 通用网页抓取：提取 Reader 模式 HTML 和 Markdown
 │   ├── telegram_bot.py           # Telegram Bot 守护线程：接收消息后自动提取 URL 并提交任务
 │   ├── tag_generator.py          # 标签自动生成：规则匹配 → Gemini API
@@ -119,6 +121,8 @@ app.py
 ├── saved_douyin/YYYY-MM/YYYY-MM-DD_<title>_<id>/
 ├── saved_weibo/YYYY-MM/YYYY-MM-DD_<title>_<id>/
 ├── saved_bilibili/YYYY-MM/YYYY-MM-DD_<title>_<id>/
+├── saved_kuaishou/YYYY-MM/YYYY-MM-DD_<title>_<id>/
+├── saved_instagram/YYYY-MM/YYYY-MM-DD_<title>_<id>/
 ├── saved_xhs/YYYY/MM/YYYY-MM-DD_<id>/
 ├── saved_wechat/YYYY/MM/YYYY-MM-DD_<id>/
 └── saved_youtube/YYYY-MM-DD_<title>_<id>/
