@@ -410,9 +410,9 @@ class WechatService:
                 pass
 
         date_str = pub_date.strftime('%Y-%m-%d')
-        folder_name = f'{date_str}_{article_id}'
+        folder_name = f'{datetime.now().strftime("%Y-%m-%d")}_{article_id}'
         if self.create_date_folders:
-            post_dir = self.base_path / pub_date.strftime('%Y') / pub_date.strftime('%m') / folder_name
+            post_dir = self.base_path / datetime.now().strftime('%Y') / datetime.now().strftime('%m') / folder_name
         else:
             post_dir = self.base_path / folder_name
         post_dir.mkdir(parents=True, exist_ok=True)

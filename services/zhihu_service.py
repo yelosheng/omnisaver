@@ -31,7 +31,7 @@ class ZhihuService:
         self.config = ConfigManager()
         if base_path is None:
             base_path = self.config.get_save_path()
-        self.base_path = Path(base_path) / 'saved_zhihu'
+        self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.create_date_folders = create_date_folders
 
@@ -294,8 +294,7 @@ class ZhihuService:
         folder_name = f"{now.strftime('%Y-%m-%d')}_{safe_title}_{item_id}"
         
         if self.create_date_folders:
-            month_folder = now.strftime('%Y-%m')
-            post_dir = self.base_path / month_folder / folder_name
+            post_dir = self.base_path / now.strftime('%Y') / now.strftime('%m') / folder_name
         else:
             post_dir = self.base_path / folder_name
 

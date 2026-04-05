@@ -29,8 +29,8 @@ class KuaishouService:
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
         if base_path is None:
             data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
-            base_path = str(Path(data_dir))
-        self.base_path = Path(base_path) / 'saved_kuaishou'
+            base_path = str(Path(data_dir) / 'saved_tweets')
+        self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.create_date_folders = create_date_folders
 
@@ -179,9 +179,9 @@ class KuaishouService:
         
         # Directory creation
         safe_title = re.sub(r'[^\w\u4e00-\u9fff\- ]', '', description)[:40].strip() or 'kuaishou_video'
-        folder_name = f'{date_str}_{safe_title}_{video_id}'
+        folder_name = f'{datetime.now().strftime("%Y-%m-%d")}_{safe_title}_{video_id}'
         if self.create_date_folders:
-            post_dir = self.base_path / now.strftime('%Y-%m') / folder_name
+            post_dir = self.base_path / now.strftime('%Y') / now.strftime('%m') / folder_name
         else:
             post_dir = self.base_path / folder_name
         post_dir.mkdir(parents=True, exist_ok=True)

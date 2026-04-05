@@ -287,7 +287,7 @@ class XHSService:
 
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d')
-        folder_name = f'{date_str}_{feed_id}'
+        folder_name = f'{datetime.now().strftime("%Y-%m-%d")}_{feed_id}'
         if self.create_date_folders:
             post_dir = self.base_path / now.strftime('%Y') / now.strftime('%m') / folder_name
         else:

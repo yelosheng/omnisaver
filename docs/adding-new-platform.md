@@ -39,8 +39,9 @@ class <Platform>Service:
         if base_path is None:
             from pathlib import Path
             data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
-            base_path = str(Path(data_dir))
-        self.base_path = Path(base_path) / 'saved_<platform>'
+            # 必须使用全局统一的图库目录，不要自行创建 saved_<platform> 子目录
+            base_path = str(Path(data_dir) / 'saved_tweets')
+        self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.create_date_folders = create_date_folders
 
@@ -92,7 +93,33 @@ class <Platform>Service:
         3. 将其保存为 `post_dir / 'avatar.jpg'`。
         4. 系统后端 (`app.py`) 会自动检测该文件的存在，并将其转化为前端可用的 `avatar_url`。
 
-        ### 保存目录结构
+        ### 保存目录机制与生成规范
+
+        **核心规则 1：统一存储于基础层级且按「执行保存时间」自动归档**
+        所有平台必须将媒体和元数据统一保存在由系统配置（`self.base_path`，默认 `saved_tweets`）所指定的同一个根目录下，并且默认开启按「运行保存任务当时的执行日期」（`YYYY/MM`）归档。
+        **绝对禁止**任何平台代码使用抓取帖子的“发布时间”(pub_date)来生成归档的年份与月份目录，这会导致老帖散落隐匿。必须使用当前的 `datetime.now()` 作为存储目录与包名称的生成依据！
+
+        **核心规则 2：严禁平台专属根目录**
+        绝对禁止在指定的 `base_path` 下强行植入或硬编码各平台的专属子目录（如 `saved_douyin` 或 `saved_zhihu`）。这样做是为了保证所有收藏资产能够在统一视图中被极度打散扁平、高效跨平台联合搜索或备份。
+
+        **标准存放路径代码范例：**
+        ```python
+        # 获取最新的当前保存时间，这极其重要！请勿使用原始帖子的发布时间来建立归档路径！
+        save_time = datetime.now()
+        safe_title = re.sub(r'[^\w\u4e00-\u9fa5]+', '_', title)[:40]
+        
+        # 终端保存文件夹名称使用 "YYYY-MM-DD_title_id" 的标准组合
+        folder_name = f"{save_time.strftime('%Y-%m-%d')}_{safe_title}_{item_id}"
+        
+        if self.create_date_folders:
+            # 必须生成 "YYYY/MM" (2026/04) 的父级归档目录
+            # 注意：请务必确保每次都用字符串形式调用再拼接对象，例如：
+            post_dir = self.base_path / save_time.strftime('%Y') / save_time.strftime('%m') / folder_name
+        else:
+            post_dir = self.base_path / folder_name
+        
+        post_dir.mkdir(parents=True, exist_ok=True)
+        ```
 ---
 
 ## 步骤二：在 `services/background.py` 注册

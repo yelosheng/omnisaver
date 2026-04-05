@@ -26,8 +26,8 @@ class WeiboService:
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
         if base_path is None:
             data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
-            base_path = str(Path(data_dir))
-        self.base_path = Path(base_path) / 'saved_weibo'
+            base_path = str(Path(data_dir) / 'saved_tweets')
+        self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.create_date_folders = create_date_folders
 
@@ -174,9 +174,9 @@ class WeiboService:
         
         # Directory creation
         safe_title = re.sub(r'[^\w\u4e00-\u9fff\- ]', '', text_raw)[:40].strip() or 'weibo_post'
-        folder_name = f'{date_str}_{safe_title}_{mid}'
+        folder_name = f'{datetime.now().strftime("%Y-%m-%d")}_{safe_title}_{mid}'
         if self.create_date_folders:
-            post_dir = self.base_path / pub_date.strftime('%Y-%m') / folder_name
+            post_dir = self.base_path / datetime.now().strftime('%Y') / datetime.now().strftime('%m') / folder_name
         else:
             post_dir = self.base_path / folder_name
         post_dir.mkdir(parents=True, exist_ok=True)
