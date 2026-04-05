@@ -345,10 +345,10 @@ class InstagramService:
         ]
         if (vid_dir / 'video.mp4').exists():
             md_lines.append('[视频](videos/video.mp4)\n')
-        
-        # Add all unique images to markdown
-        for f in sorted(img_dir.glob('*.jpg')):
-            md_lines.append(f'![Image](images/{f.name})')
+        else:
+            # Add all unique images to markdown only if it's not a video
+            for f in sorted(img_dir.glob('*.jpg')):
+                md_lines.append(f'![Image](images/{f.name})')
             
         md_lines.extend(['', '---', '', safe_description_md])
         (post_dir / 'content.md').write_text('\n'.join(md_lines), encoding='utf-8')
