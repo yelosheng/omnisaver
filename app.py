@@ -1032,7 +1032,7 @@ def show_tweet(slug):
 
     # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage') and tweet_html
+        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
