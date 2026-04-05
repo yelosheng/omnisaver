@@ -130,6 +130,31 @@
             </div>
         </div>
 
+        <!-- Zhihu Cookie -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:#0084FF;vertical-align:-3px;" class="me-2" xmlns="http://www.w3.org/2000/svg"><path d="M12.29 15.35V7.41h-2.12v1.94h.61v4.06h-.61v1.94h2.12zm7.62-5.71h-4.38v5.71h1.31l-.22 1.35h1.27l.19-1.35h1.83v-5.71zm-2.02 3.77h-.79v-1.83h.79v1.83zm-13.8 0h-.79v-1.83h.79v1.83zm4.38-5.71H4.09v5.71h1.31l-.22 1.35h1.27l.19-1.35h1.83v-5.71z"/></svg>
+                    Zhihu (知乎) Cookie
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">Required to bypass login walls and anti-bot for Zhihu answers and articles. Export all cookies from <a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Cookie-Editor</a> while logged in to zhihu.com, then paste the JSON here.</p>
+                <div id="zhihu-cookie-status" class="mb-3"></div>
+                <div class="mb-3">
+                    <label class="form-label"><strong>Cookie-Editor JSON</strong></label>
+                    <textarea class="form-control font-monospace" id="zhihu-cookie-json" rows="4"
+                              placeholder="Paste Cookie-Editor JSON export here..."></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="saveZhihuCookie()">
+                        <i class="bi bi-check-lg"></i> Save Cookie
+                    </button>
+                </div>
+                <div id="zhihu-cookie-result" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -251,8 +276,62 @@ async function saveTwitterCookies() {
     }
 }
 
+// ── Zhihu Cookie ─────────────────────────────────────────────────
+async function loadZhihuCookieStatus() {
+    const el = document.getElementById('zhihu-cookie-status');
+    try {
+        const resp = await fetch('/api/zhihu/cookie');
+        const d = await resp.json();
+        if (d.configured) {
+            el.innerHTML = `<span class="badge bg-success">Configured</span> <span class="text-muted small ms-2">z_c0: ${d.value_preview}</span>`;
+        } else {
+            el.innerHTML = `<span class="badge bg-warning text-dark">Not configured</span>`;
+        }
+    } catch (e) {
+        el.innerHTML = `<span class="text-danger small">Failed to check: ${e.message}</span>`;
+    }
+}
+
+async function saveZhihuCookie() {
+    const jsonStr = document.getElementById('zhihu-cookie-json').value.trim();
+    const result = document.getElementById('zhihu-cookie-result');
+    if (!jsonStr) {
+        result.style.display = 'block';
+        result.innerHTML = '<span class="text-danger">Please paste Cookie-Editor JSON first.</span>';
+        return;
+    }
+    try {
+        JSON.parse(jsonStr);
+    } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = '<span class="text-danger">Invalid JSON format. Please export from Cookie-Editor as JSON.</span>';
+        return;
+    }
+    try {
+        const resp = await fetch('/api/zhihu/cookie', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: jsonStr})
+        });
+        const data = await resp.json();
+        result.style.display = 'block';
+        if (data.success) {
+            result.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${data.message}</span>`;
+            document.getElementById('zhihu-cookie-json').value = '';
+            loadZhihuCookieStatus();
+        } else {
+            result.innerHTML = `<span class="text-danger">${data.message}</span>`;
+        }
+        setTimeout(() => result.style.display = 'none', 5000);
+    } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
+    }
+}
+
 loadTwitterCookieStatus();
 loadXhsCookieStatus();
+loadZhihuCookieStatus();
 
 // ── System Configuration ─────────────────────────────────────────
 fetch('/api/debug')

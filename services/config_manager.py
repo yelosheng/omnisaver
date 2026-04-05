@@ -153,6 +153,17 @@ class ConfigManager:
         self.config['download']['timeout_seconds'] = str(value)
         self._save()
 
+    def get_config(self, section: str, key: str, fallback: Any = None) -> Any:
+        """Generic config getter."""
+        return self.config.get(section, key, fallback=fallback)
+
+    def set_config(self, section: str, key: str, value: str) -> None:
+        """Generic config setter."""
+        if section not in self.config:
+            self.config[section] = {}
+        self.config[section][key] = value
+        self._save()
+
     def set_playwright_headless(self, value: bool) -> None:
         if 'scraper' not in self.config:
             self.config['scraper'] = {}

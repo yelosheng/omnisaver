@@ -29,6 +29,7 @@ from services.weibo_service import WeiboService, WeiboServiceError
 from services.bilibili_service import BilibiliService, BilibiliServiceError
 from services.kuaishou_service import KuaishouService, KuaishouServiceError
 from services.instagram_service import InstagramService, InstagramServiceError
+from services.zhihu_service import ZhihuService, ZhihuServiceError
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
 
@@ -339,6 +340,7 @@ def submit_url():
     bilibili_extracted = BilibiliService.extract_url_from_share_text(url)
     kuaishou_extracted = KuaishouService.extract_url_from_share_text(url)
     instagram_extracted = InstagramService.extract_url_from_share_text(url)
+    zhihu_extracted = ZhihuService.extract_url_from_share_text(url)
     
     if douyin_extracted:
         url = douyin_extracted
@@ -355,8 +357,13 @@ def submit_url():
     elif instagram_extracted:
         url = instagram_extracted
         content_type = 'instagram'
+    elif zhihu_extracted:
+        url = zhihu_extracted
+        content_type = 'zhihu'
     elif YoutubeService.is_valid_youtube_url(url):
         content_type = 'youtube'
+    elif ZhihuService.is_valid_zhihu_url(url):
+        content_type = 'zhihu'
     elif XHSService.is_valid_xhs_url(url):
         content_type = 'xhs'
     elif WechatService.is_valid_wechat_url(url):
@@ -930,7 +937,7 @@ def show_tweet(slug):
         )
 
     # XHS / WeChat articles: render content.md as HTML with local image paths
-    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'instagram') and not tweet_html:
+    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'instagram', 'zhihu') and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
         if os.path.exists(content_md_file):
             try:
@@ -1032,7 +1039,7 @@ def show_tweet(slug):
 
     # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram') and tweet_html
+        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram', 'zhihu') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
@@ -1057,7 +1064,7 @@ def show_tweet(slug):
         _type_labels = {'tweet': 'Tweet', 'article': 'Article', 'xhs': 'XHS Post',
                         'wechat': 'WeChat Article', 'youtube': 'YouTube Video', 'webpage': 'Webpage',
                         'douyin': 'Douyin/TikTok', 'weibo': 'Weibo Post', 'bilibili': 'Bilibili Video',
-                        'kuaishou': 'Kuaishou Video'}
+                        'kuaishou': 'Kuaishou Video', 'zhihu': 'Zhihu Post'}
         page_title = _type_labels.get(content_type, 'Content')
 
     tweet_data = {
@@ -1766,7 +1773,8 @@ def api_submit():
         bilibili_extracted = BilibiliService.extract_url_from_share_text(url)
         kuaishou_extracted = KuaishouService.extract_url_from_share_text(url)
         instagram_extracted = InstagramService.extract_url_from_share_text(url)
-        
+        zhihu_extracted = ZhihuService.extract_url_from_share_text(url)
+
         if douyin_extracted:
             url = douyin_extracted
             _ct = 'douyin'
@@ -1782,6 +1790,11 @@ def api_submit():
         elif instagram_extracted:
             url = instagram_extracted
             _ct = 'instagram'
+        elif zhihu_extracted:
+            url = zhihu_extracted
+            _ct = 'zhihu'
+        elif ZhihuService.is_valid_zhihu_url(url):
+            _ct = 'zhihu'
         elif YoutubeService.is_valid_youtube_url(url):
             _ct = 'youtube'
         elif XHSService.is_valid_xhs_url(url):
@@ -2047,12 +2060,52 @@ def api_twitter_save_cookies():
             twitter_service.xreach_ct0 = ct0
             import shutil
             twitter_service.use_xreach = bool(shutil.which('xreach'))
+        init_services()
 
-        return jsonify({'success': True, 'message': 'Twitter cookies saved.'})
+        return jsonify({'success': True, 'message': 'Twitter cookies updated successfully'})
     except json.JSONDecodeError:
         return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/zhihu/cookie', methods=['GET'])
+@login_required
+def api_zhihu_cookie_get():
+    """Get Zhihu z_c0 cookie status."""
+    z_c0 = config_manager.get_config('zhihu', 'z_c0', fallback='') if config_manager else ''
+    return jsonify({
+        'configured': bool(z_c0),
+        'value_preview': (z_c0[:10] + '...') if z_c0 else ''
+    })
+
+
+@app.route('/api/zhihu/cookie', methods=['POST'])
+@login_required
+def api_zhihu_cookie_post():
+    """Save Zhihu z_c0 cookie extracted from Cookie-Editor JSON export."""
+    data = request.get_json() or {}
+    cookies_str = data.get('cookies', '')
+    if not cookies_str:
+        return jsonify({'success': False, 'message': 'No cookie data provided'}), 400
+    try:
+        cookies = json.loads(cookies_str)
+        if not isinstance(cookies, list):
+            return jsonify({'success': False, 'message': 'Expected a JSON array of cookies'}), 400
+        cookie_map = {c['name']: c['value'] for c in cookies if 'name' in c and 'value' in c}
+        z_c0 = cookie_map.get('z_c0', '').strip()
+        if not z_c0:
+            return jsonify({'success': False, 'message': 'z_c0 cookie not found in the provided JSON'}), 400
+        # Save full cookie list to file (all cookies needed for Zhihu auth)
+        cookie_file = os.path.join(DATA_DIR, 'zhihu_cookies.json')
+        with open(cookie_file, 'w', encoding='utf-8') as f:
+            json.dump(cookies, f, ensure_ascii=False, indent=2)
+        # Also save z_c0 to config for status display
+        if config_manager:
+            config_manager.set_config('zhihu', 'z_c0', z_c0)
+        return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies (including z_c0)'})
+    except json.JSONDecodeError:
+        return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
 
 
 @app.route('/api/submit/xhs', methods=['POST'])

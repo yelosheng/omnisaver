@@ -35,3 +35,8 @@ debug_mode = false
 # Optional: Telegram bot token for receiving tweet URLs via Telegram
 # Create a bot at https://t.me/BotFather and paste the token here
 # bot_token = YOUR_TELEGRAM_BOT_TOKEN_HERE
+
+[zhihu]
+# Optional: Zhihu z_c0 cookie for login-walled posts and anti-bot bypass
+# Export from browser after logging into zhihu.com
+# z_c0 = YOUR_ZHIHU_Z_C0_HERE
