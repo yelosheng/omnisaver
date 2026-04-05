@@ -2,6 +2,10 @@
 
 本文档描述为 OmniSaver 新增一个保存平台（如抖音、微博、Bilibili、Instagram 等）所需的全部改动，以及每一步的技术规范。
 
+如果你要接入像 Pinterest 这类带分享短链的平台，额外要注意两点：
+1. `extract_url_from_share_text()` 必须能直接识别分享文案里的短链，例如 `https://pin.it/4qbO3p6JQ`。
+2. `save_<content>()` 内部要负责把短链解析成最终的 canonical URL，再提取真实内容 ID。
+
 ---
 
 ## 架构概述
