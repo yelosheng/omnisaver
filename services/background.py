@@ -346,6 +346,14 @@ def make_pinterest_service():
     return PinterestService(base_path, create_date_folders=create_date_folders)
 
 
+def make_reddit_service():
+    """Instantiate RedditService with configured save path."""
+    from services.reddit_service import RedditService
+    base_path = _config_manager.get_save_path() if _config_manager else os.path.join(DATA_DIR, 'saved_tweets')
+    create_date_folders = _config_manager.get_create_date_folders() if _config_manager else True
+    return RedditService(base_path, create_date_folders=create_date_folders)
+
+
 def process_zhihu_task(task_id: int, url: str):
     """Queue worker handler for Zhihu tasks."""
     conn = get_db_connection()
@@ -480,6 +488,54 @@ def process_pinterest_task(task_id: int, url: str):
 
     except Exception as e:
         error(f'[Pinterest Task {task_id}] Failed: {e}')
+        try:
+            conn2 = get_db_connection()
+            conn2.execute(
+                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
+                (str(e)[:500], task_id)
+            )
+            conn2.commit()
+            conn2.close()
+        except Exception:
+            pass
+
+
+def process_reddit_task(task_id: int, url: str):
+    """Queue worker handler for Reddit tasks."""
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            'UPDATE tasks SET status = ?, processed_at = ? WHERE id = ?',
+            ('processing', format_time_for_db(get_current_time()), task_id)
+        )
+        conn.commit()
+        conn.close()
+
+        svc = make_reddit_service()
+        result = svc.save_post(url)
+        slug = generate_unique_slug()
+        now = format_time_for_db(get_current_time())
+
+        conn = get_db_connection()
+        conn.execute(
+            '''UPDATE tasks SET status='completed', processed_at=?, tweet_id=?,
+               author_username=?, author_name=?, save_path=?, tweet_text=?,
+               share_slug=?, media_count=?, content_type='reddit' WHERE id=?''',
+            (now, result['post_id'],
+             result.get('author_username', ''), result.get('author_name', ''),
+             result['save_path'], result.get('tweet_text', '')[:500],
+             slug, result.get('media_count', 0),
+             task_id)
+        )
+        full_text = _read_full_text(result['save_path']) or result.get('tweet_text', '')
+        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''),
+                   full_text, title=_read_title(result['save_path']))
+        conn.commit()
+        conn.close()
+        success(f'[Reddit Task {task_id}] Saved: {result.get("title", url)}')
+
+    except Exception as e:
+        error(f'[Reddit Task {task_id}] Failed: {e}')
         try:
             conn2 = get_db_connection()
             conn2.execute(
@@ -1211,6 +1267,8 @@ def queue_processor():
                     process_instagram_task(task_id, url)
                 elif _content_type == 'pinterest':
                     process_pinterest_task(task_id, url)
+                elif _content_type == 'reddit':
+                    process_reddit_task(task_id, url)
                 elif _content_type == 'webpage':
                     process_webpage_task(task_id, url)
                 else:

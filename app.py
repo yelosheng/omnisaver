@@ -31,6 +31,7 @@ from services.kuaishou_service import KuaishouService, KuaishouServiceError
 from services.instagram_service import InstagramService, InstagramServiceError
 from services.zhihu_service import ZhihuService, ZhihuServiceError
 from services.pinterest_service import PinterestService, PinterestServiceError
+from services.reddit_service import RedditService, RedditServiceError
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
 
@@ -343,6 +344,7 @@ def submit_url():
     instagram_extracted = InstagramService.extract_url_from_share_text(url)
     zhihu_extracted = ZhihuService.extract_url_from_share_text(url)
     pinterest_extracted = PinterestService.extract_url_from_share_text(url)
+    reddit_extracted = RedditService.extract_url_from_share_text(url)
     
     if douyin_extracted:
         url = douyin_extracted
@@ -365,12 +367,17 @@ def submit_url():
     elif pinterest_extracted:
         url = pinterest_extracted
         content_type = 'pinterest'
+    elif reddit_extracted:
+        url = reddit_extracted
+        content_type = 'reddit'
     elif YoutubeService.is_valid_youtube_url(url):
         content_type = 'youtube'
     elif ZhihuService.is_valid_zhihu_url(url):
         content_type = 'zhihu'
     elif PinterestService.is_valid_pinterest_url(url):
         content_type = 'pinterest'
+    elif RedditService.is_valid_reddit_url(url):
+        content_type = 'reddit'
     elif XHSService.is_valid_xhs_url(url):
         content_type = 'xhs'
     elif WechatService.is_valid_wechat_url(url):
@@ -944,7 +951,7 @@ def show_tweet(slug):
         )
 
     # XHS / WeChat articles: render content.md as HTML with local image paths
-    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'instagram', 'zhihu', 'pinterest') and not tweet_html:
+    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'instagram', 'zhihu', 'pinterest', 'reddit') and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
         if os.path.exists(content_md_file):
             try:
@@ -1052,7 +1059,7 @@ def show_tweet(slug):
 
     # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram', 'zhihu', 'pinterest') and tweet_html
+        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram', 'zhihu', 'pinterest', 'reddit') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
@@ -1077,7 +1084,8 @@ def show_tweet(slug):
         _type_labels = {'tweet': 'Tweet', 'article': 'Article', 'xhs': 'XHS Post',
                         'wechat': 'WeChat Article', 'youtube': 'YouTube Video', 'webpage': 'Webpage',
                         'douyin': 'Douyin/TikTok', 'weibo': 'Weibo Post', 'bilibili': 'Bilibili Video',
-                        'kuaishou': 'Kuaishou Video', 'zhihu': 'Zhihu Post', 'pinterest': 'Pinterest Pin'}
+                        'kuaishou': 'Kuaishou Video', 'zhihu': 'Zhihu Post',
+                        'pinterest': 'Pinterest Pin', 'reddit': 'Reddit Post'}
         page_title = _type_labels.get(content_type, 'Content')
 
     tweet_data = {
@@ -1757,8 +1765,7 @@ def api_submit():
         # 方式3: 纯文本格式
         if not url and request.data:
             text_data = request.data.decode('utf-8').strip()
-            # 检查是否是有效的Twitter URL
-            if TwitterURLParser.is_valid_twitter_url(text_data):
+            if text_data:
                 url = text_data
         
         # 方式4: URL参数
@@ -1788,6 +1795,7 @@ def api_submit():
         instagram_extracted = InstagramService.extract_url_from_share_text(url)
         zhihu_extracted = ZhihuService.extract_url_from_share_text(url)
         pinterest_extracted = PinterestService.extract_url_from_share_text(url)
+        reddit_extracted = RedditService.extract_url_from_share_text(url)
 
         if douyin_extracted:
             url = douyin_extracted
@@ -1810,10 +1818,15 @@ def api_submit():
         elif pinterest_extracted:
             url = pinterest_extracted
             _ct = 'pinterest'
+        elif reddit_extracted:
+            url = reddit_extracted
+            _ct = 'reddit'
         elif ZhihuService.is_valid_zhihu_url(url):
             _ct = 'zhihu'
         elif PinterestService.is_valid_pinterest_url(url):
             _ct = 'pinterest'
+        elif RedditService.is_valid_reddit_url(url):
+            _ct = 'reddit'
         elif YoutubeService.is_valid_youtube_url(url):
             _ct = 'youtube'
         elif XHSService.is_valid_xhs_url(url):
@@ -2082,6 +2095,53 @@ def api_twitter_save_cookies():
         init_services()
 
         return jsonify({'success': True, 'message': 'Twitter cookies updated successfully'})
+    except json.JSONDecodeError:
+        return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/reddit/cookie-status')
+@login_required
+def api_reddit_cookie_status():
+    """Check Reddit cookie file status."""
+    cookies_path = RedditService.get_cookies_path()
+    if os.path.exists(cookies_path):
+        mtime = os.path.getmtime(cookies_path)
+        modified = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+        try:
+            with open(cookies_path, 'r', encoding='utf-8') as f:
+                cookies = json.load(f)
+            count = len(cookies) if isinstance(cookies, list) else 0
+        except Exception:
+            count = 0
+        return jsonify({'exists': True, 'modified': modified, 'count': count})
+    return jsonify({'exists': False})
+
+
+@app.route('/api/reddit/cookies', methods=['POST'])
+@login_required
+def api_reddit_save_cookies():
+    """Save Reddit cookies from Cookie-Editor JSON export."""
+    data = request.get_json()
+    if not data or not data.get('cookies'):
+        return jsonify({'success': False, 'message': 'No cookie data provided'}), 400
+
+    try:
+        cookies = json.loads(data['cookies'])
+        if not isinstance(cookies, list):
+            return jsonify({'success': False, 'message': 'Expected a JSON array of cookies'}), 400
+
+        cookie_map = {c['name']: c['value'] for c in cookies if isinstance(c, dict) and 'name' in c and 'value' in c}
+        if not cookie_map.get('reddit_session'):
+            return jsonify({'success': False, 'message': 'reddit_session not found in cookie data'}), 400
+
+        cookies_path = RedditService.get_cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        with open(cookies_path, 'w', encoding='utf-8') as f:
+            json.dump(cookies, f, ensure_ascii=False, indent=2)
+
+        return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies.'})
     except json.JSONDecodeError:
         return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
     except Exception as e:

@@ -16,7 +16,7 @@
 
 **`POST /api/submit`**
 
-自动识别 Twitter/X、XiaoHongShu、微信文章、YouTube、Pinterest、网页等链接。
+自动识别 Twitter/X、XiaoHongShu、微信文章、YouTube、Pinterest、Reddit、网页等链接。
 
 **请求格式（任选其一）：**
 
@@ -70,6 +70,7 @@ https://x.com/user/status/123456
 - 微信公众号: `mp.weixin.qq.com`
 - YouTube: `youtube.com`, `youtu.be`
 - Pinterest: `pinterest.com`, `pin.it`，分享文字中的链接
+- Reddit: `reddit.com/r/.../comments/...`, `redd.it/...`，分享文字中的链接
 - 通用网页: 其他 http/https URL
 
 ---
@@ -120,6 +121,7 @@ GET /api/status/42
 - `wechat` — 微信公众号
 - `youtube` — YouTube 视频
 - `pinterest` — Pinterest Pin
+- `reddit` — Reddit Post
 - `webpage` — 通用网页
 
 ---
@@ -166,7 +168,7 @@ GET /api/saved?page=1&per_page=20&search=关键词&content_type=tweet&date_from=
 | `page` | int | 页码，默认 1 |
 | `per_page` | int | 每页数量，默认 20 |
 | `search` | string | 全文搜索（支持 Google 语法：`金价 避险 -美联储` / `OR` / `"精确短语"`） |
-| `content_type` | string | 平台筛选，多个用逗号分隔：`tweet,xhs,wechat,youtube,pinterest,webpage` |
+| `content_type` | string | 平台筛选，多个用逗号分隔：`tweet,xhs,wechat,youtube,pinterest,reddit,webpage` |
 | `date_from` | string | 开始日期 `YYYY-MM-DD` |
 | `date_to` | string | 结束日期 `YYYY-MM-DD` |
 
