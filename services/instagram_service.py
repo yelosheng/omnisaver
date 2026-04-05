@@ -295,19 +295,22 @@ class InstagramService:
         # Combine high-res image sources
         img_urls = []
         
-        # If yt-dlp has multiple entries, it's a carousel
-        if meta.get('_type') == 'playlist' and 'entries' in meta:
-            img_urls = [e['url'] for e in meta['entries'] if e.get('url')]
-        elif 'thumbnails' in meta:
-            # Only pick the largest one if not a playlist
-            best_thumb = sorted(meta['thumbnails'], key=lambda x: x.get('width', 0), reverse=True)[0]['url']
-            img_urls = [best_thumb]
+        # If we successfully downloaded a video, we do NOT want to save its thumbnail as a regular image
+        # because the UI will display both the video player and the thumbnail image side-by-side.
+        if not has_video:
+            # If yt-dlp has multiple entries, it's a carousel
+            if meta.get('_type') == 'playlist' and 'entries' in meta:
+                img_urls = [e['url'] for e in meta['entries'] if e.get('url')]
+            elif 'thumbnails' in meta:
+                # Only pick the largest one if not a playlist
+                best_thumb = sorted(meta['thumbnails'], key=lambda x: x.get('width', 0), reverse=True)[0]['url']
+                img_urls = [best_thumb]
 
-        # Use Playwright found images as supplementary source (often better for carousels)
-        pw_imgs = pw_meta.get('images', [])
-        for p_img in pw_imgs:
-            if p_img not in img_urls:
-                img_urls.append(p_img)
+            # Use Playwright found images as supplementary source (often better for carousels)
+            pw_imgs = pw_meta.get('images', [])
+            for p_img in pw_imgs:
+                if p_img not in img_urls:
+                    img_urls.append(p_img)
 
         # Remove avatar from images list if detected
         avatar_url = pw_meta.get('avatar')
