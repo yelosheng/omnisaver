@@ -54,6 +54,12 @@ class RedditService:
             'Accept-Language': 'en-US,en;q=0.9',
             'Upgrade-Insecure-Requests': '1',
         })
+        self.media_session = requests.Session()
+        self.media_session.headers.update({
+            'User-Agent': self._BROWSER_UA,
+            'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
         self._rdt_credential = None
         self.client_id = (os.environ.get('REDDIT_CLIENT_ID') or '').strip()
         self.client_secret = (os.environ.get('REDDIT_CLIENT_SECRET') or '').strip()
@@ -351,26 +357,72 @@ class RedditService:
             return f'external-preview:{path}?{parsed.query}'
         return f'{host}:{path}?{parsed.query}'
 
-    def _download_file(self, url: str, dest: Path, referer: str = 'https://www.reddit.com/'):
-        self._sync_rdt_cookies()
-        rewritten = self._rewrite_media_url(url)
-        candidate_urls = [url]
-        if rewritten and rewritten != url:
-            candidate_urls.append(rewritten)
+    @staticmethod
+    def _is_reddit_media_host(host: str) -> bool:
+        return host in ('i.redd.it', 'preview.redd.it', 'external-preview.redd.it')
 
+    def _build_media_candidate_urls(self, url: str) -> list[str]:
+        if not url:
+            return []
+
+        candidates = []
+
+        def _add(candidate: str):
+            if candidate and candidate not in candidates:
+                candidates.append(candidate)
+
+        parsed = urllib.parse.urlparse(url)
+        host = (parsed.netloc or '').lower()
+        rewritten = self._rewrite_media_url(url)
+
+        _add(url)
+        _add(rewritten)
+
+        if self._is_reddit_media_host(host) and parsed.query:
+            stripped = urllib.parse.urlunparse(parsed._replace(query='', fragment=''))
+            _add(stripped)
+            _add(self._rewrite_media_url(stripped))
+
+        if host == 'i.redd.it':
+            preview = urllib.parse.urlunparse(parsed._replace(netloc='preview.redd.it'))
+            _add(preview)
+            if parsed.query:
+                _add(urllib.parse.urlunparse(parsed._replace(netloc='preview.redd.it', query='', fragment='')))
+        elif host == 'preview.redd.it':
+            direct = urllib.parse.urlunparse(parsed._replace(netloc='i.redd.it'))
+            _add(direct)
+            if parsed.query:
+                _add(urllib.parse.urlunparse(parsed._replace(netloc='i.redd.it', query='', fragment='')))
+
+        return candidates
+
+    def _get_media_request(self, url: str, referer: str) -> tuple[requests.Session, dict]:
+        parsed = urllib.parse.urlparse(url)
+        host = (parsed.netloc or '').lower()
+        if self._is_reddit_media_host(host):
+            headers = {}
+            if referer:
+                headers['Referer'] = referer
+            return self.media_session, headers
+
+        self._sync_rdt_cookies()
+        return self.browser_session, {
+            'Referer': referer,
+            'Sec-Fetch-Site': 'cross-site',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Dest': 'image',
+        }
+
+    def _download_file(self, url: str, dest: Path, referer: str = 'https://www.reddit.com/'):
         last_error = None
-        for candidate in candidate_urls:
+        for candidate in self._build_media_candidate_urls(url):
             try:
-                response = self.browser_session.get(
+                session, headers = self._get_media_request(candidate, referer)
+                response = session.get(
                     candidate,
                     timeout=60,
                     stream=True,
-                    headers={
-                        'Referer': referer,
-                        'Sec-Fetch-Site': 'cross-site',
-                        'Sec-Fetch-Mode': 'no-cors',
-                        'Sec-Fetch-Dest': 'image',
-                    }
+                    headers=headers,
                 )
                 response.raise_for_status()
                 content_type = (response.headers.get('Content-Type') or '').lower()
