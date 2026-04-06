@@ -26,8 +26,9 @@ twitter_collector/
 ├── services/                     # 业务服务层
 │   ├── db.py                     # 数据库层：get_db_connection、init_db、rebuild_fts_index、
 │   │                             # FTS工具函数、路径/时间工具、get_setting/set_setting
-│   ├── background.py             # 后台层：任务队列、8个任务处理器（tweet/xhs/wechat/
-│   │                             # youtube/douyin/weibo/bilibili/webpage）、重试调度、
+│   ├── background.py             # 后台层：任务队列、10个任务处理器（tweet/xhs/wechat/
+│   │                             # youtube/douyin/weibo/bilibili/webpage/pinterest/reddit）、
+│   │                             # 重试调度、
 │   │                             # init_background() 注入服务依赖
 │   ├── config_manager.py         # 加载 config.ini 和环境变量，校验配置，提供 get_save_path()
 │   ├── file_manager.py           # 文件读写：按日期建目录、写 content.txt/metadata.json 等
@@ -43,6 +44,7 @@ twitter_collector/
 │   ├── bilibili_service.py       # Bilibili 下载：yt-dlp 获取视频，Playwright 获取头像
 │   ├── kuaishou_service.py       # 快手下载：Playwright 拦截真实流地址和元数据
 │   ├── instagram_service.py      # Instagram 下载：yt-dlp 与 Playwright Embed Fallback 双重保障
+│   ├── reddit_service.py         # Reddit 下载：分享链接解析、公共 JSON/OAuth 回退、图集/图片/视频保存
 │   ├── webpage_service.py        # 通用网页抓取：提取 Reader 模式 HTML 和 Markdown
 │   ├── telegram_bot.py           # Telegram Bot 守护线程：接收消息后自动提取 URL 并提交任务
 │   ├── tag_generator.py          # 标签自动生成：规则匹配 → Gemini API
@@ -118,6 +120,7 @@ app.py
 ```
 <base_path>/
 ├── saved_tweets/YYYY/MM/YYYY-MM-DD_<tweet_id>/
+├── saved_tweets/YYYY/MM/YYYY-MM-DD_<reddit_title>_<post_id>/   # Reddit 也保存在 saved_tweets 下
 ├── saved_douyin/YYYY-MM/YYYY-MM-DD_<title>_<id>/
 ├── saved_weibo/YYYY-MM/YYYY-MM-DD_<title>_<id>/
 ├── saved_bilibili/YYYY-MM/YYYY-MM-DD_<title>_<id>/

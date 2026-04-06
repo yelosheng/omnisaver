@@ -18,6 +18,7 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 - No Twitter API key required — uses Playwright browser automation
 - **Multi-platform support:**
   - **Twitter/X** — save tweets, full threads, long-form articles, and videos
+  - **Reddit** — save posts, galleries, inline images, videos, and author metadata
   - **YouTube** — save video metadata, subtitles, and channel info
   - **Bilibili (哔哩哔哩)** — save video metadata and high-quality videos
   - **Kuaishou (快手)** — save videos via Playwright (no cookies needed)
@@ -156,6 +157,27 @@ By default, the tool uses Playwright browser automation for scraping. Configurin
 The tool extracts `auth_token` and `ct0` from the JSON and stores them in `config.ini`. Credentials persist across restarts.
 
 > **Note:** Twitter sessions expire after weeks or months. If thread fetching stops working, repeat the cookie export and re-paste in Settings.
+
+---
+
+## 👽 Reddit Credentials (Optional but Recommended)
+
+Reddit posts can often be fetched anonymously, but cookies improve share-link resolution and reduce failures on media and profile requests.
+
+**What Reddit cookies help with:**
+- Resolving `reddit.com/r/.../s/...` share links to canonical post URLs
+- More reliable image, gallery, and thumbnail downloads
+- Fewer anonymous-access failures when Reddit blocks public JSON endpoints
+
+**Setup (via web UI):**
+1. Log in to [reddit.com](https://www.reddit.com) in your browser
+2. Install [Cookie-Editor](https://cookie-editor.cgagnier.ca/) browser extension
+3. On reddit.com, click the Cookie-Editor icon → **Export** → **Export as JSON** → copy
+4. In the web UI, go to **Settings** → **Reddit Cookie** → paste the JSON → **Save**
+
+The cookie export must include `reddit_session`. It is stored locally at `~/.agent-reach/reddit/cookies.json`.
+
+**Optional OAuth fallback:** if Reddit starts blocking anonymous JSON access in your environment, set `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` in the environment before starting OmniSaver.
 
 ---
 

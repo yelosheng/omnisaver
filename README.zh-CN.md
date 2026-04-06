@@ -16,8 +16,9 @@
 
 - 自托管部署，可运行于任意 Linux 设备、NAS 或树莓派
 - 无需 Twitter API 密钥，使用 Playwright 浏览器自动化抓取
-- **多平台支持（七大平台）：**
+- **多平台支持：**
   - **Twitter/X** —— 保存推文、完整串推、长文 Article 和视频
+  - **Reddit** —— 保存帖子正文、图集、内嵌图片、视频和作者信息
   - **YouTube** —— 保存视频元数据、字幕和频道信息
   - **Bilibili (哔哩哔哩)** —— 保存视频元数据和高清视频文件
   - **快手 (Kuaishou)** —— 通过 Playwright 原生抓取视频（无需 Cookie）
@@ -154,6 +155,27 @@ volumes:
 工具会自动从 JSON 中提取 `auth_token` 和 `ct0` 并写入 `config.ini`，重启后凭证保留。
 
 > **提示：** Twitter 会话通常在数周至数月后过期。如果串推抓取失效，重新导出 Cookie 并在设置页面粘贴即可。
+
+---
+
+## 👽 Reddit 凭证（可选，但推荐配置）
+
+Reddit 帖子很多时候可以匿名抓取，但配置 Cookie 后，分享链接解析和媒体下载会稳定得多。
+
+**配置 Reddit Cookie 的作用：**
+- 将 `reddit.com/r/.../s/...` 分享链接解析为标准帖子链接
+- 提高图片、图集和缩略图下载成功率
+- 在 Reddit 限制匿名 JSON 访问时减少失败
+
+**配置步骤（通过 Web 界面）：**
+1. 在浏览器中登录 [reddit.com](https://www.reddit.com)
+2. 安装 [Cookie-Editor](https://cookie-editor.cgagnier.ca/) 浏览器扩展
+3. 在 reddit.com 页面点击 Cookie-Editor 图标 → **Export** → **Export as JSON** → 复制
+4. 在 Web 界面进入 **设置** → **Reddit Cookie** → 粘贴 JSON → **保存**
+
+导出的 Cookie 必须包含 `reddit_session`。程序会将其保存在本地 `~/.agent-reach/reddit/cookies.json`。
+
+**可选 OAuth 兜底：** 如果你所在环境里 Reddit 开始拦匿名 JSON 接口，可在启动 OmniSaver 前设置环境变量 `REDDIT_CLIENT_ID` 和 `REDDIT_CLIENT_SECRET`。
 
 ---
 
