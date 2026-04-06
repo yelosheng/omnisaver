@@ -362,7 +362,7 @@ def submit_url():
         url = instagram_extracted
         content_type = 'instagram'
     elif zhihu_extracted:
-        url = zhihu_extracted
+        url = ZhihuService.normalize_zhihu_url(zhihu_extracted)
         content_type = 'zhihu'
     elif pinterest_extracted:
         url = pinterest_extracted
@@ -372,7 +372,8 @@ def submit_url():
         content_type = 'reddit'
     elif YoutubeService.is_valid_youtube_url(url):
         content_type = 'youtube'
-    elif ZhihuService.is_valid_zhihu_url(url):
+    elif ZhihuService.classify_zhihu_url(url):
+        url = ZhihuService.normalize_zhihu_url(url)
         content_type = 'zhihu'
     elif PinterestService.is_valid_pinterest_url(url):
         content_type = 'pinterest'
@@ -529,6 +530,7 @@ def api_tasks():
     tasks_list = []
     for task in tasks:
         task_dict = dict(task)
+        task_dict.update(_analyze_task_error(task_dict.get('error_message'), task_dict.get('content_type')))
         # 格式化时间
         if task_dict['created_at']:
             created_time = parse_time_from_db(task_dict['created_at'])
@@ -545,6 +547,37 @@ def api_tasks():
         'per_page': per_page,
         'pages': (total + per_page - 1) // per_page
     })
+
+
+def _requeue_task_for_redownload(task_id: int):
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        task = cursor.execute(
+            'SELECT url FROM tasks WHERE id = ?',
+            (task_id,)
+        ).fetchone()
+
+        if not task:
+            return False, 'Task not found'
+
+        task_url = task['url']
+        cursor.execute("""
+            UPDATE tasks SET
+                status = 'pending',
+                retry_count = 0,
+                next_retry_time = NULL,
+                processed_at = NULL,
+                error_message = 'Manual redownload requested via Tasks page'
+            WHERE id = ?
+        """, (task_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    enqueue_task(task_id, task_url)
+    info(f"[Redownload] Task {task_id} requeued: {task_url}")
+    return True, 'Task added to redownload queue'
 
 @app.route('/saved')
 @login_required
@@ -616,6 +649,70 @@ def _build_fts_query(q: str) -> str:
             prev_was_op = False
 
     return ' '.join(parts) if parts else f'"{q}"'
+
+
+def _analyze_task_error(error_message: str, content_type: str = '') -> dict:
+    text = (error_message or '').strip()
+    lowered = text.lower()
+    content_type = (content_type or '').lower()
+
+    if not text:
+        return {
+            'likely_cookie_issue': False,
+            'error_diagnosis': '',
+        }
+
+    cookie_tokens = (
+        'cookie', 'cookies', 'auth_token', 'ct0', 'z_c0', 'web_session',
+        'reddit_session', 'expired', 'invalid or expired', 'please refresh your cookie',
+        'require a valid login cookie', 'login page', 'unauthorized', 'forbidden'
+    )
+    verification_tokens = ('captcha', 'verification', 'blocked the request', '403', '401')
+    zhihu_request_shape_tokens = (
+        '请求参数异常',
+        '请升级客户端后重试',
+        'code":10003',
+        "code':10003",
+        'article/api is blocked for this environment',
+        'requires a different client path',
+        'both cookie and no-cookie attempts',
+    )
+
+    likely_cookie_issue = any(token in lowered for token in cookie_tokens)
+    verification_issue = any(token in lowered for token in verification_tokens)
+    zhihu_request_shape_issue = content_type == 'zhihu' and any(token in text for token in zhihu_request_shape_tokens)
+
+    if zhihu_request_shape_issue:
+        likely_cookie_issue = False
+        verification_issue = False
+
+    diagnosis = ''
+    if zhihu_request_shape_issue:
+        diagnosis = 'Likely Zhihu API/article compatibility or anti-bot blocking issue, not a simple cookie expiry.'
+    elif likely_cookie_issue or verification_issue:
+        if content_type == 'xhs':
+            diagnosis = 'Likely XHS cookies are missing or expired.'
+        elif content_type == 'wechat':
+            diagnosis = 'Likely WeChat login state expired, or verification/CAPTCHA blocked the request.'
+        elif content_type == 'zhihu':
+            diagnosis = 'Likely Zhihu z_c0 cookie expired, invalid, or blocked by CAPTCHA.'
+        elif content_type == 'reddit':
+            diagnosis = 'Likely Reddit session cookie expired or auth failed.'
+        elif content_type in ('tweet', 'article'):
+            diagnosis = 'Likely Twitter/X cookies expired or login state is invalid.'
+        else:
+            diagnosis = 'Likely cookie/login session issue.'
+    elif 'rate limit' in lowered:
+        diagnosis = 'Rate limit issue. Retrying later may succeed.'
+    elif 'timeout' in lowered:
+        diagnosis = 'Timeout while fetching content.'
+    elif 'video download failed' in lowered:
+        diagnosis = 'Media download step failed after metadata fetch.'
+
+    return {
+        'likely_cookie_issue': bool(likely_cookie_issue or verification_issue),
+        'error_diagnosis': diagnosis,
+    }
 
 
 @app.route('/api/saved')
@@ -1583,46 +1680,10 @@ def api_retry_tasks():
 
 @app.route('/api/retry-now/<int:task_id>', methods=['POST'])
 def api_retry_now(task_id):
-    """立即重试指定任务"""
+    """兼容旧接口，内部统一按 redownload 逻辑重入队。"""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # 检查任务是否存在且可以重试
-        task = cursor.execute(
-            'SELECT id, url, retry_count, max_retries, status FROM tasks WHERE id = ?',
-            (task_id,)
-        ).fetchone()
-        
-        if not task:
-            return jsonify({'success': False, 'message': 'Task not found'})
-        
-        if task['status'] not in ['pending', 'failed']:
-            return jsonify({'success': False, 'message': 'Task status does not allow retry'})
-        
-        retry_count = task['retry_count'] if task['retry_count'] else 0
-        max_retries = task['max_retries'] if task['max_retries'] else 3
-        
-        if retry_count >= max_retries:
-            return jsonify({'success': False, 'message': 'Maximum retry count reached'})
-        
-        # 清除重试时间并设置为pending
-        cursor.execute("""
-            UPDATE tasks SET 
-                status = 'pending',
-                next_retry_time = NULL,
-                error_message = ?
-            WHERE id = ?
-        """, (f'Manual retry {retry_count + 1}/{max_retries}', task_id))
-        
-        # 添加到处理队列
-        enqueue_task(task_id, task['url'])
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': 'Task added to retry queue'})
-        
+        success, message = _requeue_task_for_redownload(task_id)
+        return jsonify({'success': success, 'message': message})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Retry failed: {str(e)}'})
 
@@ -1671,40 +1732,8 @@ def api_reset_retries(task_id):
 def api_redownload(task_id):
     """强制重新下载指定任务"""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # 首先获取任务URL
-        task = cursor.execute(
-            'SELECT url FROM tasks WHERE id = ?', (task_id,)
-        ).fetchone()
-
-        if not task:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Task not found'})
-
-        task_url = task['url']
-
-        # 重置所有状态，使其重新进入队列
-        cursor.execute("""
-            UPDATE tasks SET 
-                status = 'pending',
-                retry_count = 0,
-                next_retry_time = NULL,
-                processed_at = NULL,
-                error_message = 'Manual redownload requested'
-            WHERE id = ?
-        """, (task_id,))
-
-        conn.commit()
-        conn.close()
-
-        # 将任务加入处理队列
-        enqueue_task(task_id, task_url)
-        info(f"[Redownload] Task {task_id} forced to redownload: {task_url}")
-
-        return jsonify({'success': True, 'message': 'Task added to redownload queue'})
-
+        success, message = _requeue_task_for_redownload(task_id)
+        return jsonify({'success': success, 'message': message})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Redownload failed: {str(e)}'})
 @app.route('/api/delete-retry-task/<int:task_id>', methods=['POST'])
@@ -1813,7 +1842,7 @@ def api_submit():
             url = instagram_extracted
             _ct = 'instagram'
         elif zhihu_extracted:
-            url = zhihu_extracted
+            url = ZhihuService.normalize_zhihu_url(zhihu_extracted)
             _ct = 'zhihu'
         elif pinterest_extracted:
             url = pinterest_extracted
@@ -1821,7 +1850,8 @@ def api_submit():
         elif reddit_extracted:
             url = reddit_extracted
             _ct = 'reddit'
-        elif ZhihuService.is_valid_zhihu_url(url):
+        elif ZhihuService.classify_zhihu_url(url):
+            url = ZhihuService.normalize_zhihu_url(url)
             _ct = 'zhihu'
         elif PinterestService.is_valid_pinterest_url(url):
             _ct = 'pinterest'

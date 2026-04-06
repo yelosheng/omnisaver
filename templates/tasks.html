@@ -87,6 +87,28 @@
     const perPage = 20;
     const _errorMessages = {};
 
+    function buildTaskErrorDetails(task) {
+        const lines = [
+            `Task ID: ${task.id}`,
+            `Status: ${task.status || '-'}`,
+            `Type: ${task.content_type || 'tweet'}`,
+            `URL: ${task.url || '-'}`,
+            `Created: ${task.created_at || '-'}`,
+            `Processed: ${task.processed_at || '-'}`,
+            `Retry Count: ${task.retry_count || 0}/${task.max_retries || 3}`
+        ];
+
+        if (task.likely_cookie_issue) {
+            lines.push('Cookie issue: likely yes');
+        }
+        if (task.error_diagnosis) {
+            lines.push(`Diagnosis: ${task.error_diagnosis}`);
+        }
+
+        lines.push('', task.error_message || 'No detailed error message stored.');
+        return lines.join('\n');
+    }
+
     // ── Load & render ────────────────────────────────────────────────────────
 
     function loadTasks(page = 1) {
@@ -170,18 +192,18 @@
             // Actions
             let actions = '<div class="btn-group">';
             
-            if (task.status !== 'processing') {
-                actions += `<button class="btn btn-sm btn-outline-info" onclick="redownloadTask(${task.id}, this)" title="Redownload"><i class="bi bi-cloud-download"></i></button>`;
+            if (task.status !== 'processing' && task.status !== 'failed') {
+                actions += `<button class="btn btn-sm btn-outline-success" onclick="redownloadTask(${task.id}, this)" title="Redownload"><i class="bi bi-play-fill"></i></button>`;
             }
 
             if (task.status === 'completed') {
                 const viewUrl = task.share_slug ? `/view/${task.share_slug}` : `/view/${task.id}`;
                 actions += `<a href="${viewUrl}" class="btn btn-sm btn-outline-primary" target="_blank" title="View"><i class="bi bi-eye"></i></a>`;
             } else if (task.status === 'failed') {
-                _errorMessages[task.id] = task.error_message || 'Unknown error';
+                _errorMessages[task.id] = buildTaskErrorDetails(task);
                 actions += `<button class="btn btn-sm btn-outline-warning" onclick="showError(${task.id})" title="Show error"><i class="bi bi-exclamation-triangle"></i></button>`;
                 if (retryCount < maxRetries) {
-                    actions += `<button class="btn btn-sm btn-outline-success" onclick="retryNow(${task.id}, this)" title="Retry now"><i class="bi bi-play-fill"></i></button>`;
+                    actions += `<button class="btn btn-sm btn-outline-success" onclick="redownloadTask(${task.id}, this)" title="Redownload"><i class="bi bi-play-fill"></i></button>`;
                 }
                 if (retryCount > 0) {
                     actions += `<button class="btn btn-sm btn-outline-secondary" onclick="resetRetries(${task.id}, this)" title="Reset retry counter"><i class="bi bi-arrow-counterclockwise"></i></button>`;
@@ -251,17 +273,6 @@
                 if (data.success) loadTasks(currentPage); else restore();
             })
             .catch(() => { showToast('Redownload request failed', 'error'); restore(); });
-    }
-
-    function retryNow(taskId, btn) {
-        const restore = btnSpinner(btn);
-        fetch(`/api/retry-now/${taskId}`, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                showToast(data.message, data.success ? 'success' : 'error');
-                if (data.success) loadTasks(currentPage); else restore();
-            })
-            .catch(() => { showToast('Retry request failed', 'error'); restore(); });
     }
 
     function resetRetries(taskId, btn) {

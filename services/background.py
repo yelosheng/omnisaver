@@ -2,6 +2,7 @@ import os
 import queue
 import threading
 import time
+import traceback
 from datetime import timedelta
 
 from services.db import (
@@ -48,6 +49,66 @@ current_task_status = {
     'error_message': None
 }
 
+MAX_TASK_ERROR_MESSAGE_LENGTH = 4000
+
+
+def _truncate_task_error_message(message: str, limit: int = MAX_TASK_ERROR_MESSAGE_LENGTH) -> str:
+    if not message:
+        return ''
+    if len(message) <= limit:
+        return message
+    return message[: limit - 15] + '\n... [truncated]'
+
+
+def _build_task_error_details(exc: Exception, *, task_id: int, url: str = '', stage: str = '') -> str:
+    exc_type = type(exc).__name__
+    exc_message = (str(exc) or repr(exc)).strip()
+    tb = traceback.format_exc().strip()
+
+    lines = [f'Task ID: {task_id}']
+    if stage:
+        lines.append(f'Stage: {stage}')
+    if url:
+        lines.append(f'URL: {url}')
+    lines.append(f'Exception: {exc_type}')
+    lines.append(f'Message: {exc_message or "(empty error message)"}')
+
+    lowered = exc_message.lower()
+    is_request_shape_issue = any(token in exc_message for token in (
+        '请求参数异常',
+        '请升级客户端后重试',
+        'code":10003',
+        "code':10003",
+    ))
+    if any(token in lowered for token in (
+        'cookie', 'cookies', 'auth_token', 'ct0', 'z_c0', 'web_session',
+        'reddit_session', 'expired', 'invalid or expired', 'login page',
+        'please refresh your cookie', 'require a valid login cookie',
+        'unauthorized', 'forbidden', 'captcha', 'verification'
+    )) and not is_request_shape_issue:
+        lines.append('Diagnosis: likely cookie/login session issue. Refresh the related site cookies and retry.')
+    elif is_request_shape_issue:
+        lines.append('Diagnosis: likely Zhihu API/article compatibility or anti-bot blocking issue, not a simple cookie expiry.')
+
+    if tb and tb != 'NoneType: None':
+        lines.extend(['', 'Traceback:', tb])
+
+    return _truncate_task_error_message('\n'.join(lines))
+
+
+def _store_task_failure(task_id: int, exc: Exception, *, url: str = '', stage: str = '') -> str:
+    details = _build_task_error_details(exc, task_id=task_id, url=url, stage=stage)
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
+            (details, task_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return details
+
 _xhs_autosave_thread: threading.Thread = None
 _xhs_autosave_stop = threading.Event()
 
@@ -62,7 +123,7 @@ def enqueue_task(task_id: int, url: str) -> bool:
     return True
 
 
-def check_and_schedule_retry(cursor, task_id, error_message):
+def check_and_schedule_retry(cursor, task_id, error_message, error_details=None):
     """检查任务是否应该重试，如果是则安排重试"""
     try:
         # 获取当前任务的重试信息
@@ -106,7 +167,11 @@ def check_and_schedule_retry(cursor, task_id, error_message):
             """, (
                 retry_count + 1,
                 format_time_for_db(next_retry_time),
-                f"Retry {retry_count + 1}/{max_retries}: {error_message}",
+                _truncate_task_error_message(
+                    f"Retry {retry_count + 1}/{max_retries}\n"
+                    f"Original error: {error_message}\n\n"
+                    f"{error_details or error_message}"
+                ),
                 task_id
             ))
 
@@ -392,13 +457,7 @@ def process_zhihu_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Zhihu Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='zhihu save')
         except Exception:
             pass
 
@@ -441,13 +500,7 @@ def process_instagram_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Instagram Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='instagram save')
         except Exception:
             pass
 
@@ -489,13 +542,7 @@ def process_pinterest_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Pinterest Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='pinterest save')
         except Exception:
             pass
 
@@ -537,13 +584,7 @@ def process_reddit_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Reddit Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='reddit save')
         except Exception:
             pass
 
@@ -586,13 +627,7 @@ def process_kuaishou_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Kuaishou Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='kuaishou save')
         except Exception:
             pass
 
@@ -635,13 +670,7 @@ def process_bilibili_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Bilibili Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='bilibili save')
         except Exception:
             pass
 
@@ -684,13 +713,7 @@ def process_weibo_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Weibo Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='weibo save')
         except Exception:
             pass
 
@@ -731,13 +754,7 @@ def process_xhs_task(task_id: int, url: str):
     except Exception as e:
         error(f'[XHS Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='xhs save')
         except Exception:
             pass
 
@@ -778,13 +795,7 @@ def process_wechat_task(task_id: int, url: str):
     except Exception as e:
         error(f'[WeChat Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='wechat save')
         except Exception:
             pass
 
@@ -825,13 +836,7 @@ def process_youtube_task(task_id: int, url: str):
     except Exception as e:
         error(f'[YouTube Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='youtube save')
         except Exception:
             pass
 
@@ -873,19 +878,29 @@ def process_douyin_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Douyin Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='douyin save')
         except Exception:
             pass
 
 
 def process_webpage_task(task_id: int, url: str):
     """Queue worker handler for generic web page tasks."""
+    from services.zhihu_service import ZhihuService
+
+    zhihu_type = ZhihuService.classify_zhihu_url(url)
+    if zhihu_type:
+        normalized_url = ZhihuService.normalize_zhihu_url(url)
+        if normalized_url != url:
+            conn = get_db_connection()
+            try:
+                conn.execute('UPDATE tasks SET url=? WHERE id=?', (normalized_url, task_id))
+                conn.commit()
+            finally:
+                conn.close()
+        info(f'[Webpage Task {task_id}] Detected Zhihu {zhihu_type} URL, rerouting to Zhihu service: {normalized_url}')
+        process_zhihu_task(task_id, normalized_url)
+        return
+
     conn = get_db_connection()
     try:
         conn.execute(
@@ -920,13 +935,7 @@ def process_webpage_task(task_id: int, url: str):
     except Exception as e:
         error(f'[Webpage Task {task_id}] Failed: {e}')
         try:
-            conn2 = get_db_connection()
-            conn2.execute(
-                "UPDATE tasks SET status='failed', error_message=? WHERE id=?",
-                (str(e)[:500], task_id)
-            )
-            conn2.commit()
-            conn2.close()
+            _store_task_failure(task_id, e, url=url, stage='webpage save')
         except Exception:
             pass
 
@@ -1161,12 +1170,13 @@ def process_tweet_task(task_id, url):
 
     except Exception as e:
         # 检查是否应该重试
-        should_retry = check_and_schedule_retry(conn.cursor(), task_id, str(e))
+        error_details = _build_task_error_details(e, task_id=task_id, url=url, stage='tweet save')
+        should_retry = check_and_schedule_retry(conn.cursor(), task_id, str(e), error_details=error_details)
         if not should_retry:
             # 不重试，更新任务状态为失败
             conn.execute(
                 'UPDATE tasks SET status = ?, error_message = ? WHERE id = ?',
-                ('failed', str(e), task_id)
+                ('failed', error_details, task_id)
             )
         conn.commit()
 

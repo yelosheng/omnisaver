@@ -401,6 +401,7 @@ def _make_handlers(submit_callback: Callable):
         if zhihu_url:
             try:
                 from app import processing_queue, get_db_connection, format_time_for_db, get_current_time
+                zhihu_url = ZhihuService.normalize_zhihu_url(zhihu_url)
                 conn = get_db_connection()
                 existing = conn.execute('SELECT id, status FROM tasks WHERE url = ?', (zhihu_url,)).fetchone()
                 if existing:
