@@ -3,7 +3,7 @@
 {% block title %}Settings - OmniSaver{% endblock %}
 
 {% block styles %}
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="/static/qrcode.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -64,8 +64,7 @@
                         <!-- QR available (key just generated this session) -->
                         <div id="api-key-qr-available" style="display:none;">
                             <p class="text-muted small mb-2">使用手机 App 的扫码入口扫描，自动完成服务器地址和 API Key 配置。</p>
-                            <div id="api-key-qr-canvas" class="mb-2" style="width:180px;height:180px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-                                <canvas id="qr-canvas"></canvas>
+                            <div id="api-key-qr-canvas" class="mb-2" style="display:inline-block;border:1px solid #dee2e6;border-radius:8px;padding:8px;background:#fff;">
                             </div>
                             <div class="text-muted small">二维码包含：服务器地址 + API Key</div>
                         </div>
@@ -602,17 +601,22 @@ async function saveConfig() {
         }
 
         function renderQrCode(key) {
-            const payload = JSON.stringify({
-                url: window.location.origin,
-                api_key: key
-            });
-            const canvas = document.getElementById('qr-canvas');
-            QRCode.toCanvas(canvas, payload, {width: 176, margin: 1}, function(err) {
-                if (!err) {
-                    document.getElementById('api-key-qr-available').style.display = '';
-                    document.getElementById('api-key-qr-unavailable').style.display = 'none';
-                }
-            });
+            try {
+                const payload = JSON.stringify({
+                    url: window.location.origin,
+                    api_key: key
+                });
+                const qr = qrcode(0, 'M');
+                qr.addData(payload);
+                qr.make();
+                const container = document.getElementById('api-key-qr-canvas');
+                container.innerHTML = qr.createImgTag(4, 8);
+                container.querySelector('img').style.cssText = 'width:176px;height:176px;display:block;border-radius:4px;';
+                document.getElementById('api-key-qr-available').style.display = '';
+                document.getElementById('api-key-qr-unavailable').style.display = 'none';
+            } catch(e) {
+                console.error('QR code error:', e);
+            }
         }
 
         async function revokeApiKey() {
