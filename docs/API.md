@@ -6,7 +6,34 @@
 
 ## 认证
 
-大多数 API 端点**不需要登录**（设计为允许 Tampermonkey 等外部工具直接调用）。少数管理类接口需要 session cookie，通过 `POST /login` 获取。
+### Session 认证（Web UI）
+
+浏览器访问管理页面通过 `POST /login` 获取 session cookie，适用于所有 `/settings`、`/saved` 等 UI 路由。
+
+### API Key 认证（外部工具）
+
+`POST /api/submit` 支持可选 API Key。在 Settings 页面生成 Key 后，所有外部请求必须携带。
+
+传递方式（任选其一，优先级从高到低）：
+
+```http
+Authorization: Bearer <your-api-key>
+```
+
+或在 JSON body 中：
+
+```json
+{"url": "...", "api_key": "<your-api-key>"}
+```
+
+未配置 Key 时，接口无鉴权保护（向下兼容）。
+
+**认证失败响应：**
+
+```json
+HTTP 401
+{"success": false, "error": "Unauthorized", "message": "Valid API key required"}
+```
 
 ---
 
