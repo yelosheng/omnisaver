@@ -44,7 +44,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2 mb-4">
                         <button class="btn btn-warning" onclick="generateApiKey()">
                             <i class="bi bi-arrow-clockwise"></i> 重新生成
                         </button>
@@ -52,8 +52,62 @@
                             <i class="bi bi-x-circle"></i> 撤销
                         </button>
                     </div>
+
+                    <!-- QR Code section -->
+                    <div id="api-key-qr-section">
+                        <hr class="my-3">
+                        <label class="form-label"><strong><i class="bi bi-qr-code"></i> 手机 App 扫码配置</strong></label>
+                        <!-- QR available (key just generated this session) -->
+                        <div id="api-key-qr-available" style="display:none;">
+                            <p class="text-muted small mb-2">使用手机 App 的扫码入口扫描，自动完成服务器地址和 API Key 配置。</p>
+                            <div id="api-key-qr-canvas" class="mb-2" style="width:180px;height:180px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                <canvas id="qr-canvas"></canvas>
+                            </div>
+                            <div class="text-muted small">二维码包含：服务器地址 + API Key</div>
+                        </div>
+                        <!-- QR not available (page reloaded, full key unknown) -->
+                        <div id="api-key-qr-unavailable" style="display:none;">
+                            <div class="alert alert-secondary py-2 d-flex align-items-center gap-2" style="max-width:420px;">
+                                <i class="bi bi-info-circle flex-shrink-0"></i>
+                                <span class="small">二维码仅在生成 Key 时显示。如需扫码配置手机 App，请点击"重新生成"。</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div id="api-key-result" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Mobile App -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-phone"></i> 手机 App</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-4 flex-wrap">
+                    <div style="flex:1;min-width:200px;">
+                        <p class="mb-2">OmniSaver 手机客户端正在开发中，将支持：</p>
+                        <ul class="text-muted small mb-3">
+                            <li>一键分享任意 App 的内容到 OmniSaver</li>
+                            <li>扫码自动完成服务器配置</li>
+                            <li>本地浏览已保存的内容</li>
+                        </ul>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="badge bg-secondary py-2 px-3" style="font-size:0.85rem;">
+                                <i class="bi bi-apple me-1"></i> App Store — 即将上线
+                            </span>
+                            <span class="badge bg-secondary py-2 px-3" style="font-size:0.85rem;">
+                                <i class="bi bi-google-play me-1"></i> Google Play — 即将上线
+                            </span>
+                        </div>
+                    </div>
+                    <div class="text-center text-muted" style="min-width:120px;">
+                        <div style="width:100px;height:100px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
+                            <i class="bi bi-phone" style="font-size:2.5rem;color:#aaa;"></i>
+                        </div>
+                        <div class="small">敬请期待</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -516,6 +570,9 @@ async function saveConfig() {
                 document.getElementById('api-key-has-key').style.display = '';
                 document.getElementById('api-key-display').value = d.key_preview || '••••••••...';
                 _currentApiKey = '';
+                // Full key unknown after page reload — show hint instead of QR
+                document.getElementById('api-key-qr-available').style.display = 'none';
+                document.getElementById('api-key-qr-unavailable').style.display = '';
             } else {
                 document.getElementById('api-key-no-key').style.display = '';
                 document.getElementById('api-key-has-key').style.display = 'none';
@@ -536,7 +593,22 @@ async function saveConfig() {
                 document.getElementById('api-key-display').value = d.key;
                 document.getElementById('api-key-eye-icon').className = 'bi bi-eye-slash';
                 showApiKeyResult('success', 'Key 已生成，请复制保存');
+                renderQrCode(d.key);
             }
+        }
+
+        function renderQrCode(key) {
+            const payload = JSON.stringify({
+                url: window.location.origin,
+                api_key: key
+            });
+            const canvas = document.getElementById('qr-canvas');
+            QRCode.toCanvas(canvas, payload, {width: 176, margin: 1}, function(err) {
+                if (!err) {
+                    document.getElementById('api-key-qr-available').style.display = '';
+                    document.getElementById('api-key-qr-unavailable').style.display = 'none';
+                }
+            });
         }
 
         async function revokeApiKey() {
@@ -547,6 +619,8 @@ async function saveConfig() {
                 _currentApiKey = '';
                 document.getElementById('api-key-no-key').style.display = '';
                 document.getElementById('api-key-has-key').style.display = 'none';
+                document.getElementById('api-key-qr-available').style.display = 'none';
+                document.getElementById('api-key-qr-unavailable').style.display = 'none';
                 showApiKeyResult('warning', 'Key 已撤销，接口现在无鉴权保护');
             }
         }
@@ -590,4 +664,7 @@ async function saveConfig() {
         loadApiKey();
         // --- end API Key ---
 </script>
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+{% endblock %}
 {% endblock %}
