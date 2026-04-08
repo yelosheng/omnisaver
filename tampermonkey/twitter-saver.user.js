@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter/X, YouTube & XiaoHongShu Saver
 // @namespace    https://github.com/yelosheng/twitter-saver
-// @version      3.8
+// @version      3.9
 // @description  在 Twitter/X 推文、YouTube 视频和小红书笔记页面添加保存按钮，一键归档到本地服务
 // @author       yelosheng
 // @match        https://twitter.com/*
@@ -24,6 +24,26 @@
     function getBackendUrl() {
         return GM_getValue('backendUrl', DEFAULT_BACKEND).replace(/\/$/, '');
     }
+
+    function getApiKey() {
+        return GM_getValue('apiKey', '');
+    }
+
+    function buildAuthHeaders() {
+        const key = getApiKey();
+        const headers = { 'Content-Type': 'application/json' };
+        if (key) headers['Authorization'] = `Bearer ${key}`;
+        return headers;
+    }
+
+    GM_registerMenuCommand('🔑 设置 API Key', function() {
+        const current = getApiKey();
+        const newKey = prompt('请输入后端 API Key（在 Settings 页面生成）', current);
+        if (newKey !== null) {
+            GM_setValue('apiKey', newKey.trim());
+            alert(newKey.trim() ? 'API Key 已保存' : 'API Key 已清除');
+        }
+    });
 
     GM_registerMenuCommand('⚙️ 设置后端地址', function() {
         const current = getBackendUrl();
@@ -217,12 +237,12 @@
     }
 
     function submitYouTubeToAPI(url) {
-        const apiUrl = `${getBackendUrl()}/api/submit/youtube`;
+        const apiUrl = `${getBackendUrl()}/api/submit`;
         showToast('正在保存视频...', 'info');
         GM_xmlhttpRequest({
             method: 'POST',
             url: apiUrl,
-            headers: { 'Content-Type': 'application/json' },
+            headers: buildAuthHeaders(),
             data: JSON.stringify({ url }),
             onload: function(response) {
                 try {
@@ -475,12 +495,12 @@
     }
 
     function submitXhsToAPI(url) {
-        const apiUrl = `${getBackendUrl()}/api/submit/xhs`;
+        const apiUrl = `${getBackendUrl()}/api/submit`;
         showToast('正在保存小红书笔记...', 'info');
         GM_xmlhttpRequest({
             method: 'POST',
             url: apiUrl,
-            headers: { 'Content-Type': 'application/json' },
+            headers: buildAuthHeaders(),
             data: JSON.stringify({ url }),
             onload: function(response) {
                 try {
@@ -738,12 +758,12 @@
     }
 
     function submitWechatToAPI(url) {
-        const apiUrl = `${getBackendUrl()}/api/submit/wechat`;
+        const apiUrl = `${getBackendUrl()}/api/submit`;
         showToast('正在保存微信文章...', 'info');
         GM_xmlhttpRequest({
             method: 'POST',
             url: apiUrl,
-            headers: { 'Content-Type': 'application/json' },
+            headers: buildAuthHeaders(),
             data: JSON.stringify({ url }),
             onload: function(response) {
                 try {
@@ -849,7 +869,7 @@
         GM_xmlhttpRequest({
             method: 'POST',
             url: apiUrl,
-            headers: { 'Content-Type': 'application/json' },
+            headers: buildAuthHeaders(),
             data: JSON.stringify({ url }),
             onload: function(response) {
                 try {
