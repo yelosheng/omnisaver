@@ -7,6 +7,56 @@
     <div class="col-lg-7 mx-auto">
         <h2 class="mb-4"><i class="bi bi-gear"></i> Settings</h2>
 
+        <!-- API Key -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-key"></i> API Key</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    用于外部工具（Tampermonkey、手机 App 等）调用
+                    <code>POST /api/submit</code>。设置后所有外部请求必须携带此 Key。
+                    未设置时接口无鉴权保护。
+                </p>
+                <div id="api-key-no-key" style="display:none;">
+                    <div class="alert alert-warning py-2 mb-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        当前无鉴权保护，任何人可访问提交接口
+                    </div>
+                    <button class="btn btn-primary" onclick="generateApiKey()">
+                        <i class="bi bi-plus-circle"></i> 生成 API Key
+                    </button>
+                </div>
+                <div id="api-key-has-key" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>当前 Key</strong></label>
+                        <div class="input-group" style="max-width:520px;">
+                            <input type="password" class="form-control font-monospace"
+                                   id="api-key-display" readonly>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="toggleApiKeyVisibility()" id="api-key-toggle-btn"
+                                    title="显示/隐藏">
+                                <i class="bi bi-eye" id="api-key-eye-icon"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="copyApiKey()" title="复制">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-warning" onclick="generateApiKey()">
+                            <i class="bi bi-arrow-clockwise"></i> 重新生成
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="revokeApiKey()">
+                            <i class="bi bi-x-circle"></i> 撤销
+                        </button>
+                    </div>
+                </div>
+                <div id="api-key-result" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
         <!-- System Configuration -->
         <div class="card mb-4">
             <div class="card-header">
@@ -454,5 +504,90 @@ async function saveConfig() {
         result.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
     }
 }
+
+        // --- API Key management ---
+        let _currentApiKey = '';
+
+        async function loadApiKey() {
+            const r = await fetch('/api/settings/api-key');
+            const d = await r.json();
+            if (d.has_key) {
+                document.getElementById('api-key-no-key').style.display = 'none';
+                document.getElementById('api-key-has-key').style.display = '';
+                document.getElementById('api-key-display').value = d.key_preview || '••••••••...';
+                _currentApiKey = '';
+            } else {
+                document.getElementById('api-key-no-key').style.display = '';
+                document.getElementById('api-key-has-key').style.display = 'none';
+            }
+        }
+
+        async function generateApiKey() {
+            if (document.getElementById('api-key-has-key').style.display !== 'none') {
+                if (!confirm('重新生成后旧 Key 立即失效，所有使用旧 Key 的客户端需要更新。确认吗？')) return;
+            }
+            const r = await fetch('/api/settings/api-key/generate', {method: 'POST'});
+            const d = await r.json();
+            if (d.success) {
+                _currentApiKey = d.key;
+                document.getElementById('api-key-no-key').style.display = 'none';
+                document.getElementById('api-key-has-key').style.display = '';
+                document.getElementById('api-key-display').type = 'text';
+                document.getElementById('api-key-display').value = d.key;
+                document.getElementById('api-key-eye-icon').className = 'bi bi-eye-slash';
+                showApiKeyResult('success', 'Key 已生成，请复制保存');
+            }
+        }
+
+        async function revokeApiKey() {
+            if (!confirm('撤销后接口将无鉴权保护，确认吗？')) return;
+            const r = await fetch('/api/settings/api-key', {method: 'DELETE'});
+            const d = await r.json();
+            if (d.success) {
+                _currentApiKey = '';
+                document.getElementById('api-key-no-key').style.display = '';
+                document.getElementById('api-key-has-key').style.display = 'none';
+                showApiKeyResult('warning', 'Key 已撤销，接口现在无鉴权保护');
+            }
+        }
+
+        function toggleApiKeyVisibility() {
+            const input = document.getElementById('api-key-display');
+            const icon = document.getElementById('api-key-eye-icon');
+            if (input.type === 'password') {
+                if (_currentApiKey) {
+                    input.value = _currentApiKey;
+                } else {
+                    alert('完整 Key 仅在生成时显示一次，如需查看请重新生成。');
+                    return;
+                }
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                input.value = _currentApiKey || '••••••••...';
+                icon.className = 'bi bi-eye';
+            }
+        }
+
+        function copyApiKey() {
+            const val = _currentApiKey || document.getElementById('api-key-display').value;
+            if (!val || val.includes('•')) {
+                alert('完整 Key 仅在生成时可复制，请重新生成。');
+                return;
+            }
+            navigator.clipboard.writeText(val).then(() => showApiKeyResult('success', '已复制到剪贴板'));
+        }
+
+        function showApiKeyResult(type, msg) {
+            const el = document.getElementById('api-key-result');
+            el.className = `mt-2 text-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'danger'}`;
+            el.textContent = msg;
+            el.style.display = '';
+            setTimeout(() => { el.style.display = 'none'; }, 4000);
+        }
+
+        loadApiKey();
+        // --- end API Key ---
 </script>
 {% endblock %}
