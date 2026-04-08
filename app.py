@@ -190,6 +190,17 @@ def login_required(f):
     return decorated_function
 
 
+def check_api_key(provided_key: str) -> bool:
+    """Return True if the request is authorized.
+
+    Authorization logic:
+    - If no api_key is configured in app_settings, always allow (backward compat).
+    - Otherwise, provided_key must match exactly.
+    """
+    configured = get_setting('api_key', '')
+    if not configured:
+        return True
+    return provided_key == configured
 
 
 
@@ -1779,6 +1790,19 @@ def api_submit():
     3. Text: 直接在body中放置URL
     """
     try:
+        # --- API Key auth ---
+        provided = None
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            provided = auth_header[7:]
+        if not provided and request.is_json:
+            body = request.get_json(silent=True) or {}
+            provided = body.get('api_key')
+        if not check_api_key(provided or ''):
+            return jsonify({'success': False, 'error': 'Unauthorized',
+                            'message': 'Valid API key required'}), 401
+        # --- end auth ---
+
         # 尝试多种方式获取URL
         url = None
         
@@ -1997,6 +2021,29 @@ def api_set_youtube_api_key():
     key = str(data.get('key', '')).strip()
     if config_manager:
         config_manager.set_youtube_api_key(key)
+    return jsonify({'success': True})
+
+
+@app.route('/api/settings/api-key', methods=['GET'])
+@login_required
+def api_key_get():
+    key = get_setting('api_key', '')
+    return jsonify({'has_key': bool(key), 'key_preview': key[:8] + '...' if key else ''})
+
+
+@app.route('/api/settings/api-key/generate', methods=['POST'])
+@login_required
+def api_key_generate():
+    import secrets
+    new_key = secrets.token_hex(32)
+    set_setting('api_key', new_key)
+    return jsonify({'success': True, 'key': new_key})
+
+
+@app.route('/api/settings/api-key', methods=['DELETE'])
+@login_required
+def api_key_revoke():
+    set_setting('api_key', '')
     return jsonify({'success': True})
 
 
