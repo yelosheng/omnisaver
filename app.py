@@ -1016,7 +1016,7 @@ def show_tweet(slug):
                     debug(f"[View] Loaded Reader mode content for slug {slug}, length={len(tweet_html)}")
                 else:
                     _body = _soup.find('body')
-                    tweet_html = str(_body) if _body else html_content
+                    tweet_html = _body.decode_contents() if _body else html_content
                     debug(f"[View] Using fallback HTML content for slug {slug}, length={len(tweet_html)}")
         except Exception as e:
             warning(f"[View] Failed to read HTML file for slug {slug}: {e}")
