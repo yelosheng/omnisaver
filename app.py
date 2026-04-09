@@ -34,6 +34,22 @@ from services.pinterest_service import PinterestService, PinterestServiceError
 from services.reddit_service import RedditService, RedditServiceError
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
+import glob as _glob
+
+# ── i18n ──────────────────────────────────────────────────────────────────────
+_TRANSLATIONS: dict = {}
+
+def _load_translations():
+    translations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'translations')
+    for path in _glob.glob(os.path.join(translations_dir, '*.json')):
+        lang = os.path.splitext(os.path.basename(path))[0]
+        with open(path, encoding='utf-8') as f:
+            import json as _json
+            _TRANSLATIONS[lang] = _json.load(f)
+
+_load_translations()
+_SUPPORTED_LANGS = list(_TRANSLATIONS.keys())  # ['en', 'zh_CN']
+# ──────────────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
 
@@ -157,10 +173,15 @@ def format_datetime(datetime_str):
 # 添加context processor，自动传递登录状态给所有模板
 @app.context_processor
 def inject_user_status():
-    """注入用户登录状态到所有模板"""
+    """注入用户登录状态和 i18n 翻译到所有模板"""
+    lang = session.get('lang', 'en')
+    if lang not in _TRANSLATIONS:
+        lang = 'en'
     return {
         'is_logged_in': session.get('logged_in', False),
-        'username': session.get('username', None)
+        'username': session.get('username', None),
+        't': _TRANSLATIONS.get(lang, _TRANSLATIONS.get('en', {})),
+        'current_lang': lang,
     }
 
 # 全局变量
@@ -292,6 +313,14 @@ def login():
 
     # GET请求，显示登录表单
     return render_template('login.html')
+
+@app.route('/api/set-language')
+def set_language():
+    lang = request.args.get('lang', 'en')
+    if lang in _SUPPORTED_LANGS:
+        session['lang'] = lang
+    next_url = request.args.get('next') or request.referrer or '/'
+    return redirect(next_url)
 
 @app.route('/logout')
 def logout():
