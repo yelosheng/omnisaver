@@ -26,18 +26,18 @@
 </div>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-list-task"></i> Task Queue</h2>
+    <h2><i class="bi bi-list-task"></i> {{ t.tasks_title }}</h2>
     <div>
         <select class="form-select" id="status-filter" style="width: auto; display: inline-block;">
-            <option value="">All</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-            <option value="retrying">Retrying</option>
+            <option value="">{{ t.tasks_filter_all }}</option>
+            <option value="pending">{{ t.tasks_filter_pending }}</option>
+            <option value="processing">{{ t.tasks_filter_processing }}</option>
+            <option value="completed">{{ t.tasks_filter_completed }}</option>
+            <option value="failed">{{ t.tasks_filter_failed }}</option>
+            <option value="retrying">{{ t.tasks_filter_retrying }}</option>
         </select>
         <button class="btn btn-outline-primary ms-2" onclick="loadTasks()">
-            <i class="bi bi-arrow-clockwise"></i> Refresh
+            <i class="bi bi-arrow-clockwise"></i> {{ t.tasks_refresh }}
         </button>
     </div>
 </div>
@@ -46,7 +46,7 @@
     <div class="card-body">
         <div id="loading" class="text-center py-4">
             <div class="spinner-border" role="status">
-                <span class="visually-hidden">Loading tasks...</span>
+                <span class="visually-hidden">{{ t.tasks_loading }}</span>
             </div>
         </div>
 
@@ -55,13 +55,13 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th style="width:100px;max-width:100px">Author</th>
-                            <th>URL</th>
-                            <th style="min-width:160px">Status</th>
-                            <th>Created</th>
-                            <th>Processed</th>
-                            <th>Actions</th>
+                            <th>{{ t.tasks_col_id }}</th>
+                            <th style="width:100px;max-width:100px">{{ t.tasks_col_author }}</th>
+                            <th>{{ t.tasks_col_url }}</th>
+                            <th style="min-width:160px">{{ t.tasks_col_status }}</th>
+                            <th>{{ t.tasks_col_created }}</th>
+                            <th>{{ t.tasks_col_processed }}</th>
+                            <th>{{ t.tasks_col_actions }}</th>
                         </tr>
                     </thead>
                     <tbody id="tasks-tbody"></tbody>
@@ -75,7 +75,7 @@
 
         <div id="no-tasks" class="text-center py-4" style="display: none;">
             <i class="bi bi-inbox" style="font-size: 3rem; color: #6c757d;"></i>
-            <p class="text-muted mt-2">No tasks</p>
+            <p class="text-muted mt-2">{{ t.tasks_no_tasks }}</p>
         </div>
     </div>
 </div>

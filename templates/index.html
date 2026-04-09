@@ -8,21 +8,21 @@
         <div class="card">
             <div class="card-header">
                 <h4 class="mb-0">
-                    <i class="bi bi-plus-circle"></i> Add URL
+                    <i class="bi bi-plus-circle"></i> {{ t.index_title }}
                 </h4>
             </div>
             <div class="card-body">
                 <form id="url-form">
                     <div class="mb-3">
-                        <label for="url" class="form-label">URL</label>
+                        <label for="url" class="form-label">{{ t.index_url_label }}</label>
                         <input type="url" class="form-control" id="url" name="url"
-                               placeholder="Paste any supported URL here..." required>
+                               placeholder="{{ t.index_url_placeholder }}" required>
                         <div class="form-text">
-                            Supported: Twitter/X, YouTube, XiaoHongShu, WeChat articles
+                            {{ t.index_url_hint }}
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary" id="submit-btn">
-                        <i class="bi bi-download"></i> Add to Queue
+                        <i class="bi bi-download"></i> {{ t.index_add_btn }}
                     </button>
                 </form>
             </div>
@@ -32,7 +32,7 @@
         <div class="card mt-4">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-info-circle"></i> System Status
+                    <i class="bi bi-info-circle"></i> {{ t.index_system_status }}
                 </h5>
             </div>
             <div class="card-body">
@@ -41,7 +41,7 @@
                         <div class="card bg-warning text-dark">
                             <div class="card-body text-center">
                                 <h5 class="card-title" id="pending-count">0</h5>
-                                <p class="card-text">Pending</p>
+                                <p class="card-text">{{ t.index_pending }}</p>
                             </div>
                         </div>
                     </div>
@@ -49,7 +49,7 @@
                         <div class="card bg-info text-white">
                             <div class="card-body text-center">
                                 <h5 class="card-title" id="processing-count">0</h5>
-                                <p class="card-text">Processing</p>
+                                <p class="card-text">{{ t.index_processing }}</p>
                             </div>
                         </div>
                     </div>
@@ -57,7 +57,7 @@
                         <div class="card bg-success text-white">
                             <div class="card-body text-center">
                                 <h5 class="card-title" id="completed-count">0</h5>
-                                <p class="card-text">Completed</p>
+                                <p class="card-text">{{ t.index_completed }}</p>
                             </div>
                         </div>
                     </div>
@@ -65,7 +65,7 @@
                         <div class="card bg-danger text-white">
                             <div class="card-body text-center">
                                 <h5 class="card-title" id="failed-count">0</h5>
-                                <p class="card-text">Failed</p>
+                                <p class="card-text">{{ t.index_failed }}</p>
                             </div>
                         </div>
                     </div>
@@ -77,24 +77,24 @@
         <div class="card mt-4">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-question-circle"></i> How to Use
+                    <i class="bi bi-question-circle"></i> {{ t.index_how_to_use }}
                 </h5>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <h6>Features:</h6>
+                        <h6>{{ t.index_features_title }}</h6>
                         <ul>
-                            <li>Archive tweets, threads, images &amp; videos</li>
-                            <li>Save YouTube videos with metadata</li>
-                            <li>Save XiaoHongShu (小红书) notes</li>
-                            <li>Save WeChat (微信公众号) articles</li>
-                            <li>Full-text search across all saved content</li>
-                            <li>Smart queue with automatic retry</li>
+                            <li>{{ t.index_feature_1 }}</li>
+                            <li>{{ t.index_feature_2 }}</li>
+                            <li>{{ t.index_feature_3 }}</li>
+                            <li>{{ t.index_feature_4 }}</li>
+                            <li>{{ t.index_feature_5 }}</li>
+                            <li>{{ t.index_feature_6 }}</li>
                         </ul>
                     </div>
                     <div class="col-md-6">
-                        <h6>Supported URL formats:</h6>
+                        <h6>{{ t.index_url_formats }}</h6>
                         <ul>
                             <li>https://twitter.com/user/status/…</li>
                             <li>https://x.com/user/status/…</li>
