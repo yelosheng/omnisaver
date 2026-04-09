@@ -20,7 +20,7 @@
                         <div class="display-name">
                             {{ tweet.author_name }}
                             {% if tweet.is_article %}
-                            <span class="article-badge"><i class="bi bi-file-text"></i> Article</span>
+                            <span class="article-badge"><i class="bi bi-file-text"></i> {{ t.tweet_article_badge }}</span>
                             {% endif %}
                         </div>
                         {% if tweet.content_type in ('tweet', 'article') %}<div class="username">@{{ tweet.author_username }}</div>{% endif %}

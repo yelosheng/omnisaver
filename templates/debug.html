@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-bug"></i> System Debug</h2>
+    <h2><i class="bi bi-bug"></i> {{ t.debug_title }}</h2>
     <button class="btn btn-outline-primary" onclick="loadDebugInfo()">
-        <i class="bi bi-arrow-clockwise"></i> Refresh
+        <i class="bi bi-arrow-clockwise"></i> {{ t.debug_refresh }}
     </button>
 </div>
 
@@ -19,10 +19,10 @@
             </div>
             <div class="d-flex gap-2">
                 <button class="btn btn-sm btn-outline-danger" onclick="forceStartQueue()">
-                    <i class="bi bi-play-fill"></i> Force Start Queue
+                    <i class="bi bi-play-fill"></i> {{ t.debug_force_start }}
                 </button>
                 <button class="btn btn-sm btn-outline-warning" onclick="resetStuckTasks()">
-                    <i class="bi bi-arrow-clockwise"></i> Reset Stuck Tasks
+                    <i class="bi bi-arrow-clockwise"></i> {{ t.debug_reset_stuck }}
                 </button>
             </div>
         </div>
@@ -34,27 +34,27 @@
     <div class="card-header">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="d-flex align-items-center gap-2">
-                <h5 class="mb-0"><i class="bi bi-terminal"></i> Live Logs</h5>
-                <span id="log-status" class="badge bg-secondary">Disconnected</span>
-                <span id="log-count" class="badge bg-secondary">0 entries</span>
+                <h5 class="mb-0"><i class="bi bi-terminal"></i> {{ t.debug_live_logs }}</h5>
+                <span id="log-status" class="badge bg-secondary">{{ t.debug_disconnected }}</span>
+                <span id="log-count" class="badge bg-secondary">0 {{ t.debug_entries }}</span>
             </div>
             <div class="d-flex gap-1">
                 <button class="btn btn-sm btn-outline-success" id="log-stream-toggle" onclick="toggleLogStream()">
-                    <i class="bi bi-play-fill"></i> <span id="log-stream-text">Start Stream</span>
+                    <i class="bi bi-play-fill"></i> <span id="log-stream-text">{{ t.debug_start_stream }}</span>
                 </button>
                 <button class="btn btn-sm btn-outline-info" onclick="testLogCapture()">
-                    <i class="bi bi-bug"></i> Test
+                    <i class="bi bi-bug"></i> {{ t.debug_test }}
                 </button>
                 <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
-                    <i class="bi bi-trash"></i> Clear
+                    <i class="bi bi-trash"></i> {{ t.debug_clear }}
                 </button>
                 <div class="dropdown">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
                         <i class="bi bi-download"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="#" onclick="copyAllLogs(); return false;"><i class="bi bi-clipboard me-2"></i>Copy All</a></li>
-                        <li><a class="dropdown-item" href="#" onclick="downloadLogs(); return false;"><i class="bi bi-file-text me-2"></i>Download .txt</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="copyAllLogs(); return false;"><i class="bi bi-clipboard me-2"></i>{{ t.debug_copy_all }}</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="downloadLogs(); return false;"><i class="bi bi-file-text me-2"></i>{{ t.debug_download_txt }}</a></li>
                     </ul>
                 </div>
             </div>

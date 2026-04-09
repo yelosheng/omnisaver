@@ -5,12 +5,12 @@
 {% block content %}
 <div class="row">
     <div class="col-lg-8 mx-auto">
-        <h2 class="mb-4"><i class="bi bi-puzzle"></i> Tampermonkey Script</h2>
+        <h2 class="mb-4"><i class="bi bi-puzzle"></i> {{ t.help_title }}</h2>
 
         <!-- Installation -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-download"></i> Installation</h5>
+                <h5 class="mb-0"><i class="bi bi-download"></i> {{ t.help_installation }}</h5>
             </div>
             <div class="card-body">
                 <ol class="mb-3">
@@ -20,7 +20,7 @@
                     </li>
                     <li class="mb-2">
                         <a href="/tampermonkey/twitter-saver.user.js" class="btn btn-sm btn-primary">
-                            <i class="bi bi-download"></i> Install Script
+                            <i class="bi bi-download"></i> {{ t.help_install_btn }}
                         </a>
                         <small class="text-muted d-block mt-1">Tampermonkey will open an installation confirmation page — click <strong>Install</strong></small>
                     </li>
@@ -36,7 +36,7 @@
         <!-- Supported Sites -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-globe"></i> Supported Sites</h5>
+                <h5 class="mb-0"><i class="bi bi-globe"></i> {{ t.help_supported_sites }}</h5>
             </div>
             <div class="card-body p-0">
                 <table class="table table-bordered mb-0">
