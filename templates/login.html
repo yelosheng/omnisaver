@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ 'zh-CN' if current_lang == 'zh_CN' else 'en' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -174,11 +174,34 @@
     </style>
 </head>
 <body>
+<!-- Language switcher -->
+<div style="position:fixed;top:16px;right:16px;z-index:1000;">
+    <div class="dropdown">
+        <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown"
+                style="opacity:0.85;">
+            🌐 {% if current_lang == 'zh_CN' %}中文{% else %}EN{% endif %}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+                <a class="dropdown-item {% if current_lang == 'en' %}active{% endif %}"
+                   href="{{ url_for('set_language', lang='en', next='/login') }}">
+                    {{ t.lang_en }}
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item {% if current_lang == 'zh_CN' %}active{% endif %}"
+                   href="{{ url_for('set_language', lang='zh_CN', next='/login') }}">
+                    {{ t.lang_zh_CN }}
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
                 <h1><i class="bi bi-archive-fill"></i> OmniSaver</h1>
-                <p>Sign in to continue</p>
+                <p>{{ t.login_tagline }}</p>
             </div>
 
             {% if error %}
@@ -190,48 +213,49 @@
             <form method="POST" action="/login">
                 <div class="form-floating">
                     <input type="text" class="form-control" id="username" name="username"
-                           placeholder="Username" required autofocus>
-                    <label for="username"><i class="bi bi-person"></i> Username</label>
+                           placeholder="{{ t.login_username }}" required autofocus>
+                    <label for="username"><i class="bi bi-person"></i> {{ t.login_username }}</label>
                 </div>
 
                 <div class="form-floating">
                     <input type="password" class="form-control" id="password" name="password"
-                           placeholder="Password" required>
-                    <label for="password"><i class="bi bi-lock"></i> Password</label>
+                           placeholder="{{ t.login_password }}" required>
+                    <label for="password"><i class="bi bi-lock"></i> {{ t.login_password }}</label>
                     <span class="password-toggle" onclick="togglePassword()">
                         <i class="bi bi-eye" id="toggleIcon"></i>
                     </span>
                 </div>
 
                 <div class="session-select">
-                    <label>Session duration</label>
+                    <label>{{ t.login_session_duration }}</label>
                     <div class="session-options">
                         <div class="session-option">
                             <input type="radio" id="session_24h" name="remember_days" value="1" checked>
-                            <label for="session_24h">24 hours</label>
+                            <label for="session_24h">{{ t.login_24h }}</label>
                         </div>
                         <div class="session-option">
                             <input type="radio" id="session_7d" name="remember_days" value="7">
-                            <label for="session_7d">7 days</label>
+                            <label for="session_7d">{{ t.login_7d }}</label>
                         </div>
                         <div class="session-option">
                             <input type="radio" id="session_30d" name="remember_days" value="30">
-                            <label for="session_30d">30 days</label>
+                            <label for="session_30d">{{ t.login_30d }}</label>
                         </div>
                         <div class="session-option">
                             <input type="radio" id="session_365d" name="remember_days" value="365">
-                            <label for="session_365d">1 year</label>
+                            <label for="session_365d">{{ t.login_365d }}</label>
                         </div>
                     </div>
                 </div>
 
                 <button type="submit" class="btn btn-login">
-                    <i class="bi bi-box-arrow-in-right"></i> Sign in
+                    <i class="bi bi-box-arrow-in-right"></i> {{ t.login_submit }}
                 </button>
             </form>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function togglePassword() {
             const passwordInput = document.getElementById('password');
