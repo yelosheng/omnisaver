@@ -1,7 +1,6 @@
 {
   "lang_en": "English",
   "lang_zh_CN": "中文",
-
   "nav_status": "状态",
   "nav_queue": "队列",
   "nav_saved": "已保存",
@@ -17,7 +16,6 @@
   "nav_queue_idle": "空闲",
   "nav_queue_processing": "处理中",
   "nav_language": "语言",
-
   "login_tagline": "登录以继续",
   "login_username": "用户名",
   "login_password": "密码",
@@ -27,7 +25,6 @@
   "login_30d": "30 天",
   "login_365d": "1 年",
   "login_submit": "登录",
-
   "index_title": "添加 URL",
   "index_url_label": "URL",
   "index_url_placeholder": "在此粘贴支持的 URL...",
@@ -48,7 +45,6 @@
   "index_feature_5": "全文搜索所有已保存内容",
   "index_feature_6": "智能队列，自动重试",
   "index_url_formats": "支持的 URL 格式：",
-
   "tasks_title": "任务队列",
   "tasks_filter_all": "全部",
   "tasks_filter_pending": "等待中",
@@ -69,7 +65,6 @@
   "tasks_error_title": "错误",
   "tasks_copy": "复制",
   "tasks_close": "关闭",
-
   "saved_title": "已保存内容",
   "saved_platform": "平台",
   "saved_loading": "加载中...",
@@ -80,7 +75,6 @@
   "saved_platform_kuaishou": "快手",
   "saved_platform_zhihu": "知乎",
   "saved_platform_webpage": "网页",
-
   "search_title": "搜索",
   "search_placeholder": "搜索内容或作者...",
   "search_btn": "搜索",
@@ -96,7 +90,6 @@
   "search_platform_kuaishou": "快手",
   "search_platform_zhihu": "知乎",
   "search_platform_webpage": "网页",
-
   "debug_title": "系统调试",
   "debug_refresh": "刷新",
   "debug_force_start": "强制启动队列",
@@ -104,31 +97,27 @@
   "debug_live_logs": "实时日志",
   "debug_disconnected": "已断开",
   "debug_entries": "条",
-  "debug_start_stream": "开始推流",
-  "debug_stop_stream": "停止推流",
+  "debug_start_stream": "开始日志流",
+  "debug_stop_stream": "停止日志流",
   "debug_test": "测试",
   "debug_clear": "清空",
   "debug_copy_all": "复制全部",
   "debug_download_txt": "下载 .txt",
-
   "help_title": "Tampermonkey 脚本",
   "help_installation": "安装",
   "help_install_btn": "安装脚本",
   "help_supported_sites": "支持的网站",
-
   "telegram_title": "Telegram 机器人",
   "telegram_bot_status": "机器人状态",
   "telegram_refresh": "刷新",
   "telegram_bot_token": "Bot Token",
   "telegram_loading": "加载中...",
-
   "password_title": "修改密码",
   "password_current": "当前密码",
   "password_new": "新密码",
   "password_confirm": "确认新密码",
   "password_submit": "更新密码",
   "password_cancel": "取消",
-
   "settings_title": "设置",
   "settings_api_key": "API Key",
   "settings_api_key_desc": "用于外部工具（Tampermonkey、手机 App 等）调用 <code>POST /api/submit</code>。设置后所有外部请求必须携带此 Key。未设置时接口无鉴权保护。",
@@ -141,7 +130,7 @@
   "settings_revoke": "撤销",
   "settings_qr_title": "手机 App 扫码配置",
   "settings_qr_desc": "使用手机 App 的扫码入口扫描，自动完成服务器地址和 API Key 配置。",
-  "settings_qr_unavailable": "二维码仅在生成 Key 时显示。如需扫码配置手机 App，请点击\u201c重新生成\u201d。",
+  "settings_qr_unavailable": "二维码仅在生成 Key 时显示。如需扫码配置手机 App，请点击“重新生成”。",
   "settings_qr_footer": "二维码包含：服务器地址 + API Key",
   "settings_mobile_app": "手机 App",
   "settings_mobile_coming": "OmniSaver 手机客户端正在开发中，将支持：",
@@ -160,7 +149,23 @@
   "settings_language_desc": "选择网页界面的显示语言。",
   "settings_save": "保存",
   "settings_loading": "加载中...",
-
+  "settings_date_folders": "按日期归档",
+  "settings_date_folders_desc": "将已保存内容整理到 YYYY-MM-DD 子文件夹",
+  "settings_playwright_headless": "Playwright 无头模式",
+  "settings_playwright_headless_desc": "在后台运行浏览器（无可见窗口）",
+  "settings_youtube_api_key": "YouTube Data API Key",
+  "settings_youtube_api_key_desc": "用于获取已保存 YouTube 视频的频道头像。在 console.cloud.google.com 免费申请 → 启用 \"YouTube Data API v3\" → 凭据 → API 密钥。",
+  "settings_twitter_cookie": "Twitter / X Cookie (xreach)",
+  "settings_twitter_cookie_desc": "通过 xreach 实现已登录抓取——可访问更多内容、避免登录墙。在已登录 x.com 的状态下，用 Cookie-Editor（Chrome 扩展）导出 JSON。建议使用小号，降低风险。",
+  "settings_xhs_cookie": "小红书 Cookie 更新",
+  "settings_xhs_cookie_desc": "当小红书保存开始失败时，在这里更新 Cookie。在已登录 xiaohongshu.com 的状态下，用 Cookie-Editor（Chrome 扩展）导出 JSON。",
+  "settings_reddit_cookie": "Reddit Cookie",
+  "settings_reddit_cookie_desc": "和小红书一样，直接保存 Cookie-Editor 导出的 JSON 到 Agent Reach 目录。请在已登录 reddit.com 的状态下导出全部 cookies。",
+  "settings_zhihu_cookie": "知乎 Cookie",
+  "settings_zhihu_cookie_desc": "用于绕过知乎的登录墙和反爬机制。在已登录 zhihu.com 的状态下，用 Cookie-Editor 导出全部 cookies 并粘贴 JSON。",
+  "settings_cookie_json_label": "Cookie JSON",
+  "settings_save_cookies_btn": "保存 Cookies",
+  "settings_save_cookie_btn": "保存 Cookie",
   "tweet_article_badge": "文章",
   "tweet_view_original": "查看原文",
   "tweet_download": "下载"
