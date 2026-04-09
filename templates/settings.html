@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Settings - OmniSaver{% endblock %}
+{% block title %}{{ t.settings_title }} - OmniSaver{% endblock %}
 
 {% block styles %}
 <script src="/static/qrcode.min.js"></script>
@@ -9,70 +9,66 @@
 {% block content %}
 <div class="row">
     <div class="col-lg-7 mx-auto">
-        <h2 class="mb-4"><i class="bi bi-gear"></i> Settings</h2>
+        <h2 class="mb-4"><i class="bi bi-gear"></i> {{ t.settings_title }}</h2>
 
         <!-- API Key -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-key"></i> API Key</h5>
+                <h5 class="mb-0"><i class="bi bi-key"></i> {{ t.settings_api_key }}</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-3">
-                    用于外部工具（Tampermonkey、手机 App 等）调用
-                    <code>POST /api/submit</code>。设置后所有外部请求必须携带此 Key。
-                    未设置时接口无鉴权保护。
-                </p>
+                <p class="text-muted small mb-3">{{ t.settings_api_key_desc | safe }}</p>
                 <div id="api-key-no-key" style="display:none;">
                     <div class="alert alert-warning py-2 mb-3">
                         <i class="bi bi-exclamation-triangle"></i>
-                        当前无鉴权保护，任何人可访问提交接口
+                        {{ t.settings_no_key_warning }}
                     </div>
                     <button class="btn btn-primary" onclick="generateApiKey()">
-                        <i class="bi bi-plus-circle"></i> 生成 API Key
+                        <i class="bi bi-plus-circle"></i> {{ t.settings_generate_key }}
                     </button>
                 </div>
                 <div id="api-key-has-key" style="display:none;">
                     <div class="mb-3">
-                        <label class="form-label"><strong>当前 Key</strong></label>
+                        <label class="form-label"><strong>{{ t.settings_current_key }}</strong></label>
                         <div class="input-group" style="max-width:520px;">
                             <input type="password" class="form-control font-monospace"
                                    id="api-key-display" readonly>
                             <button class="btn btn-outline-secondary" type="button"
                                     onclick="toggleApiKeyVisibility()" id="api-key-toggle-btn"
-                                    title="显示/隐藏">
+                                    title="{{ t.settings_toggle_visibility }}">
                                 <i class="bi bi-eye" id="api-key-eye-icon"></i>
                             </button>
                             <button class="btn btn-outline-secondary" type="button"
-                                    onclick="copyApiKey()" title="复制">
+                                    onclick="copyApiKey()" title="{{ t.settings_copy }}">
                                 <i class="bi bi-clipboard"></i>
                             </button>
                         </div>
                     </div>
                     <div class="d-flex gap-2 mb-4">
                         <button class="btn btn-warning" onclick="generateApiKey()">
-                            <i class="bi bi-arrow-clockwise"></i> 重新生成
+                            <i class="bi bi-arrow-clockwise"></i> {{ t.settings_regenerate }}
                         </button>
                         <button class="btn btn-outline-danger" onclick="revokeApiKey()">
-                            <i class="bi bi-x-circle"></i> 撤销
+                            <i class="bi bi-x-circle"></i> {{ t.settings_revoke }}
                         </button>
                     </div>
 
                     <!-- QR Code section -->
                     <div id="api-key-qr-section">
                         <hr class="my-3">
-                        <label class="form-label"><strong><i class="bi bi-qr-code"></i> 手机 App 扫码配置</strong></label>
+                        <label class="form-label"><strong><i class="bi bi-qr-code"></i> {{ t.settings_qr_title }}</strong></label>
                         <!-- QR available (key just generated this session) -->
                         <div id="api-key-qr-available" style="display:none;">
-                            <p class="text-muted small mb-2">使用手机 App 的扫码入口扫描，自动完成服务器地址和 API Key 配置。</p>
+                            <p class="text-muted small mb-2">{{ t.settings_qr_desc }}</p>
                             <div id="api-key-qr-canvas" class="mb-2" style="display:inline-block;border:1px solid #dee2e6;border-radius:8px;padding:8px;background:#fff;">
                             </div>
-                            <div class="text-muted small">二维码包含：服务器地址 + API Key</div>
+                            <div class="text-muted small">{{ t.settings_qr_footer }}</div>
                         </div>
                         <!-- QR not available (page reloaded, full key unknown) -->
                         <div id="api-key-qr-unavailable" style="display:none;">
                             <div class="alert alert-secondary py-2 d-flex align-items-center gap-2" style="max-width:420px;">
                                 <i class="bi bi-info-circle flex-shrink-0"></i>
-                                <span class="small">二维码仅在生成 Key 时显示。如需扫码配置手机 App，请点击"重新生成"。</span>
+                                <span class="small">{{ t.settings_qr_unavailable }}</span>
                             </div>
                         </div>
                     </div>
@@ -84,23 +80,23 @@
         <!-- Mobile App -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-phone"></i> 手机 App</h5>
+                <h5 class="mb-0"><i class="bi bi-phone"></i> {{ t.settings_mobile_app }}</h5>
             </div>
             <div class="card-body">
                 <div class="d-flex align-items-start gap-4 flex-wrap">
                     <div style="flex:1;min-width:200px;">
-                        <p class="mb-2">OmniSaver 手机客户端正在开发中，将支持：</p>
+                        <p class="mb-2">{{ t.settings_mobile_coming }}</p>
                         <ul class="text-muted small mb-3">
-                            <li>一键分享任意 App 的内容到 OmniSaver</li>
-                            <li>扫码自动完成服务器配置</li>
-                            <li>本地浏览已保存的内容</li>
+                            <li>{{ t.settings_mobile_feature_1 }}</li>
+                            <li>{{ t.settings_mobile_feature_2 }}</li>
+                            <li>{{ t.settings_mobile_feature_3 }}</li>
                         </ul>
                         <div class="d-flex gap-2 flex-wrap">
                             <span class="badge bg-secondary py-2 px-3" style="font-size:0.85rem;">
-                                <i class="bi bi-apple me-1"></i> App Store — 即将上线
+                                <i class="bi bi-apple me-1"></i> {{ t.settings_appstore }}
                             </span>
                             <span class="badge bg-secondary py-2 px-3" style="font-size:0.85rem;">
-                                <i class="bi bi-google-play me-1"></i> Google Play — 即将上线
+                                <i class="bi bi-google-play me-1"></i> {{ t.settings_googleplay }}
                             </span>
                         </div>
                     </div>
@@ -108,7 +104,7 @@
                         <div style="width:100px;height:100px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">
                             <i class="bi bi-phone" style="font-size:2.5rem;color:#aaa;"></i>
                         </div>
-                        <div class="small">敬请期待</div>
+                        <div class="small">{{ t.settings_mobile_soon }}</div>
                     </div>
                 </div>
             </div>
@@ -117,26 +113,26 @@
         <!-- System Configuration -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-sliders"></i> System Configuration</h5>
+                <h5 class="mb-0"><i class="bi bi-sliders"></i> {{ t.settings_system_config }}</h5>
             </div>
             <div class="card-body">
                 <div id="config-loading" class="text-center py-2">
                     <div class="spinner-border spinner-border-sm" role="status"></div>
-                    <span class="ms-2">Loading...</span>
+                    <span class="ms-2">{{ t.settings_loading }}</span>
                 </div>
                 <div id="config-form" style="display:none;">
                     <div class="mb-3">
-                        <label class="form-label"><strong>Save Path</strong></label>
+                        <label class="form-label"><strong>{{ t.settings_save_path }}</strong></label>
                         <input type="text" class="form-control font-monospace" id="cfg-save-path" placeholder="/mnt/nas/saved_tweets">
-                        <div class="text-muted small mt-1">Base directory where all downloaded content is stored</div>
+                        <div class="text-muted small mt-1">{{ t.settings_save_path_desc }}</div>
                     </div>
                     <div class="row g-3 mb-3">
                         <div class="col-sm-6">
-                            <label class="form-label"><strong>Max Retries</strong></label>
+                            <label class="form-label"><strong>{{ t.settings_max_retries }}</strong></label>
                             <input type="number" class="form-control" id="cfg-max-retries" min="0" max="20">
                         </div>
                         <div class="col-sm-6">
-                            <label class="form-label"><strong>Timeout (seconds)</strong></label>
+                            <label class="form-label"><strong>{{ t.settings_timeout }}</strong></label>
                             <input type="number" class="form-control" id="cfg-timeout" min="5" max="300">
                         </div>
                     </div>
@@ -144,21 +140,21 @@
                         <div class="col-sm-6">
                             <div class="form-check form-switch mt-2">
                                 <input class="form-check-input" type="checkbox" id="cfg-date-folders" style="width:3em;height:1.5em;">
-                                <label class="form-check-label ms-2" for="cfg-date-folders"><strong>Date Folders</strong></label>
+                                <label class="form-check-label ms-2" for="cfg-date-folders"><strong>{{ t.settings_date_folders }}</strong></label>
                             </div>
-                            <div class="text-muted small mt-1">Organise saved content into YYYY-MM-DD subfolders</div>
+                            <div class="text-muted small mt-1">{{ t.settings_date_folders_desc }}</div>
                         </div>
                         <div class="col-sm-6">
                             <div class="form-check form-switch mt-2">
                                 <input class="form-check-input" type="checkbox" id="cfg-headless" style="width:3em;height:1.5em;">
-                                <label class="form-check-label ms-2" for="cfg-headless"><strong>Playwright Headless</strong></label>
+                                <label class="form-check-label ms-2" for="cfg-headless"><strong>{{ t.settings_playwright_headless }}</strong></label>
                             </div>
-                            <div class="text-muted small mt-1">Run browser in background (no visible window)</div>
+                            <div class="text-muted small mt-1">{{ t.settings_playwright_headless_desc }}</div>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <button class="btn btn-primary" onclick="saveConfig()">
-                            <i class="bi bi-check-lg"></i> Save
+                            <i class="bi bi-check-lg"></i> {{ t.settings_save }}
                         </button>
                         <span id="cfg-result" style="display:none;"></span>
                     </div>
@@ -171,16 +167,16 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#FF0000" class="me-2" style="vertical-align:-2px"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 0 0 .5 6.19C0 8.04 0 12 0 12s0 3.96.5 5.81a3.02 3.02 0 0 0 2.12 2.14C4.46 20.5 12 20.5 12 20.5s7.54 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14C24 15.96 24 12 24 12s0-3.96-.5-5.81zM9.75 15.5v-7l6.5 3.5-6.5 3.5z"/></svg>
-                    YouTube Data API Key
+                    {{ t.settings_youtube_api_key }}
                 </h5>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-3">Used to fetch channel avatars for saved YouTube videos. Get a free key at <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> → Enable "YouTube Data API v3" → Credentials → API Key.</p>
+                <p class="text-muted small mb-3">{{ t.settings_youtube_api_key_desc }}</p>
                 <div class="d-flex gap-2" style="max-width:480px;">
                     <input type="password" class="form-control font-monospace" id="yt-api-key"
                            value="{{ youtube_api_key }}" placeholder="AIza...">
                     <button class="btn btn-primary" onclick="saveYouTubeKey()">
-                        <i class="bi bi-check-lg"></i> Save
+                        <i class="bi bi-check-lg"></i> {{ t.settings_save }}
                     </button>
                 </div>
                 <div id="yt-key-result" class="mt-2" style="display:none;"></div>
@@ -192,20 +188,20 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-2" style="vertical-align:-2px"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.261 5.638 5.903-5.638zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                    Twitter / X Cookie (xreach)
+                    {{ t.settings_twitter_cookie }}
                 </h5>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-2">Enables logged-in scraping via xreach — access more content and avoid login walls. Export cookies from <a href="https://cookie-editor.cgagnier.ca/" target="_blank">Cookie-Editor</a> (Chrome extension) as JSON while logged in to x.com. Use a secondary account to reduce risk.</p>
+                <p class="text-muted small mb-2">{{ t.settings_twitter_cookie_desc }}</p>
                 <div id="twitter-cookie-status" class="mb-3"></div>
                 <div class="mb-3">
-                    <label class="form-label"><strong>Cookie JSON</strong></label>
+                    <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
                     <textarea class="form-control font-monospace" id="twitter-cookie-json" rows="5"
                               placeholder='Paste Cookie-Editor JSON export here...' style="font-size:0.8rem;"></textarea>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary" onclick="saveTwitterCookies()">
-                        <i class="bi bi-check-lg"></i> Save Cookies
+                        <i class="bi bi-check-lg"></i> {{ t.settings_save_cookies_btn }}
                     </button>
                 </div>
                 <div id="twitter-cookie-result" class="mt-2" style="display:none;"></div>
@@ -217,20 +213,20 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <img src="/static/xhs.ico" style="width:18px;height:18px;object-fit:contain;vertical-align:-2px;" class="me-2">
-                    XiaoHongShu Cookie Refresh
+                    {{ t.settings_xhs_cookie }}
                 </h5>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-2">When XHS saves start failing, refresh your cookies here. Export cookies from <a href="https://cookie-editor.cgagnier.ca/" target="_blank">Cookie-Editor</a> (Chrome extension) as JSON while logged in to xiaohongshu.com.</p>
+                <p class="text-muted small mb-2">{{ t.settings_xhs_cookie_desc }}</p>
                 <div id="xhs-cookie-status" class="mb-3"></div>
                 <div class="mb-3">
-                    <label class="form-label"><strong>Cookie JSON</strong></label>
+                    <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
                     <textarea class="form-control font-monospace" id="xhs-cookie-json" rows="6"
                               placeholder='Paste Cookie-Editor JSON export here...' style="font-size:0.8rem;"></textarea>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary" onclick="saveXhsCookies()">
-                        <i class="bi bi-check-lg"></i> Save Cookies
+                        <i class="bi bi-check-lg"></i> {{ t.settings_save_cookies_btn }}
                     </button>
                 </div>
                 <div id="xhs-cookie-result" class="mt-2" style="display:none;"></div>
@@ -242,20 +238,20 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="18" height="18" viewBox="0 0 216 216" class="me-2" style="vertical-align:-2px;"><defs><radialGradient id="settings-reddit-grad-1" cx="169.75" cy="92.19" r="50.98" fx="169.75" fy="92.19" gradientTransform="matrix(1 0 0 .87 0 11.64)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#feffff"/><stop offset=".4" stop-color="#feffff"/><stop offset=".51" stop-color="#f9fcfc"/><stop offset=".62" stop-color="#edf3f5"/><stop offset=".7" stop-color="#dee9ec"/><stop offset=".72" stop-color="#d8e4e8"/><stop offset=".76" stop-color="#ccd8df"/><stop offset=".8" stop-color="#c8d5dd"/><stop offset=".83" stop-color="#ccd6de"/><stop offset=".85" stop-color="#d8dbe2"/><stop offset=".88" stop-color="#ede3e9"/><stop offset=".9" stop-color="#ffebef"/></radialGradient><radialGradient xlink:href="#settings-reddit-grad-1" id="settings-reddit-grad-2" cx="47.31" r="50.98" fx="47.31"/><radialGradient xlink:href="#settings-reddit-grad-1" id="settings-reddit-grad-3" cx="109.61" cy="85.59" r="153.78" fx="109.61" fy="85.59" gradientTransform="matrix(1 0 0 .7 0 25.56)"/><radialGradient id="settings-reddit-grad-4" cx="-6.01" cy="64.68" r="12.85" fx="-6.01" fy="64.68" gradientTransform="matrix(1.07 0 0 1.55 81.08 27.26)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f60"/><stop offset=".5" stop-color="#ff4500"/><stop offset=".7" stop-color="#fc4301"/><stop offset=".82" stop-color="#f43f07"/><stop offset=".92" stop-color="#e53812"/><stop offset="1" stop-color="#d4301f"/></radialGradient><radialGradient xlink:href="#settings-reddit-grad-4" id="settings-reddit-grad-5" cx="-73.55" cy="64.68" r="12.85" fx="-73.55" fy="64.68" gradientTransform="matrix(-1.07 0 0 1.55 62.87 27.26)"/><radialGradient id="settings-reddit-grad-6" cx="107.93" cy="166.96" r="45.3" fx="107.93" fy="166.96" gradientTransform="matrix(1 0 0 .66 0 57.4)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#172e35"/><stop offset=".29" stop-color="#0e1c21"/><stop offset=".73" stop-color="#030708"/><stop offset="1"/></radialGradient><radialGradient xlink:href="#settings-reddit-grad-1" id="settings-reddit-grad-7" cx="147.88" cy="32.94" r="39.77" fx="147.88" fy="32.94" gradientTransform="matrix(1 0 0 .98 0 .54)"/><radialGradient id="settings-reddit-grad-8" cx="131.31" cy="73.08" r="32.6" fx="131.31" fy="73.08" gradientUnits="userSpaceOnUse"><stop offset=".48" stop-color="#7a9299"/><stop offset=".67" stop-color="#172e35"/><stop offset=".75"/><stop offset=".82" stop-color="#172e35"/></radialGradient></defs><path fill="#ff4500" stroke-width="0" d="M108 0C48.35 0 0 48.35 0 108c0 29.82 12.09 56.82 31.63 76.37l-20.57 20.57C6.98 209.02 9.87 216 15.64 216H108c59.65 0 108-48.35 108-108S167.65 0 108 0Z"/><circle cx="169.22" cy="106.98" r="25.22" fill="url(#settings-reddit-grad-1)" stroke-width="0"/><circle cx="46.78" cy="106.98" r="25.22" fill="url(#settings-reddit-grad-2)" stroke-width="0"/><ellipse cx="108.06" cy="128.64" fill="url(#settings-reddit-grad-3)" stroke-width="0" rx="72" ry="54"/><path fill="url(#settings-reddit-grad-4)" stroke-width="0" d="M86.78 123.48c-.42 9.08-6.49 12.38-13.56 12.38s-12.46-4.93-12.04-14.01c.42-9.08 6.49-15.02 13.56-15.02s12.46 7.58 12.04 16.66Z"/><path fill="url(#settings-reddit-grad-5)" stroke-width="0" d="M129.35 123.48c.42 9.08 6.49 12.38 13.56 12.38s12.46-4.93 12.04-14.01c-.42-9.08-6.49-15.02-13.56-15.02s-12.46 7.58-12.04 16.66Z"/><ellipse cx="79.63" cy="116.37" fill="#ffc49c" stroke-width="0" rx="2.8" ry="3.05"/><ellipse cx="146.21" cy="116.37" fill="#ffc49c" stroke-width="0" rx="2.8" ry="3.05"/><path fill="url(#settings-reddit-grad-6)" stroke-width="0" d="M108.06 142.92c-8.76 0-17.16.43-24.92 1.22-1.33.13-2.17 1.51-1.65 2.74 4.35 10.39 14.61 17.69 26.57 17.69s22.23-7.3 26.57-17.69c.52-1.23-.33-2.61-1.65-2.74-7.77-.79-16.16-1.22-24.92-1.22Z"/><circle cx="147.49" cy="49.43" r="17.87" fill="url(#settings-reddit-grad-7)" stroke-width="0"/><path fill="url(#settings-reddit-grad-8)" stroke-width="0" d="M107.8 76.92c-2.14 0-3.87-.89-3.87-2.27 0-16.01 13.03-29.04 29.04-29.04 2.14 0 3.87 1.73 3.87 3.87s-1.73 3.87-3.87 3.87c-11.74 0-21.29 9.55-21.29 21.29 0 1.38-1.73 2.27-3.87 2.27Z"/><path fill="#842123" stroke-width="0" d="M62.82 122.65c.39-8.56 6.08-14.16 12.69-14.16 6.26 0 11.1 6.39 11.28 14.33.17-8.88-5.13-15.99-12.05-15.99s-13.14 6.05-13.56 15.2c-.42 9.15 4.97 13.83 12.04 13.83h.52c-6.44-.16-11.3-4.79-10.91-13.2Zm90.48 0c-.39-8.56-6.08-14.16-12.69-14.16-6.26 0-11.1 6.39-11.28 14.33-.17-8.88 5.13-15.99 12.05-15.99 7.07 0 13.14 6.05 13.56 15.2.42 9.15-4.97 13.83-12.04 13.83h-.52c6.44-.16 11.3-4.79 10.91-13.2Z"/></svg>
-                    Reddit Cookie
+                    {{ t.settings_reddit_cookie }}
                 </h5>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-2">和小红书一样，直接保存 Cookie-Editor 导出的 JSON 到 Agent Reach 目录。请在已登录 <code>reddit.com</code> 的状态下导出全部 cookies。</p>
+                <p class="text-muted small mb-2">{{ t.settings_reddit_cookie_desc }}</p>
                 <div id="reddit-cookie-status" class="mb-3"></div>
                 <div class="mb-3">
-                    <label class="form-label"><strong>Cookie JSON</strong></label>
+                    <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
                     <textarea class="form-control font-monospace" id="reddit-cookie-json" rows="5"
                               placeholder='Paste Cookie-Editor JSON export here...' style="font-size:0.8rem;"></textarea>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary" onclick="saveRedditCookies()">
-                        <i class="bi bi-check-lg"></i> Save Cookies
+                        <i class="bi bi-check-lg"></i> {{ t.settings_save_cookies_btn }}
                     </button>
                 </div>
                 <div id="reddit-cookie-result" class="mt-2" style="display:none;"></div>
@@ -267,23 +263,43 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <svg viewBox="0 0 46 46" fill="none" style="width:18px;height:18px;vertical-align:-3px;" class="me-2" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.5 6.5C13 6.5 10.8 7.4 10 9C9.51 9.98001 8.55729 12.4482 7.62444 14.8649C7.03429 16.3938 6.45208 17.9021 6 19C6.10872 19 6.22531 19.0026 6.34865 19.0054C7.92699 19.041 10.6087 19.1014 12 14H15V23H9C7.34315 23 6 24.3431 6 26H14.5C14 31 12.5 35 6 41C14.5255 43.3682 17.2183 32.2763 17.9036 26H25V24C25 23.4477 24.5523 23 24 23H18.0848C18.1062 21.5957 18.0777 19.9283 18.0482 18.1954C18.0244 16.8051 18 15.3726 18 14H24.5V12.5C24.5 11.5 24 11 23.3125 11L13 11L14.5 6.5Z" fill="#1570E1"/><path d="M23.5 41L17 32L20 30C20 30 22 33 23.5 35C25 37 23.5 41 23.5 41Z" fill="#1570E1"/><path fill-rule="evenodd" clip-rule="evenodd" d="M39 14.5C39 14.2239 38.7761 14 38.5 14H30.5C30.2239 14 30 14.2239 30 14.5V33.5C30 33.7761 30.2239 34 30.5 34H32.1396C32.3548 34 32.5459 34.1377 32.614 34.3419L32.9271 35.2812C32.9656 35.3967 33.0974 35.4513 33.2063 35.3969L35.6833 34.1584C35.8916 34.0542 36.1212 34 36.3541 34H38.5C38.7761 34 39 33.7761 39 33.5V14.5ZM27.5 11C27.2239 11 27 11.2239 27 11.5V36.5C27 36.7761 27.2239 37 27.5 37H30.6615C30.8659 37 31.0498 37.1245 31.1257 37.3143L31.9193 39.2982C31.9627 39.4068 32.0898 39.4551 32.1944 39.4028L36.8944 37.0528C36.9639 37.0181 37.0404 37 37.118 37H41.5C41.7761 37 42 36.7761 42 36.5V11.5C42 11.2239 41.7761 11 41.5 11H27.5Z" fill="#1570E1"/></svg>
-                    Zhihu (知乎) Cookie
+                    {{ t.settings_zhihu_cookie }}
                 </h5>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-2">Required to bypass login walls and anti-bot for Zhihu answers and articles. Export all cookies from <a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Cookie-Editor</a> while logged in to zhihu.com, then paste the JSON here.</p>
+                <p class="text-muted small mb-2">{{ t.settings_zhihu_cookie_desc }}</p>
                 <div id="zhihu-cookie-status" class="mb-3"></div>
                 <div class="mb-3">
-                    <label class="form-label"><strong>Cookie-Editor JSON</strong></label>
+                    <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
                     <textarea class="form-control font-monospace" id="zhihu-cookie-json" rows="4"
                               placeholder="Paste Cookie-Editor JSON export here..."></textarea>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary" onclick="saveZhihuCookie()">
-                        <i class="bi bi-check-lg"></i> Save Cookie
+                        <i class="bi bi-check-lg"></i> {{ t.settings_save_cookie_btn }}
                     </button>
                 </div>
                 <div id="zhihu-cookie-result" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Language -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-translate"></i> {{ t.settings_language }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">{{ t.settings_language_desc }}</p>
+                <div class="d-flex gap-3">
+                    <a href="{{ url_for('set_language', lang='en', next='/settings') }}"
+                       class="btn {% if current_lang == 'en' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                        {{ t.lang_en }}
+                    </a>
+                    <a href="{{ url_for('set_language', lang='zh_CN', next='/settings') }}"
+                       class="btn {% if current_lang == 'zh_CN' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                        {{ t.lang_zh_CN }}
+                    </a>
+                </div>
             </div>
         </div>
 
