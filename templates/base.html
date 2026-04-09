@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ 'zh-CN' if current_lang == 'zh_CN' else 'en' }}">
 
 <head>
     <meta charset="UTF-8">
@@ -93,48 +93,48 @@
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('status_page') }}">
-                            <i class="bi bi-speedometer2"></i> Status
+                            <i class="bi bi-speedometer2"></i> {{ t.nav_status }}
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('tasks') }}">
-                            <i class="bi bi-list-task"></i> Queue
+                            <i class="bi bi-list-task"></i> {{ t.nav_queue }}
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('saved') }}">
-                            <i class="bi bi-archive"></i> Saved
+                            <i class="bi bi-archive"></i> {{ t.nav_saved }}
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('search') }}">
-                            <i class="bi bi-search"></i> Search
+                            <i class="bi bi-search"></i> {{ t.nav_search }}
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('debug') }}">
-                            <i class="bi bi-bug"></i> Debug
+                            <i class="bi bi-bug"></i> {{ t.nav_debug }}
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('help_page') }}">
-                            <i class="bi bi-puzzle"></i> Script
+                            <i class="bi bi-puzzle"></i> {{ t.nav_script }}
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('telegram_page') }}">
-                            <i class="bi bi-telegram"></i> Telegram
+                            <i class="bi bi-telegram"></i> {{ t.nav_telegram }}
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/settings">
-                            <i class="bi bi-gear"></i> Settings
+                            <i class="bi bi-gear"></i> {{ t.nav_settings }}
                         </a>
                     </li>
                 </ul>
                 <div class="d-flex align-items-center gap-3">
                     <form class="d-none d-lg-flex" onsubmit="navSearch(event)" style="margin:0;position:relative;">
-                        <input type="text" id="nav-search-input" class="form-control form-control-sm" placeholder="Search..."
+                        <input type="text" id="nav-search-input" class="form-control form-control-sm" placeholder="{{ t.nav_search_placeholder }}"
                                style="width:180px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff;padding-right:2rem;"
                                onfocus="this.style.background='rgba(255,255,255,0.25)'"
                                onblur="this.style.background='rgba(255,255,255,0.15)'">
@@ -149,6 +149,27 @@
                             <i id="processing-icon" class="bi bi-arrow-repeat" style="display:none"></i>
                         </small>
                     </div>
+                    <!-- Language switcher -->
+                    <div class="dropdown">
+                        <button class="btn btn-link text-light p-0" type="button" data-bs-toggle="dropdown"
+                                title="{{ t.nav_language }}" style="text-decoration:none;font-size:1.1rem;line-height:1;">
+                            🌐
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item {% if current_lang == 'en' %}active{% endif %}"
+                                   href="{{ url_for('set_language', lang='en', next=request.path) }}">
+                                    {{ t.lang_en }}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if current_lang == 'zh_CN' %}active{% endif %}"
+                                   href="{{ url_for('set_language', lang='zh_CN', next=request.path) }}">
+                                    {{ t.lang_zh_CN }}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                     <div class="dropdown">
                         <a class="nav-link dropdown-toggle text-light" href="#" role="button" id="userDropdown" data-bs-toggle="dropdown">
                             <i class="bi bi-person-circle"></i> {{ username }}
@@ -156,13 +177,13 @@
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('change_password') }}">
-                                    <i class="bi bi-key"></i> Change Password
+                                    <i class="bi bi-key"></i> {{ t.nav_change_password }}
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('logout') }}">
-                                    <i class="bi bi-box-arrow-right"></i> Logout
+                                    <i class="bi bi-box-arrow-right"></i> {{ t.nav_logout }}
                                 </a>
                             </li>
                         </ul>
@@ -181,7 +202,7 @@
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
         <div id="toast" class="toast" role="alert">
             <div class="toast-header">
-                <strong class="me-auto">Notifications</strong>
+                <strong class="me-auto">{{ t.nav_notifications }}</strong>
                 <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
             </div>
             <div class="toast-body" id="toast-body">
