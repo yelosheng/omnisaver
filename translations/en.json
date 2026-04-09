@@ -96,6 +96,8 @@
   "search_platform_kuaishou": "Kuaishou",
   "search_platform_zhihu": "Zhihu",
   "search_platform_webpage": "Webpage",
+  "search_clear_filters": "Clear Filters",
+  "search_empty_state": "Enter keywords to search",
 
   "debug_title": "System Debug",
   "debug_refresh": "Refresh",

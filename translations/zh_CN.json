@@ -90,6 +90,8 @@
   "search_platform_kuaishou": "快手",
   "search_platform_zhihu": "知乎",
   "search_platform_webpage": "网页",
+  "search_clear_filters": "清除筛选",
+  "search_empty_state": "输入关键词开始搜索",
   "debug_title": "系统调试",
   "debug_refresh": "刷新",
   "debug_force_start": "强制启动队列",
