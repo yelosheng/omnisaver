@@ -44,8 +44,7 @@ def _load_translations():
     for path in _glob.glob(os.path.join(translations_dir, '*.json')):
         lang = os.path.splitext(os.path.basename(path))[0]
         with open(path, encoding='utf-8') as f:
-            import json as _json
-            _TRANSLATIONS[lang] = _json.load(f)
+            _TRANSLATIONS[lang] = json.load(f)
 
 _load_translations()
 _SUPPORTED_LANGS = list(_TRANSLATIONS.keys())  # ['en', 'zh_CN']
@@ -316,10 +315,17 @@ def login():
 
 @app.route('/api/set-language')
 def set_language():
+    from urllib.parse import urlparse, urljoin
+    def _is_safe_url(target):
+        ref = urlparse(request.host_url)
+        test = urlparse(urljoin(request.host_url, target))
+        return test.scheme in ('http', 'https') and ref.netloc == test.netloc
     lang = request.args.get('lang', 'en')
     if lang in _SUPPORTED_LANGS:
         session['lang'] = lang
     next_url = request.args.get('next') or request.referrer or '/'
+    if not _is_safe_url(next_url):
+        next_url = '/'
     return redirect(next_url)
 
 @app.route('/logout')
