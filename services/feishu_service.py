@@ -97,7 +97,8 @@ class FeishuService:
         post_dir.mkdir(parents=True, exist_ok=True)
 
         # Download images, replace src with local paths
-        content_html, image_count = self._download_images(content_html, post_dir, url)
+        captured_images = result.get('captured_images', {})
+        content_html, image_count = self._download_images(content_html, post_dir, url, captured_images)
 
         # Save raw HTML
         (post_dir / 'content.html').write_text(content_html, encoding='utf-8')
@@ -146,7 +147,11 @@ class FeishuService:
     # ------------------------------------------------------------------
 
     async def _async_fetch(self, url: str) -> dict | None:
-        """Render page with Playwright, return {title, content_html, author}."""
+        """Render page with Playwright, return {title, content_html, captured_images, author}.
+
+        captured_images: dict mapping original img src -> bytes (fetched with browser credentials).
+        content_html: pre-processed HTML with Feishu code blocks converted to standard <pre><code>.
+        """
         try:
             from playwright.async_api import async_playwright
         except ImportError:
@@ -184,7 +189,7 @@ class FeishuService:
                     except Exception:
                         continue
 
-                # Scroll to trigger lazy images
+                # Scroll page to trigger lazy-loaded images and blocks
                 await page.evaluate("""
                     async () => {
                         await new Promise(resolve => {
@@ -202,16 +207,68 @@ class FeishuService:
                         });
                     }
                 """)
-                await page.wait_for_timeout(1500)
+                await page.wait_for_timeout(1000)
+
+                # Scroll each code block's inner container to force virtual list
+                # to render all lines (Feishu virtualizes long code blocks)
+                await page.evaluate("""
+                    async () => {
+                        const zones = document.querySelectorAll('.code-block-zone-container');
+                        for (const zone of zones) {
+                            // The scroll container is typically the parent (.code-block-content)
+                            const scrollEl = zone.parentElement || zone;
+                            const totalH = zone.scrollHeight;
+                            for (let top = 0; top <= totalH; top += 300) {
+                                scrollEl.scrollTop = top;
+                                await new Promise(r => setTimeout(r, 80));
+                            }
+                            scrollEl.scrollTop = 0;
+                            await new Promise(r => setTimeout(r, 150));
+                        }
+                    }
+                """)
+                await page.wait_for_timeout(500)
 
                 title = await page.title()
                 # Strip common Feishu title suffixes like " - Feishu Wiki"
                 title = re.sub(r'\s*[-|–]\s*(飞书|Feishu|Lark).*$', '', title, flags=re.IGNORECASE).strip()
 
-                # Extract main content container
+                # Pre-process DOM: convert Feishu-specific structures to standard HTML,
+                # then extract the content container.
                 content_html = await page.evaluate("""
                     () => {
-                        // Try Feishu-specific selectors in order of preference
+                        // 1. Convert Feishu code blocks to standard <pre><code>
+                        document.querySelectorAll('[data-block-type="code"]').forEach(block => {
+                            const langBtn = block.querySelector('.code-block-header-btn span');
+                            const lang = langBtn ? langBtn.innerText.trim().toLowerCase() : '';
+                            const lines = block.querySelectorAll('.code-line-wrapper');
+                            const codeText = Array.from(lines).map(l => l.innerText).join('\\n');
+                            const pre = document.createElement('pre');
+                            const code = document.createElement('code');
+                            if (lang && lang !== 'plaintext' && lang !== 'text') {
+                                code.className = 'language-' + lang;
+                            }
+                            code.textContent = codeText;
+                            pre.appendChild(code);
+                            block.replaceWith(pre);
+                        });
+
+                        // 2. Convert Feishu heading blocks to standard <h1>-<h6>
+                        const headingMap = {
+                            heading1: 'H1', heading2: 'H2', heading3: 'H3',
+                            heading4: 'H4', heading5: 'H5', heading6: 'H6',
+                        };
+                        Object.entries(headingMap).forEach(([type, tag]) => {
+                            document.querySelectorAll('[data-block-type="' + type + '"]').forEach(block => {
+                                const text = block.innerText.trim();
+                                if (!text) return;
+                                const h = document.createElement(tag);
+                                h.textContent = text;
+                                block.replaceWith(h);
+                            });
+                        });
+
+                        // 3. Find and return the main content container
                         const selectors = [
                             '.page-block-children',
                             '.docs-reader-content',
@@ -230,7 +287,39 @@ class FeishuService:
                     }
                 """)
 
-                return {'title': title, 'content_html': content_html or '', 'author': ''}
+                # Fetch all images using browser credentials (Feishu CDN requires session cookies)
+                import base64
+                img_srcs = await page.evaluate("""
+                    () => [...new Set(
+                        Array.from(document.querySelectorAll('img[src^="http"]'))
+                            .map(img => img.src)
+                    )]
+                """)
+                captured_images: dict[str, bytes] = {}
+                for src in img_srcs:
+                    try:
+                        b64 = await page.evaluate("""
+                            async (src) => {
+                                const resp = await fetch(src, {credentials: 'include'});
+                                if (!resp.ok) return null;
+                                const buf = await resp.arrayBuffer();
+                                const uint8 = new Uint8Array(buf);
+                                let binary = '';
+                                uint8.forEach(b => binary += String.fromCharCode(b));
+                                return btoa(binary);
+                            }
+                        """, src)
+                        if b64:
+                            captured_images[src] = base64.b64decode(b64)
+                    except Exception as exc:
+                        warning(f'[FeishuService] Browser image fetch failed ({src[:60]}): {exc}')
+
+                return {
+                    'title': title,
+                    'content_html': content_html or '',
+                    'captured_images': captured_images,
+                    'author': '',
+                }
 
             except Exception as e:
                 warning(f'[FeishuService] Fetch error: {e}')
@@ -270,13 +359,21 @@ class FeishuService:
         lang = el.get('data-language', '') or el.get('data-lang', '')
         return lang.lower() if lang else ''
 
-    def _download_images(self, html: str, post_dir: Path, base_url: str) -> tuple[str, int]:
+    def _download_images(
+        self, html: str, post_dir: Path, base_url: str,
+        captured_images: dict[str, bytes] | None = None,
+    ) -> tuple[str, int]:
         """
-        Download all <img src="..."> images to post_dir/images/.
-        Replace original src with relative local path.
+        Save images to post_dir/images/ and replace src with local relative paths.
+
+        Uses browser-captured image bytes (with credentials) when available,
+        falling back to urllib for public images not captured by the browser.
         Returns (modified_html, image_count).
         """
         from bs4 import BeautifulSoup
+
+        if captured_images is None:
+            captured_images = {}
 
         soup = BeautifulSoup(html, 'html.parser')
         images_dir = post_dir / 'images'
@@ -290,19 +387,26 @@ class FeishuService:
                 src = urllib.parse.urljoin(base_url, src)
 
             ext = Path(urllib.parse.urlparse(src).path).suffix or '.jpg'
-            ext = ext[:5]  # guard against very long extensions
+            ext = ext[:5]
             img_hash = hashlib.md5(src.encode()).hexdigest()[:10]
             filename = f'img_{count:03d}_{img_hash}{ext}'
 
             try:
                 images_dir.mkdir(parents=True, exist_ok=True)
-                req = urllib.request.Request(src, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    (images_dir / filename).write_bytes(resp.read())
+
+                if src in captured_images:
+                    # Use browser-fetched bytes (includes session cookies — works for CDN images)
+                    (images_dir / filename).write_bytes(captured_images[src])
+                else:
+                    # Fallback: plain HTTP download for publicly accessible images
+                    req = urllib.request.Request(src, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        (images_dir / filename).write_bytes(resp.read())
+
                 img['src'] = f'images/{filename}'
                 img.attrs.pop('data-src', None)
                 count += 1
             except Exception as exc:
-                warning(f'[FeishuService] Image download failed ({src}): {exc}')
+                warning(f'[FeishuService] Image save failed ({src[:60]}): {exc}')
 
         return str(soup), count
