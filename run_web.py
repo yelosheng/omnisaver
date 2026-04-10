@@ -102,11 +102,14 @@ def main():
         if os.path.exists('config.ini'):
             _cfg.read('config.ini')
         _tg_token = _cfg.get('telegram', 'bot_token', fallback='').strip()
-        if _tg_token:
+        _tg_enabled = _cfg.get('telegram', 'enabled', fallback='true').strip().lower() != 'false'
+        if _tg_token and _tg_enabled:
             from services.telegram_bot import start_bot
             from app import _telegram_submit
             start_bot(_tg_token, _telegram_submit)
             print("Telegram bot started")
+        elif _tg_token and not _tg_enabled:
+            print("Telegram bot disabled (enable at /telegram)")
         else:
             print("Telegram bot not configured (add bot_token to config.ini [telegram])")
     except Exception as e:

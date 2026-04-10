@@ -292,16 +292,33 @@ class ZhihuService:
             context_kwargs['record_har_path'] = str(diagnostics_dir / f'{debug_slug}_{capture_mode}.har')
             context_kwargs['record_har_mode'] = 'full'
 
+        launch_args = [
+            '--disable-blink-features=AutomationControlled',
+            '--no-sandbox',
+            '--disable-dev-shm-usage',
+        ]
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=[
-                    '--disable-blink-features=AutomationControlled',
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                ]
-            )
-            context = await browser.new_context(**context_kwargs)
+            if include_cookies:
+                # Use a persistent browser profile so Zhihu can keep renewing cookies
+                # across sessions, avoiding frequent expiry.
+                data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
+                profile_dir = str(Path(data_dir) / 'zhihu_profile')
+                profile_is_new = not Path(profile_dir).exists()
+                context = await p.chromium.launch_persistent_context(
+                    profile_dir,
+                    headless=True,
+                    args=launch_args,
+                    **context_kwargs,
+                )
+                # Only inject cookies when creating the profile for the first time.
+                # On subsequent runs the profile already has up-to-date cookies saved
+                # by Zhihu's own JS during previous visits.
+                if profile_is_new and cookies:
+                    await context.add_cookies(cookies)
+            else:
+                browser = await p.chromium.launch(headless=True, args=launch_args)
+                context = await browser.new_context(**context_kwargs)
+
             if diagnostics_dir:
                 har_path = diagnostics_dir / f'{debug_slug}_{capture_mode}.har'
                 await context.tracing.start(screenshots=True, snapshots=True)
@@ -313,9 +330,6 @@ class ZhihuService:
                 Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
                 Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh', 'en'] });
             """)
-
-            if cookies:
-                await context.add_cookies(cookies)
 
             page = await context.new_page()
             await page.set_extra_http_headers({
@@ -448,8 +462,9 @@ class ZhihuService:
                     warning(f"Zhihu debug capture finalization failed: {capture_error}")
 
             await context.close()
-            await browser.close()
-            
+            if not include_cookies:
+                await browser.close()
+
             if not data.get('html'):
                 raise ZhihuServiceError("Could not extract Zhihu content. The page might require a valid login cookie, or the structure has changed.")
 

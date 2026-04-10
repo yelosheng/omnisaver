@@ -2291,6 +2291,12 @@ def api_zhihu_cookie_post():
         cookie_file = os.path.join(DATA_DIR, 'zhihu_cookies.json')
         with open(cookie_file, 'w', encoding='utf-8') as f:
             json.dump(cookies, f, ensure_ascii=False, indent=2)
+        # Delete the persistent browser profile so the next run rebuilds it with
+        # the fresh cookies just provided.
+        profile_dir = os.path.join(DATA_DIR, 'zhihu_profile')
+        if os.path.exists(profile_dir):
+            import shutil as _shutil
+            _shutil.rmtree(profile_dir, ignore_errors=True)
         # Also save z_c0 to config for status display
         if config_manager:
             config_manager.set_config('zhihu', 'z_c0', z_c0)
@@ -2467,8 +2473,10 @@ def telegram_status():
     if os.path.exists('config.ini'):
         cfg.read('config.ini')
     token_configured = bool(cfg.get('telegram', 'bot_token', fallback='').strip())
+    enabled = cfg.get('telegram', 'enabled', fallback='true').strip().lower() != 'false'
     status = get_status()
     status['token_configured'] = token_configured
+    status['enabled'] = enabled
     return jsonify(status)
 
 
@@ -2494,6 +2502,35 @@ def telegram_config():
 
     start_bot(token, _telegram_submit)
     return jsonify({'success': True, 'message': 'Token saved and bot started'})
+
+
+@app.route('/api/telegram/toggle', methods=['POST'])
+@login_required
+def telegram_toggle():
+    """Enable or disable the Telegram bot."""
+    import configparser as cp
+    from services.telegram_bot import start_bot, stop_bot
+    data = request.get_json() or {}
+    enabled = bool(data.get('enabled', True))
+
+    cfg = cp.ConfigParser(interpolation=None)
+    if os.path.exists('config.ini'):
+        cfg.read('config.ini')
+    if 'telegram' not in cfg:
+        cfg['telegram'] = {}
+    cfg['telegram']['enabled'] = 'true' if enabled else 'false'
+    with open('config.ini', 'w') as f:
+        cfg.write(f)
+
+    token = cfg.get('telegram', 'bot_token', fallback='').strip()
+    if enabled and token:
+        start_bot(token, _telegram_submit)
+        return jsonify({'success': True, 'message': 'Bot enabled and started'})
+    elif not enabled:
+        stop_bot()
+        return jsonify({'success': True, 'message': 'Bot disabled and stopped'})
+    else:
+        return jsonify({'success': True, 'message': 'Bot enabled (no token configured)'})
 
 
 @app.route('/api/telegram/reset-owner', methods=['POST'])

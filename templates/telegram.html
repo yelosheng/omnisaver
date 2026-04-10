@@ -11,9 +11,16 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-activity"></i> {{ t.telegram_bot_status }}</h5>
-                <button class="btn btn-outline-secondary btn-sm" onclick="loadStatus()">
-                    <i class="bi bi-arrow-clockwise"></i> {{ t.telegram_refresh }}
-                </button>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="form-check form-switch mb-0" title="Enable / disable Telegram bot">
+                        <input class="form-check-input" type="checkbox" role="switch" id="bot-enabled-toggle"
+                               onchange="toggleBot(this.checked)" style="cursor:pointer">
+                        <label class="form-check-label small text-muted" for="bot-enabled-toggle">Enabled</label>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadStatus()">
+                        <i class="bi bi-arrow-clockwise"></i> {{ t.telegram_refresh }}
+                    </button>
+                </div>
             </div>
             <div class="card-body" id="status-body">
                 <div class="text-center py-3">
@@ -95,10 +102,17 @@
     }
 
     function renderStatus(data) {
+        // Sync the enabled toggle (without firing onchange)
+        const toggle = document.getElementById('bot-enabled-toggle');
+        toggle.checked = data.enabled !== false;
+
         let badge, text;
         if (!data.token_configured) {
             badge = '<span class="badge bg-secondary">Not Configured</span>';
             text = 'No bot token set.';
+        } else if (!data.enabled) {
+            badge = '<span class="badge bg-secondary">Disabled</span>';
+            text = 'Bot is disabled. Toggle the switch to enable it.';
         } else if (data.running) {
             badge = '<span class="badge bg-success">Running</span>';
             text = 'Bot is online and listening for messages.';
@@ -111,6 +125,21 @@
         }
         document.getElementById('status-body').innerHTML =
             `<div class="d-flex align-items-center gap-3">${badge}<span>${text}</span></div>`;
+    }
+
+    function toggleBot(enabled) {
+        fetch('/api/telegram/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        })
+            .then(r => r.json())
+            .then(() => setTimeout(loadStatus, 1500))
+            .catch(() => {
+                // Revert toggle on failure
+                document.getElementById('bot-enabled-toggle').checked = !enabled;
+                alert('Failed to toggle bot.');
+            });
     }
 
     function renderOwner(owner) {

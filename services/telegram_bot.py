@@ -28,6 +28,7 @@ OWNER_FILE = os.path.join(os.environ.get('DATA_DIR', os.path.dirname(os.path.dir
 _bot_thread: Optional[threading.Thread] = None
 _bot_running: bool = False
 _bot_error: Optional[str] = None
+_bot_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
 # ---------------------------------------------------------------------------
@@ -492,10 +493,8 @@ async def _post_init(application: Application) -> None:
             logger.warning(f"Could not set bot avatar: {e}")
 
 
-def _run_in_thread(token: str, submit_callback: Callable) -> None:
+async def _async_run(token: str, submit_callback: Callable) -> None:
     global _bot_running, _bot_error
-    _bot_running = True
-    _bot_error = None
     try:
         start_h, status_h, message_h = _make_handlers(submit_callback)
         application = Application.builder().token(token).post_init(_post_init).build()
@@ -504,13 +503,43 @@ def _run_in_thread(token: str, submit_callback: Callable) -> None:
         application.add_handler(
             MessageHandler((filters.TEXT | filters.CAPTION) & ~filters.COMMAND, message_h)
         )
-        # stop_signals=None required when running in a non-main thread
-        application.run_polling(stop_signals=None)
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(stop_signals=None)
+        logger.info("Telegram bot polling started")
+        # Run until stop_bot() sets _bot_running = False
+        while _bot_running:
+            await asyncio.sleep(1)
+        logger.info("Telegram bot stopping…")
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
     except Exception as e:
         logger.error(f"Telegram bot error: {e}")
         _bot_error = str(e)
     finally:
         _bot_running = False
+
+
+def _run_in_thread(token: str, submit_callback: Callable) -> None:
+    global _bot_running, _bot_error, _bot_loop
+    _bot_running = True
+    _bot_error = None
+    loop = asyncio.new_event_loop()
+    _bot_loop = loop
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_async_run(token, submit_callback))
+    except Exception as e:
+        logger.error(f"Telegram bot thread error: {e}")
+        _bot_error = str(e)
+    finally:
+        _bot_running = False
+        _bot_loop = None
+        try:
+            loop.close()
+        except Exception:
+            pass
 
 
 def start_bot(token: str, submit_callback: Callable) -> None:
@@ -527,3 +556,13 @@ def start_bot(token: str, submit_callback: Callable) -> None:
     )
     _bot_thread.start()
     logger.info("Telegram bot thread started")
+
+
+def stop_bot() -> None:
+    """Signal the running bot to stop polling."""
+    global _bot_running
+    if _bot_running:
+        _bot_running = False
+        logger.info("Telegram bot stop requested")
+    else:
+        logger.info("Telegram bot is not running, nothing to stop")
