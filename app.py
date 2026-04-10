@@ -32,6 +32,7 @@ from services.instagram_service import InstagramService, InstagramServiceError
 from services.zhihu_service import ZhihuService, ZhihuServiceError
 from services.pinterest_service import PinterestService, PinterestServiceError
 from services.reddit_service import RedditService, RedditServiceError
+from services.feishu_service import FeishuService
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
 import glob as _glob
@@ -416,6 +417,8 @@ def submit_url():
     elif reddit_extracted:
         url = reddit_extracted
         content_type = 'reddit'
+    elif FeishuService.is_valid_feishu_url(url):
+        content_type = 'feishu'
     elif YoutubeService.is_valid_youtube_url(url):
         content_type = 'youtube'
     elif ZhihuService.classify_zhihu_url(url):
@@ -1094,7 +1097,7 @@ def show_tweet(slug):
         )
 
     # XHS / WeChat articles: render content.md as HTML with local image paths
-    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'instagram', 'zhihu', 'pinterest', 'reddit') and not tweet_html:
+    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'instagram', 'zhihu', 'pinterest', 'reddit', 'feishu') and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
         if os.path.exists(content_md_file):
             try:
@@ -1202,7 +1205,7 @@ def show_tweet(slug):
 
     # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram', 'zhihu', 'pinterest', 'reddit') and tweet_html
+        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram', 'zhihu', 'pinterest', 'reddit', 'feishu') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
@@ -1228,7 +1231,8 @@ def show_tweet(slug):
                         'wechat': 'WeChat Article', 'youtube': 'YouTube Video', 'webpage': 'Webpage',
                         'douyin': 'Douyin/TikTok', 'weibo': 'Weibo Post', 'bilibili': 'Bilibili Video',
                         'kuaishou': 'Kuaishou Video', 'zhihu': 'Zhihu Post',
-                        'pinterest': 'Pinterest Pin', 'reddit': 'Reddit Post'}
+                        'pinterest': 'Pinterest Pin', 'reddit': 'Reddit Post',
+                        'feishu': '飞书文档'}
         page_title = _type_labels.get(content_type, 'Content')
 
     tweet_data = {
@@ -1916,6 +1920,8 @@ def api_submit():
             _ct = 'pinterest'
         elif RedditService.is_valid_reddit_url(url):
             _ct = 'reddit'
+        elif FeishuService.is_valid_feishu_url(url):
+            _ct = 'feishu'
         elif YoutubeService.is_valid_youtube_url(url):
             _ct = 'youtube'
         elif XHSService.is_valid_xhs_url(url):
