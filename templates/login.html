@@ -7,6 +7,12 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <style>
+        :root {
+            --accent: #7c5c3e;
+            --accent-hover: #6a4f35;
+            --accent-active: #5a4229;
+        }
+
         body {
             background-color: #f7f6f3;
             background-image: radial-gradient(circle, #e0ddd6 1px, transparent 1px);
@@ -64,14 +70,19 @@
         }
 
         .form-control:focus {
-            border-color: #7c5c3e;
+            border-color: var(--accent);
             box-shadow: none;
+        }
+
+        .form-check-input:checked {
+            background-color: var(--accent);
+            border-color: var(--accent);
         }
 
         .btn-login {
             width: 100%;
             padding: 14px;
-            background: #7c5c3e;
+            background: var(--accent);
             border: none;
             border-radius: 6px;
             color: white;
@@ -83,11 +94,11 @@
         }
 
         .btn-login:hover {
-            background: #6a4f35;
+            background: var(--accent-hover);
         }
 
         .btn-login:active {
-            background: #5a4229;
+            background: var(--accent-active);
         }
 
         .alert {
@@ -107,10 +118,60 @@
         }
 
         .password-toggle:hover {
-            color: #7c5c3e;
+            color: var(--accent);
         }
 
+        /* 色板 */
+        .color-picker {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .swatch {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            padding: 0;
+            transition: transform 0.15s;
+            outline: none;
+        }
+
+        .swatch:hover {
+            transform: scale(1.25);
+        }
+
+        .swatch.active {
+            outline: 2px solid #f7f6f3;
+            outline-offset: 1px;
+            box-shadow: 0 0 0 3px rgba(0,0,0,0.25);
+            transform: scale(1.15);
+        }
     </style>
+    <script>
+        // 在 CSS 加载前立即恢复颜色，避免闪烁
+        (function() {
+            var themes = {
+                brown:     ['#7c5c3e','#6a4f35','#5a4229'],
+                slate:     ['#4a6278','#3d5468','#304658'],
+                green:     ['#4a6741','#3d5836','#30472a'],
+                rose:      ['#8b5e6a','#77505a','#62424a'],
+                olive:     ['#6b7040','#5a5e36','#494c2b'],
+                indigo:    ['#5b5ea6','#4d508e','#3e4175'],
+                purple:    ['#7a5c78','#674e65','#544051'],
+                terracotta:['#a05c40','#8a4f37','#73412d'],
+            };
+            var saved = localStorage.getItem('omni-accent') || 'brown';
+            var t = themes[saved] || themes.brown;
+            document.documentElement.style.setProperty('--accent', t[0]);
+            document.documentElement.style.setProperty('--accent-hover', t[1]);
+            document.documentElement.style.setProperty('--accent-active', t[2]);
+        })();
+    </script>
 </head>
 <body>
 <!-- Language switcher -->
@@ -177,14 +238,55 @@
                 </button>
             </form>
         </div>
+
+        <!-- 色板选择器 -->
+        <div class="color-picker" id="colorPicker">
+            <button class="swatch" data-key="brown"      style="background:#7c5c3e" title="暖棕"></button>
+            <button class="swatch" data-key="terracotta" style="background:#a05c40" title="赤陶"></button>
+            <button class="swatch" data-key="rose"       style="background:#8b5e6a" title="玫瑰灰"></button>
+            <button class="swatch" data-key="purple"     style="background:#7a5c78" title="静紫"></button>
+            <button class="swatch" data-key="indigo"     style="background:#5b5ea6" title="靛蓝"></button>
+            <button class="swatch" data-key="slate"      style="background:#4a6278" title="石板蓝"></button>
+            <button class="swatch" data-key="green"      style="background:#4a6741" title="森绿"></button>
+            <button class="swatch" data-key="olive"      style="background:#6b7040" title="橄榄"></button>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function togglePassword() {
-            const passwordInput = document.getElementById('password');
-            const toggleIcon = document.getElementById('toggleIcon');
+        var themes = {
+            brown:     ['#7c5c3e','#6a4f35','#5a4229'],
+            slate:     ['#4a6278','#3d5468','#304658'],
+            green:     ['#4a6741','#3d5836','#30472a'],
+            rose:      ['#8b5e6a','#77505a','#62424a'],
+            olive:     ['#6b7040','#5a5e36','#494c2b'],
+            indigo:    ['#5b5ea6','#4d508e','#3e4175'],
+            purple:    ['#7a5c78','#674e65','#544051'],
+            terracotta:['#a05c40','#8a4f37','#73412d'],
+        };
 
+        function applyTheme(key) {
+            var t = themes[key];
+            if (!t) return;
+            document.documentElement.style.setProperty('--accent', t[0]);
+            document.documentElement.style.setProperty('--accent-hover', t[1]);
+            document.documentElement.style.setProperty('--accent-active', t[2]);
+            localStorage.setItem('omni-accent', key);
+            document.querySelectorAll('.swatch').forEach(function(s) {
+                s.classList.toggle('active', s.dataset.key === key);
+            });
+        }
+
+        // 初始化 active 状态
+        var current = localStorage.getItem('omni-accent') || 'brown';
+        document.querySelectorAll('.swatch').forEach(function(s) {
+            s.classList.toggle('active', s.dataset.key === current);
+            s.addEventListener('click', function() { applyTheme(this.dataset.key); });
+        });
+
+        function togglePassword() {
+            var passwordInput = document.getElementById('password');
+            var toggleIcon = document.getElementById('toggleIcon');
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
                 toggleIcon.className = 'bi bi-eye-slash';
