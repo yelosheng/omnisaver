@@ -68,54 +68,6 @@
             box-shadow: none;
         }
 
-        .session-select {
-            margin-bottom: 25px;
-        }
-
-        .session-select label {
-            color: #8a8278;
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        .session-options {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-
-        .session-option {
-            position: relative;
-        }
-
-        .session-option input[type="radio"] {
-            display: none;
-        }
-
-        .session-option label {
-            display: block;
-            padding: 12px;
-            border: 1px solid #d4cfc8;
-            border-radius: 6px;
-            text-align: center;
-            cursor: pointer;
-            transition: border-color 0.2s, background-color 0.2s, color 0.2s;
-            font-size: 14px;
-            color: #5a5248;
-        }
-
-        .session-option input[type="radio"]:checked + label {
-            background: #7c5c3e;
-            color: white;
-            border-color: #7c5c3e;
-        }
-
-        .session-option label:hover {
-            border-color: #7c5c3e;
-        }
-
         .btn-login {
             width: 100%;
             padding: 14px;
@@ -213,25 +165,10 @@
                     </span>
                 </div>
 
-                <div class="session-select">
-                    <label>{{ t.login_session_duration }}</label>
-                    <div class="session-options">
-                        <div class="session-option">
-                            <input type="radio" id="session_24h" name="remember_days" value="1" checked>
-                            <label for="session_24h">{{ t.login_24h }}</label>
-                        </div>
-                        <div class="session-option">
-                            <input type="radio" id="session_7d" name="remember_days" value="7">
-                            <label for="session_7d">{{ t.login_7d }}</label>
-                        </div>
-                        <div class="session-option">
-                            <input type="radio" id="session_30d" name="remember_days" value="30">
-                            <label for="session_30d">{{ t.login_30d }}</label>
-                        </div>
-                        <div class="session-option">
-                            <input type="radio" id="session_365d" name="remember_days" value="365">
-                            <label for="session_365d">{{ t.login_365d }}</label>
-                        </div>
+                <div class="mb-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="remember_me" name="remember_days" value="30">
+                        <label class="form-check-label text-secondary" for="remember_me" style="font-size:14px;">{{ t.login_remember_me }}</label>
                     </div>
                 </div>
 

@@ -21,11 +21,7 @@
   "login_tagline": "Sign in to continue",
   "login_username": "Username",
   "login_password": "Password",
-  "login_session_duration": "Session duration",
-  "login_24h": "24 hours",
-  "login_7d": "7 days",
-  "login_30d": "30 days",
-  "login_365d": "1 year",
+  "login_remember_me": "Remember me for 30 days",
   "login_submit": "Sign in",
 
   "index_title": "Add URL",
