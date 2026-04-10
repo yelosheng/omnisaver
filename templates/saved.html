@@ -9,7 +9,8 @@
         <!-- Platform multi-select -->
         <div class="dropdown" id="platform-dropdown">
             <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
-                    id="platformDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                    id="platformDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                    data-label="{{ t.saved_platform }}">
                 <i class="bi bi-funnel"></i> {{ t.saved_platform }}
             </button>
             <ul class="dropdown-menu" id="platform-menu">
@@ -430,10 +431,11 @@
     function updatePlatformBtnLabel() {
         const selected = getSelectedPlatforms();
         const btn = document.getElementById('platformDropdownBtn');
+        const label = btn.dataset.label || '';
         if (selected.length === 0) {
-            btn.innerHTML = '<i class="bi bi-funnel"></i> 平台';
+            btn.innerHTML = `<i class="bi bi-funnel"></i> ${label}`;
         } else {
-            btn.innerHTML = `<i class="bi bi-funnel-fill"></i> 平台 (${selected.length})`;
+            btn.innerHTML = `<i class="bi bi-funnel-fill"></i> ${label} (${selected.length})`;
         }
     }
 

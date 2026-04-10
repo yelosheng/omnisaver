@@ -182,5 +182,16 @@
 
   "tweet_article_badge": "Article",
   "tweet_view_original": "View Original",
-  "tweet_download": "Download"
+  "tweet_download": "Download",
+  "tweet_zoom_hint": "Scroll to zoom",
+
+  "search_no_results_filtered": "No content matching filters",
+
+  "settings_regenerate_confirm": "Regenerate will immediately invalidate the old key. All clients using it will need to update. Confirm?",
+  "settings_key_generated": "Key generated \u2014 please copy and save it",
+  "settings_revoke_confirm": "After revoking, the endpoint will have no authentication. Confirm?",
+  "settings_key_revoked": "Key revoked \u2014 endpoint is now unprotected",
+  "settings_key_hidden_alert": "Full key is only shown once when generated. Regenerate to view.",
+  "settings_key_copy_alert": "Full key can only be copied when generated. Regenerate to copy.",
+  "settings_copied": "Copied to clipboard"
 }

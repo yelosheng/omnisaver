@@ -22,7 +22,8 @@
             <!-- Platform multi-select -->
             <div class="dropdown" id="platform-dropdown">
                 <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
-                        id="platformDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                        id="platformDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                        data-label="{{ t.search_platform }}">
                     <i class="bi bi-funnel"></i> {{ t.search_platform }}
                 </button>
                 <ul class="dropdown-menu" id="platform-menu">
@@ -187,9 +188,10 @@
     function updatePlatformLabel() {
         const selected = getSelectedPlatforms();
         const btn = document.getElementById('platformDropdownBtn');
+        const label = btn.dataset.label || "";
         btn.innerHTML = selected.length
-            ? `<i class="bi bi-funnel-fill"></i> 平台 (${selected.length})`
-            : `<i class="bi bi-funnel"></i> 平台`;
+            ? `<i class="bi bi-funnel-fill"></i> ${label} (${selected.length})`
+            : `<i class="bi bi-funnel"></i> ${label}`;
         updateClearBtn();
     }
 
@@ -304,7 +306,7 @@
                     show('no-saved');
                     document.getElementById('no-saved').innerHTML = currentSearchQuery
                         ? `<i class="bi bi-search" style="font-size:3rem;color:#6c757d;"></i><p class="text-muted mt-2">No results for "${currentSearchQuery}"</p>`
-                        : `<i class="bi bi-funnel" style="font-size:3rem;color:#6c757d;"></i><p class="text-muted mt-2">没有符合筛选条件的内容</p>`;
+                        : `<i class="bi bi-funnel" style="font-size:3rem;color:#6c757d;"></i><p class="text-muted mt-2">{{ t.search_no_results_filtered }}</p>`;
                     hide('search-status');
                     return;
                 }

@@ -170,5 +170,16 @@
   "settings_save_cookie_btn": "保存 Cookie",
   "tweet_article_badge": "文章",
   "tweet_view_original": "查看原文",
-  "tweet_download": "下载"
+  "tweet_download": "下载",
+  "tweet_zoom_hint": "滚轮缩放",
+
+  "search_no_results_filtered": "没有符合筛选条件的内容",
+
+  "settings_regenerate_confirm": "重新生成后旧 Key 立即失效，所有使用旧 Key 的客户端需要更新。确认吗？",
+  "settings_key_generated": "Key 已生成，请复制保存",
+  "settings_revoke_confirm": "撤销后接口将无鉴权保护，确认吗？",
+  "settings_key_revoked": "Key 已撤销，接口现在无鉴权保护",
+  "settings_key_hidden_alert": "完整 Key 仅在生成时显示一次，如需查看请重新生成。",
+  "settings_key_copy_alert": "完整 Key 仅在生成时可复制，请重新生成。",
+  "settings_copied": "已复制到剪贴板"
 }

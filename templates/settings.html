@@ -307,6 +307,15 @@
 </div>
 
 <script>
+const _i18n = {
+    regenerate_confirm: {{ t.settings_regenerate_confirm | tojson }},
+    key_generated:      {{ t.settings_key_generated | tojson }},
+    revoke_confirm:     {{ t.settings_revoke_confirm | tojson }},
+    key_revoked:        {{ t.settings_key_revoked | tojson }},
+    key_hidden_alert:   {{ t.settings_key_hidden_alert | tojson }},
+    key_copy_alert:     {{ t.settings_key_copy_alert | tojson }},
+    copied:             {{ t.settings_copied | tojson }},
+};
 // ── YouTube API Key ──────────────────────────────────────────────
 async function saveYouTubeKey() {
     const key = document.getElementById('yt-api-key').value.trim();
@@ -600,7 +609,7 @@ async function saveConfig() {
 
         async function generateApiKey() {
             if (document.getElementById('api-key-has-key').style.display !== 'none') {
-                if (!confirm('重新生成后旧 Key 立即失效，所有使用旧 Key 的客户端需要更新。确认吗？')) return;
+                if (!confirm(_i18n.regenerate_confirm)) return;
             }
             const r = await fetch('/api/settings/api-key/generate', {method: 'POST'});
             const d = await r.json();
@@ -611,7 +620,7 @@ async function saveConfig() {
                 document.getElementById('api-key-display').type = 'text';
                 document.getElementById('api-key-display').value = d.key;
                 document.getElementById('api-key-eye-icon').className = 'bi bi-eye-slash';
-                showApiKeyResult('success', 'Key 已生成，请复制保存');
+                showApiKeyResult('success', _i18n.key_generated);
                 renderQrCode(d.key);
             }
         }
@@ -636,7 +645,7 @@ async function saveConfig() {
         }
 
         async function revokeApiKey() {
-            if (!confirm('撤销后接口将无鉴权保护，确认吗？')) return;
+            if (!confirm(_i18n.revoke_confirm)) return;
             const r = await fetch('/api/settings/api-key', {method: 'DELETE'});
             const d = await r.json();
             if (d.success) {
@@ -645,7 +654,7 @@ async function saveConfig() {
                 document.getElementById('api-key-has-key').style.display = 'none';
                 document.getElementById('api-key-qr-available').style.display = 'none';
                 document.getElementById('api-key-qr-unavailable').style.display = 'none';
-                showApiKeyResult('warning', 'Key 已撤销，接口现在无鉴权保护');
+                showApiKeyResult('warning', _i18n.key_revoked);
             }
         }
 
@@ -656,7 +665,7 @@ async function saveConfig() {
                 if (_currentApiKey) {
                     input.value = _currentApiKey;
                 } else {
-                    alert('完整 Key 仅在生成时显示一次，如需查看请重新生成。');
+                    alert(_i18n.key_hidden_alert);
                     return;
                 }
                 input.type = 'text';
@@ -671,10 +680,10 @@ async function saveConfig() {
         function copyApiKey() {
             const val = _currentApiKey || document.getElementById('api-key-display').value;
             if (!val || val.includes('•')) {
-                alert('完整 Key 仅在生成时可复制，请重新生成。');
+                alert(_i18n.key_copy_alert);
                 return;
             }
-            navigator.clipboard.writeText(val).then(() => showApiKeyResult('success', '已复制到剪贴板'));
+            navigator.clipboard.writeText(val).then(() => showApiKeyResult('success', _i18n.copied));
         }
 
         function showApiKeyResult(type, msg) {
