@@ -149,8 +149,11 @@ class FeishuService:
     async def _async_fetch(self, url: str) -> dict | None:
         """Render page with Playwright, return {title, content_html, captured_images, author}.
 
-        captured_images: dict mapping original img src -> bytes (fetched with browser credentials).
-        content_html: pre-processed HTML with Feishu code blocks converted to standard <pre><code>.
+        captured_images: dict mapping original img src -> bytes.
+          - Images are captured via response interception (no CORS restriction).
+        content_html: pre-processed HTML with Feishu code blocks converted to standard
+          <pre><code> using the code block's own "Copy" button to get the FULL text
+          (bypasses Feishu's virtual list which only renders visible lines).
         """
         try:
             from playwright.async_api import async_playwright
@@ -173,6 +176,22 @@ class FeishuService:
                 locale='zh-CN',
             )
             page = await context.new_page()
+
+            # Intercept image responses as they load — avoids CORS restrictions
+            captured_images: dict[str, bytes] = {}
+
+            async def _on_response(response):
+                try:
+                    ctype = (response.headers or {}).get('content-type', '')
+                    if 'image/' in ctype:
+                        body = await response.body()
+                        if body and len(body) > 500:
+                            captured_images[response.url] = body
+                except Exception:
+                    pass
+
+            page.on('response', lambda r: asyncio.ensure_future(_on_response(r)))
+
             try:
                 await page.goto(url, wait_until='networkidle', timeout=45000)
 
@@ -207,48 +226,59 @@ class FeishuService:
                         });
                     }
                 """)
-                await page.wait_for_timeout(1000)
-
-                # Scroll each code block's inner container to force virtual list
-                # to render all lines (Feishu virtualizes long code blocks)
-                await page.evaluate("""
-                    async () => {
-                        const zones = document.querySelectorAll('.code-block-zone-container');
-                        for (const zone of zones) {
-                            // The scroll container is typically the parent (.code-block-content)
-                            const scrollEl = zone.parentElement || zone;
-                            const totalH = zone.scrollHeight;
-                            for (let top = 0; top <= totalH; top += 300) {
-                                scrollEl.scrollTop = top;
-                                await new Promise(r => setTimeout(r, 80));
-                            }
-                            scrollEl.scrollTop = 0;
-                            await new Promise(r => setTimeout(r, 150));
-                        }
-                    }
-                """)
-                await page.wait_for_timeout(500)
+                await page.wait_for_timeout(1500)
 
                 title = await page.title()
-                # Strip common Feishu title suffixes like " - Feishu Wiki"
                 title = re.sub(r'\s*[-|–]\s*(飞书|Feishu|Lark).*$', '', title, flags=re.IGNORECASE).strip()
 
-                # Pre-process DOM: convert Feishu-specific structures to standard HTML,
-                # then extract the content container.
-                content_html = await page.evaluate("""
+                # --- Capture full code block text via clipboard interception ---
+                # Feishu's "Copy" button calls clipboard.writeText(FULL_CODE) internally.
+                # Intercepting this avoids the virtual-list truncation problem entirely.
+                await page.evaluate("""
                     () => {
-                        // 1. Convert Feishu code blocks to standard <pre><code>
+                        window._feishuCodeTexts = [];
+                        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+                        navigator.clipboard.writeText = async (text) => {
+                            window._feishuCodeTexts.push(text);
+                            return orig(text).catch(() => {});
+                        };
+                    }
+                """)
+
+                # Click every code block's copy button in document order
+                copy_btns = await page.query_selector_all('.code-copy')
+                for btn in copy_btns:
+                    try:
+                        await btn.scroll_into_view_if_needed()
+                        await btn.click()
+                        await page.wait_for_timeout(250)
+                    except Exception:
+                        pass
+
+                code_texts: list[str] = await page.evaluate('window._feishuCodeTexts || []')
+
+                # --- Pre-process DOM then extract content HTML ---
+                content_html = await page.evaluate("""
+                    (codeTexts) => {
+                        let codeIdx = 0;
+
+                        // 1. Replace Feishu code blocks with standard <pre><code>
                         document.querySelectorAll('[data-block-type="code"]').forEach(block => {
                             const langBtn = block.querySelector('.code-block-header-btn span');
                             const lang = langBtn ? langBtn.innerText.trim().toLowerCase() : '';
-                            const lines = block.querySelectorAll('.code-line-wrapper');
-                            const codeText = Array.from(lines).map(l => l.innerText).join('\\n');
+                            // Prefer clipboard-captured full text; fall back to visible lines
+                            const text = (codeTexts[codeIdx] !== undefined && codeTexts[codeIdx] !== '')
+                                ? codeTexts[codeIdx]
+                                : Array.from(block.querySelectorAll('.code-line-wrapper'))
+                                      .map(l => l.innerText).join('\\n');
+                            codeIdx++;
+
                             const pre = document.createElement('pre');
                             const code = document.createElement('code');
                             if (lang && lang !== 'plaintext' && lang !== 'text') {
                                 code.className = 'language-' + lang;
                             }
-                            code.textContent = codeText;
+                            code.textContent = text;
                             pre.appendChild(code);
                             block.replaceWith(pre);
                         });
@@ -285,34 +315,7 @@ class FeishuService:
                         }
                         return document.body.innerHTML;
                     }
-                """)
-
-                # Fetch all images using browser credentials (Feishu CDN requires session cookies)
-                import base64
-                img_srcs = await page.evaluate("""
-                    () => [...new Set(
-                        Array.from(document.querySelectorAll('img[src^="http"]'))
-                            .map(img => img.src)
-                    )]
-                """)
-                captured_images: dict[str, bytes] = {}
-                for src in img_srcs:
-                    try:
-                        b64 = await page.evaluate("""
-                            async (src) => {
-                                const resp = await fetch(src, {credentials: 'include'});
-                                if (!resp.ok) return null;
-                                const buf = await resp.arrayBuffer();
-                                const uint8 = new Uint8Array(buf);
-                                let binary = '';
-                                uint8.forEach(b => binary += String.fromCharCode(b));
-                                return btoa(binary);
-                            }
-                        """, src)
-                        if b64:
-                            captured_images[src] = base64.b64decode(b64)
-                    except Exception as exc:
-                        warning(f'[FeishuService] Browser image fetch failed ({src[:60]}): {exc}')
+                """, code_texts)
 
                 return {
                     'title': title,
