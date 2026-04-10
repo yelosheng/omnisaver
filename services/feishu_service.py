@@ -15,7 +15,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from utils.realtime_logger import info, success, warning, error
+from utils.realtime_logger import info, success, warning
 
 
 class FeishuServiceError(Exception):
@@ -79,6 +79,8 @@ class FeishuService:
 
         title = result['title'] or 'Untitled'
         content_html = result['content_html']
+        if not content_html or not content_html.strip():
+            raise FeishuServiceError(f'No content extracted from: {url}')
         author = result.get('author', '')
 
         # Build save directory
