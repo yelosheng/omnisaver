@@ -100,8 +100,9 @@ class FeishuService:
         captured_images = result.get('captured_images', {})
         content_html, image_count = self._download_images(content_html, post_dir, url, captured_images)
 
-        # Save raw HTML
-        (post_dir / 'content.html').write_text(content_html, encoding='utf-8')
+        # Save raw Feishu DOM for debugging (NOT as content.html — app.py would pick that
+        # up and use it verbatim, bypassing the Markdown render path)
+        (post_dir / 'feishu_raw.html').write_text(content_html, encoding='utf-8')
 
         # Convert to Markdown
         md_body = self._to_markdown(content_html)
@@ -115,7 +116,12 @@ class FeishuService:
             '',
             '',
         ])
-        (post_dir / 'content.md').write_text(header + md_body, encoding='utf-8')
+        full_md = header + md_body
+        (post_dir / 'content.md').write_text(full_md, encoding='utf-8')
+
+        # content.txt — plain text for card preview and FTS indexing
+        plain_text = re.sub(r'\n{3,}', '\n\n', re.sub(r'[#*`\[\]!]', '', md_body)).strip()
+        (post_dir / 'content.txt').write_text(plain_text, encoding='utf-8')
 
         # metadata.json
         metadata = {
