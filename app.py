@@ -287,7 +287,7 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        remember_days = request.form.get('remember_days', '1', type=int)
+        remember_days = int(request.form.get('remember_days') or 1)
 
         if not username or not password:
             return render_template('login.html', error='Username and password are required')

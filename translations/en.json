@@ -21,7 +21,7 @@
   "login_tagline": "Sign in to continue",
   "login_username": "Username",
   "login_password": "Password",
-  "login_remember_me": "Remember me for 30 days",
+  "login_remember_me": "Remember me for 1 year",
   "login_submit": "Sign in",
 
   "index_title": "Add URL",
