@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <style>
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #f7f6f3;
+            background-image: radial-gradient(circle, #e0ddd6 1px, transparent 1px);
+            background-size: 20px 20px;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -23,22 +25,10 @@
         }
 
         .login-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: #fefefe;
+            border-radius: 8px;
+            border: 1px solid #e2ddd6;
             padding: 40px;
-            animation: slideUp 0.5s ease-out;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         .login-header {
@@ -47,32 +37,35 @@
         }
 
         .login-header h1 {
-            color: #333;
-            font-size: 28px;
+            color: #1a1a1a;
+            font-size: 22px;
             font-weight: 700;
+            font-family: 'Courier New', Courier, monospace;
+            letter-spacing: -0.5px;
             margin-bottom: 10px;
         }
 
         .login-header p {
-            color: #666;
+            color: #8a8278;
             font-size: 14px;
         }
 
         .form-floating {
             margin-bottom: 20px;
+            position: relative;
         }
 
         .form-control {
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
+            border: 1px solid #d4cfc8;
+            border-radius: 6px;
             padding: 12px 15px;
             font-size: 15px;
-            transition: all 0.3s;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
 
         .form-control:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #7c5c3e;
+            box-shadow: none;
         }
 
         .session-select {
@@ -80,7 +73,7 @@
         }
 
         .session-select label {
-            color: #666;
+            color: #8a8278;
             font-size: 14px;
             font-weight: 500;
             margin-bottom: 10px;
@@ -104,52 +97,49 @@
         .session-option label {
             display: block;
             padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
+            border: 1px solid #d4cfc8;
+            border-radius: 6px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: border-color 0.2s, background-color 0.2s, color 0.2s;
             font-size: 14px;
-            color: #666;
+            color: #5a5248;
         }
 
         .session-option input[type="radio"]:checked + label {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #7c5c3e;
             color: white;
-            border-color: #667eea;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            border-color: #7c5c3e;
         }
 
         .session-option label:hover {
-            border-color: #667eea;
+            border-color: #7c5c3e;
         }
 
         .btn-login {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #7c5c3e;
             border: none;
-            border-radius: 10px;
+            border-radius: 6px;
             color: white;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: background-color 0.2s;
             margin-top: 10px;
         }
 
         .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            background: #6a4f35;
         }
 
         .btn-login:active {
-            transform: translateY(0);
+            background: #5a4229;
         }
 
         .alert {
-            border-radius: 10px;
+            border-radius: 8px;
             border: none;
             margin-bottom: 20px;
         }
@@ -165,20 +155,17 @@
         }
 
         .password-toggle:hover {
-            color: #667eea;
+            color: #7c5c3e;
         }
 
-        .form-floating {
-            position: relative;
-        }
     </style>
 </head>
 <body>
 <!-- Language switcher -->
 <div style="position:fixed;top:16px;right:16px;z-index:1000;">
     <div class="dropdown">
-        <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown"
-                style="opacity:0.85;">
+        <button class="btn btn-sm" type="button" data-bs-toggle="dropdown"
+                style="background:transparent;color:#8a8278;border:1px solid #d4cfc8;">
             🌐 {% if current_lang == 'zh_CN' %}中文{% else %}EN{% endif %}
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
@@ -200,7 +187,7 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <h1><i class="bi bi-archive-fill"></i> OmniSaver</h1>
+                <h1>OmniSaver</h1>
                 <p>{{ t.login_tagline }}</p>
             </div>
 
