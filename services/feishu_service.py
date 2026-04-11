@@ -215,24 +215,28 @@ class FeishuService:
                         continue
 
                 # Scroll page to trigger lazy-loaded images and blocks
-                await page.evaluate("""
-                    async () => {
-                        await new Promise(resolve => {
-                            let y = 0;
-                            const step = 500;
-                            const timer = setInterval(() => {
-                                window.scrollBy(0, step);
-                                y += step;
-                                if (y >= document.body.scrollHeight) {
-                                    clearInterval(timer);
-                                    window.scrollTo(0, 0);
-                                    resolve();
-                                }
-                            }, 150);
-                        });
-                    }
-                """)
-                await page.wait_for_timeout(1500)
+                # Two passes: first scroll reveals content, second catches deferred renders
+                for _pass in range(2):
+                    await page.evaluate("""
+                        async () => {
+                            await new Promise(resolve => {
+                                let y = 0;
+                                const step = 400;
+                                const h = document.body.scrollHeight;
+                                const timer = setInterval(() => {
+                                    window.scrollBy(0, step);
+                                    y += step;
+                                    if (y >= h) {
+                                        clearInterval(timer);
+                                        window.scrollTo(0, 0);
+                                        resolve();
+                                    }
+                                }, 120);
+                            });
+                        }
+                    """)
+                    await page.wait_for_timeout(1500)
+                await page.wait_for_timeout(1000)
 
                 title = await page.title()
                 title = re.sub(r'\s*[-|–]\s*(飞书|Feishu|Lark).*$', '', title, flags=re.IGNORECASE).strip()
@@ -304,7 +308,9 @@ class FeishuService:
                             });
                         });
 
-                        // 3. Find and return the main content container
+                        // 3. Find and return the main content container.
+                        // Use querySelectorAll + pick the element with the most text to avoid
+                        // accidentally selecting a nested sub-container (e.g. inside a grid block).
                         const selectors = [
                             '.page-block-children',
                             '.docs-reader-content',
@@ -314,9 +320,13 @@ class FeishuService:
                             'main',
                         ];
                         for (const sel of selectors) {
-                            const el = document.querySelector(sel);
-                            if (el && el.innerText.trim().length > 100) {
-                                return el.innerHTML;
+                            const els = Array.from(document.querySelectorAll(sel));
+                            if (els.length === 0) continue;
+                            const best = els.reduce((a, b) =>
+                                a.innerText.trim().length >= b.innerText.trim().length ? a : b
+                            );
+                            if (best.innerText.trim().length > 50) {
+                                return best.innerHTML;
                             }
                         }
                         return document.body.innerHTML;

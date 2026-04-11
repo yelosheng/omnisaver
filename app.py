@@ -1112,7 +1112,7 @@ def show_tweet(slug):
                     md_text = _re.sub(r'\*\*点赞\*\*:.*\n?', '', md_text)
                 # Replace relative image and video paths with media-serving URLs
                 md_text = _re.sub(
-                    r'images/(\d+\.\w+)',
+                    r'images/([\w.-]+)',
                     lambda m: f'/media/{task_id}/images/{m.group(1)}',
                     md_text
                 )
