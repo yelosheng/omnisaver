@@ -12,7 +12,8 @@ services:
       - .:/app
 
   omnisaver:
-    build: .
+    image: yelosheng/omnisaver:latest
+    # To build locally instead: replace the line above with `build: .`
     ports:
       - "6201:6201"
     volumes:
