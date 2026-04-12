@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM mcr.microsoft.com/playwright/python:v1.51.0-jammy
 
 WORKDIR /app
 
@@ -9,11 +9,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     nodejs \
     npm \
-    libgtk-3-0 \
-    libdbus-glib-1-2 \
-    libxt6 \
-    libx11-xcb1 \
-    libxcb-dri3-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install xreach-cli (Twitter thread fetching) and mcporter (XiaoHongShu)
@@ -26,9 +21,6 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o 
 # Install Python dependencies first (better layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Chromium and all its system dependencies via Playwright
-RUN playwright install --with-deps chromium
 
 # Install wechat-article-for-ai (WeChat article scraping)
 RUN git clone https://github.com/Panniantong/wechat-article-for-ai.git /root/.agent-reach/tools/wechat-article-for-ai \
