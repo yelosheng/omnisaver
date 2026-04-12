@@ -296,6 +296,23 @@
             }, 300);
         }, 3000);
     }
+
+    // Inject copy buttons into all pre blocks
+    document.querySelectorAll('.html-content pre').forEach(pre => {
+        const btn = document.createElement('button');
+        btn.className = 'code-copy-btn';
+        btn.textContent = '复制';
+        btn.addEventListener('click', () => {
+            const code = pre.querySelector('code');
+            const text = code ? code.innerText : pre.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '已复制';
+                btn.classList.add('copied');
+                setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('copied'); }, 2000);
+            });
+        });
+        pre.appendChild(btn);
+    });
 </script>
 
 <style>
@@ -511,6 +528,7 @@
         border-radius: 8px;
         overflow-x: auto;
         margin: 1em 0;
+        position: relative;
     }
 
     .html-content pre code {
@@ -518,6 +536,25 @@
         padding: 0;
         color: #14171a;
     }
+
+    .code-copy-btn {
+        position: absolute;
+        top: 0.5em;
+        right: 0.5em;
+        padding: 0.2em 0.6em;
+        font-size: 0.75em;
+        background: rgba(255,255,255,0.85);
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.15s;
+        font-family: system-ui, sans-serif;
+        color: #555;
+        white-space: nowrap;
+    }
+    .html-content pre:hover .code-copy-btn { opacity: 1; }
+    .code-copy-btn.copied { color: #27ae60; border-color: #27ae60; }
 
     .html-content hr {
         border: none;
