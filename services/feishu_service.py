@@ -155,11 +155,10 @@ class FeishuService:
     async def _async_fetch(self, url: str) -> dict | None:
         """Render page with Playwright, return {title, content_html, captured_images, author}.
 
-        captured_images: dict mapping original img src -> bytes.
-          - Images are captured via response interception (no CORS restriction).
-        content_html: pre-processed HTML with Feishu code blocks converted to standard
-          <pre><code> using the code block's own "Copy" button to get the FULL text
-          (bypasses Feishu's virtual list which only renders visible lines).
+        Strategy: tall viewport (4000px) so Feishu renders the entire document at once
+        without virtualising any blocks.  All blocks are in the DOM from the start;
+        no scrolling required.  Code block text is extracted from the fully-rendered
+        .code-line-wrapper elements (no clipboard API needed).
         """
         try:
             from playwright.async_api import async_playwright
@@ -178,7 +177,11 @@ class FeishuService:
                     'AppleWebKit/537.36 (KHTML, like Gecko) '
                     'Chrome/124.0.0.0 Safari/537.36'
                 ),
-                viewport={'width': 1440, 'height': 900},
+                # Tall viewport forces Feishu to render all blocks without virtualising.
+                # Feishu uses an inner scroll container, not body scroll, so setting a
+                # viewport larger than the document height means everything is "visible"
+                # and all blocks stay in the DOM.
+                viewport={'width': 1440, 'height': 4000},
                 locale='zh-CN',
             )
             page = await context.new_page()
@@ -214,124 +217,61 @@ class FeishuService:
                     except Exception:
                         continue
 
-                # Scroll page to trigger lazy-loaded images and blocks
-                # Two passes: first scroll reveals content, second catches deferred renders
-                for _pass in range(2):
-                    await page.evaluate("""
-                        async () => {
-                            await new Promise(resolve => {
-                                let y = 0;
-                                const step = 400;
-                                const h = document.body.scrollHeight;
-                                const timer = setInterval(() => {
-                                    window.scrollBy(0, step);
-                                    y += step;
-                                    if (y >= h) {
-                                        clearInterval(timer);
-                                        window.scrollTo(0, 0);
-                                        resolve();
-                                    }
-                                }, 120);
-                            });
-                        }
-                    """)
-                    await page.wait_for_timeout(1500)
-                await page.wait_for_timeout(1000)
+                await page.wait_for_timeout(1500)
 
                 title = await page.title()
                 title = re.sub(r'\s*[-|–]\s*(飞书|Feishu|Lark).*$', '', title, flags=re.IGNORECASE).strip()
 
-                # --- Capture full code block text via clipboard interception ---
-                # Feishu's "Copy" button calls clipboard.writeText(FULL_CODE) internally.
-                # Intercepting this avoids the virtual-list truncation problem entirely.
-                await page.evaluate("""
+                # Extract all blocks in document order.
+                # With the tall viewport every block is rendered — code blocks show
+                # all their lines in .code-line-wrapper elements.
+                blocks = await page.evaluate("""
                     () => {
-                        window._feishuCodeTexts = [];
-                        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
-                        navigator.clipboard.writeText = async (text) => {
-                            window._feishuCodeTexts.push(text);
-                            return orig(text).catch(() => {});
-                        };
+                        const blocks = [];
+                        const seen = new WeakSet();
+                        // Container-only types — skip as standalone entries
+                        const SKIP = new Set(['page', 'grid', 'grid_column', 'column_block',
+                                              'table', 'table_cell', 'callout', 'quote_container',
+                                              'view', 'bitable_view', 'file', 'iframe',
+                                              'diagram', 'board', 'mindnote', 'undefined']);
+
+                        document.querySelectorAll('[data-block-type]').forEach(el => {
+                            if (seen.has(el)) return;
+                            const bt = el.getAttribute('data-block-type');
+                            if (!bt || SKIP.has(bt)) return;
+                            seen.add(el);
+
+                            if (/^heading[1-6]$/.test(bt)) {
+                                const text = el.innerText.trim();
+                                if (text) blocks.push({t: 'h' + bt.slice(-1), text});
+                            } else if (bt === 'text') {
+                                blocks.push({t: 'p', text: el.innerText.trim()});
+                            } else if (bt === 'image') {
+                                const img = el.querySelector('img[src]');
+                                if (img) blocks.push({t: 'img', src: img.src, alt: img.alt || ''});
+                            } else if (bt === 'code') {
+                                // Extract language from header button
+                                const langEl = el.querySelector('.code-block-header-btn span');
+                                const lang = langEl ? langEl.innerText.trim().toLowerCase() : '';
+                                // All lines are rendered (tall viewport) — join line wrappers
+                                const lineEls = el.querySelectorAll('.code-line-wrapper');
+                                const text = lineEls.length > 0
+                                    ? Array.from(lineEls).map(l => l.innerText).join('\\n')
+                                    : el.innerText.replace(/^[\\s\\S]*?复制\\n/, '');  // strip header
+                                blocks.push({t: 'code', lang, text});
+                            } else if (bt === 'bullet' || bt === 'ordered' || bt === 'todo') {
+                                const text = el.innerText.trim();
+                                if (text) blocks.push({t: 'li', bt, text});
+                            } else if (bt === 'divider') {
+                                blocks.push({t: 'hr'});
+                            }
+                        });
+
+                        return blocks;
                     }
                 """)
 
-                # Click every code block's copy button in document order
-                copy_btns = await page.query_selector_all('.code-copy')
-                for btn in copy_btns:
-                    try:
-                        await btn.scroll_into_view_if_needed()
-                        await btn.click()
-                        await page.wait_for_timeout(250)
-                    except Exception:
-                        pass
-
-                code_texts: list[str] = await page.evaluate('window._feishuCodeTexts || []')
-
-                # --- Pre-process DOM then extract content HTML ---
-                content_html = await page.evaluate("""
-                    (codeTexts) => {
-                        let codeIdx = 0;
-
-                        // 1. Replace Feishu code blocks with standard <pre><code>
-                        document.querySelectorAll('[data-block-type="code"]').forEach(block => {
-                            const langBtn = block.querySelector('.code-block-header-btn span');
-                            const lang = langBtn ? langBtn.innerText.trim().toLowerCase() : '';
-                            // Prefer clipboard-captured full text; fall back to visible lines
-                            const text = (codeTexts[codeIdx] !== undefined && codeTexts[codeIdx] !== '')
-                                ? codeTexts[codeIdx]
-                                : Array.from(block.querySelectorAll('.code-line-wrapper'))
-                                      .map(l => l.innerText).join('\\n');
-                            codeIdx++;
-
-                            const pre = document.createElement('pre');
-                            const code = document.createElement('code');
-                            if (lang && lang !== 'plaintext' && lang !== 'text') {
-                                code.className = 'language-' + lang;
-                            }
-                            code.textContent = text;
-                            pre.appendChild(code);
-                            block.replaceWith(pre);
-                        });
-
-                        // 2. Convert Feishu heading blocks to standard <h1>-<h6>
-                        const headingMap = {
-                            heading1: 'H1', heading2: 'H2', heading3: 'H3',
-                            heading4: 'H4', heading5: 'H5', heading6: 'H6',
-                        };
-                        Object.entries(headingMap).forEach(([type, tag]) => {
-                            document.querySelectorAll('[data-block-type="' + type + '"]').forEach(block => {
-                                const text = block.innerText.trim();
-                                if (!text) return;
-                                const h = document.createElement(tag);
-                                h.textContent = text;
-                                block.replaceWith(h);
-                            });
-                        });
-
-                        // 3. Find and return the main content container.
-                        // Use querySelectorAll + pick the element with the most text to avoid
-                        // accidentally selecting a nested sub-container (e.g. inside a grid block).
-                        const selectors = [
-                            '.page-block-children',
-                            '.docs-reader-content',
-                            '[class*="reader-content"]',
-                            '[class*="doc-content"]',
-                            'article',
-                            'main',
-                        ];
-                        for (const sel of selectors) {
-                            const els = Array.from(document.querySelectorAll(sel));
-                            if (els.length === 0) continue;
-                            const best = els.reduce((a, b) =>
-                                a.innerText.trim().length >= b.innerText.trim().length ? a : b
-                            );
-                            if (best.innerText.trim().length > 50) {
-                                return best.innerHTML;
-                            }
-                        }
-                        return document.body.innerHTML;
-                    }
-                """, code_texts)
+                content_html = self._blocks_to_html(blocks)
 
                 return {
                     'title': title,
@@ -346,6 +286,38 @@ class FeishuService:
             finally:
                 await context.close()
                 await browser.close()
+
+    @staticmethod
+    def _blocks_to_html(blocks: list) -> str:
+        """Convert the per-block extraction result to a simple HTML string."""
+        import html as _html_mod
+        parts = []
+        for b in blocks:
+            bt = b.get('t', '')
+            if bt.startswith('h') and bt[1:].isdigit():
+                lvl = bt[1]
+                parts.append(f'<h{lvl}>{_html_mod.escape(b.get("text", ""))}</h{lvl}>')
+            elif bt == 'p':
+                text = b.get('text', '')
+                # Keep non-empty paragraphs; preserve zero-width-space-only lines as spacers
+                parts.append(f'<p>{_html_mod.escape(text)}</p>')
+            elif bt == 'img':
+                src = _html_mod.escape(b.get('src', ''))
+                alt = _html_mod.escape(b.get('alt', ''))
+                parts.append(f'<img src="{src}" alt="{alt}">')
+            elif bt == 'code':
+                lang = b.get('lang', '')
+                if lang in ('', 'plaintext', 'text', 'plain text'):
+                    lang = ''
+                lang_attr = f' class="language-{lang}"' if lang else ''
+                text = _html_mod.escape(b.get('text', ''))
+                parts.append(f'<pre><code{lang_attr}>{text}</code></pre>')
+            elif bt == 'li':
+                text = _html_mod.escape(b.get('text', ''))
+                parts.append(f'<li>{text}</li>')
+            elif bt == 'hr':
+                parts.append('<hr>')
+        return '\n'.join(parts)
 
     def _to_markdown(self, html: str) -> str:
         """Convert HTML to Markdown using markdownify."""
