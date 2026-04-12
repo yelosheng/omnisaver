@@ -1133,7 +1133,7 @@ def show_tweet(slug):
                     r'[\1](\1)',
                     md_text
                 )
-                tweet_html = _md.markdown(md_text, extensions=['nl2br', 'tables'])
+                tweet_html = _md.markdown(md_text, extensions=['nl2br', 'tables', 'fenced_code'])
                 # Replace video links with inline <video> players
                 tweet_html = _re.sub(
                     r'<a href="(/media/\d+/videos/video[\d.]*\.[^"]+)">视频[^<]*</a>',
@@ -1176,7 +1176,7 @@ def show_tweet(slug):
                     r'[\1](\1)',
                     md_text
                 )
-                tweet_html = _md.markdown(md_text, extensions=['nl2br', 'tables'])
+                tweet_html = _md.markdown(md_text, extensions=['nl2br', 'tables', 'fenced_code'])
                 # Replace video links with inline <video> players
                 tweet_html = re.sub(
                     r'<a href="(/media/\d+/videos/video\.[^"]+)">([^<]*)</a>',
