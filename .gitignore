@@ -205,6 +205,8 @@ nul
 
 users.json
 telegram_owner.json
+*_cookies.json
+to_do.txt
 
 # Runtime secrets
 secret_key.txt
