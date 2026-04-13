@@ -5,7 +5,8 @@ services:
       sh -c "
         mkdir -p /data/saved_tweets /data/xhs &&
         touch /data/xhs/cookies.json &&
-        [ -f /app/config.ini ] || cp /app/config.ini.example /app/config.ini
+        [ -f /app/config.ini ] || cp /app/config.ini.example /app/config.ini &&
+        [ -f /app/docker-mcporter.json ] || printf '{\"mcpServers\":{\"xiaohongshu\":{\"baseUrl\":\"http://xiaohongshu-mcp:18060/mcp\"}},\"imports\":[]}' > /app/docker-mcporter.json
       "
     volumes:
       - ./docker-data:/data
