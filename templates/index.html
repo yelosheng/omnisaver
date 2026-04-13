@@ -38,7 +38,7 @@
             <div class="card-body">
                 <div class="row" id="status-cards">
                     <div class="col-md-3">
-                        <div class="card bg-warning text-dark">
+                        <div class="card bg-warning text-dark" style="cursor:pointer;" onclick="location.href='/tasks?status=pending'">
                             <div class="card-body text-center">
                                 <h5 class="card-title" id="pending-count">0</h5>
                                 <p class="card-text">{{ t.index_pending }}</p>
@@ -46,7 +46,7 @@
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-info text-white">
+                        <div class="card bg-info text-white" style="cursor:pointer;" onclick="location.href='/tasks?status=processing'">
                             <div class="card-body text-center">
                                 <h5 class="card-title" id="processing-count">0</h5>
                                 <p class="card-text">{{ t.index_processing }}</p>
@@ -54,7 +54,7 @@
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-success text-white">
+                        <div class="card bg-success text-white" style="cursor:pointer;" onclick="location.href='/tasks?status=completed'">
                             <div class="card-body text-center">
                                 <h5 class="card-title" id="completed-count">0</h5>
                                 <p class="card-text">{{ t.index_completed }}</p>
@@ -62,7 +62,7 @@
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-danger text-white">
+                        <div class="card bg-danger text-white" style="cursor:pointer;" onclick="location.href='/tasks?status=failed'">
                             <div class="card-body text-center">
                                 <h5 class="card-title" id="failed-count">0</h5>
                                 <p class="card-text">{{ t.index_failed }}</p>

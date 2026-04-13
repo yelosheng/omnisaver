@@ -934,7 +934,7 @@ def api_saved():
             # YouTube / WeChat / XHS: show title as preview
             if _ct == 'youtube':
                 task_dict['preview_text'] = task_dict.get('tweet_text') or ''
-            elif _ct in ('wechat', 'xhs'):
+            elif _ct in ('wechat', 'xhs', 'feishu'):
                 meta_path = os.path.join(actual_save_path, 'metadata.json')
                 title = ''
                 if os.path.exists(meta_path):

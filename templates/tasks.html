@@ -305,6 +305,14 @@
     // ── Init ──────────────────────────────────────────────────────────────────
 
     document.getElementById('status-filter').addEventListener('change', () => loadTasks(1));
+    // Pre-select status from URL query param (e.g. /tasks?status=pending)
+    const _urlStatus = new URLSearchParams(location.search).get('status');
+    if (_urlStatus) {
+        const _sel = document.getElementById('status-filter');
+        if ([..._sel.options].some(o => o.value === _urlStatus)) {
+            _sel.value = _urlStatus;
+        }
+    }
     loadTasks();
 
     setInterval(() => {
