@@ -2,12 +2,16 @@ FROM mcr.microsoft.com/playwright/python:v1.51.0-jammy
 
 WORKDIR /app
 
-# Install system dependencies: ffmpeg (video thumbnails) + curl (yt-dlp install) + git
-# Note: nodejs/npm already provided by playwright base image
+# Install system dependencies + Node.js 20 LTS via NodeSource (for xreach-cli, mcporter)
+# Note: playwright base image has node internally but not npm in PATH
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     git \
+    ca-certificates \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install xreach-cli (Twitter thread fetching) and mcporter (XiaoHongShu)
