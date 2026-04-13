@@ -518,7 +518,8 @@ class PinterestService:
 
         media_count = 0
         seen_hashes = set()
-        md_lines = [f'# {re.sub(r"(?m)^#", r"\\#", title or "Pinterest Pin")}', '']
+        _safe_title = re.sub(r"(?m)^#", r"\#", title or "Pinterest Pin")
+        md_lines = [f'# {_safe_title}', '']
         md_lines.append(f'**作者**: {author_name}  ')
         md_lines.append(f'**来源**: {normalized_url}  ')
         md_lines.append('')

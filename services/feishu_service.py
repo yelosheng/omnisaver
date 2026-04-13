@@ -106,8 +106,9 @@ class FeishuService:
 
         # Convert to Markdown
         md_body = self._to_markdown(content_html)
+        _safe_title = re.sub(r"^#", r"\#", title)
         header = '\n'.join([
-            f'# {re.sub(r"^#", r"\\#", title)}',
+            f'# {_safe_title}',
             '',
             f'**Source**: {url}  ',
             f'**Saved**: {save_time.strftime("%Y-%m-%d %H:%M")}  ',

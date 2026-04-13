@@ -501,7 +501,8 @@ class RedditService:
         post_dir.mkdir(parents=True, exist_ok=True)
 
         media_count = 0
-        md_lines = [f'# {re.sub(r"(?m)^#", r"\\#", title)}', '']
+        _safe_title = re.sub(r"(?m)^#", r"\#", title)
+        md_lines = [f'# {_safe_title}', '']
         md_lines.append(f'**作者**: u/{author}  ')
         md_lines.append(f'**版块**: {subreddit}  ')
         md_lines.append(f'**来源**: {canonical_url}  ')
