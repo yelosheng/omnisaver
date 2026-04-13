@@ -2,13 +2,12 @@ FROM mcr.microsoft.com/playwright/python:v1.51.0-jammy
 
 WORKDIR /app
 
-# Install system dependencies: ffmpeg (video thumbnails) + curl (yt-dlp install) + nodejs (xreach-cli)
+# Install system dependencies: ffmpeg (video thumbnails) + curl (yt-dlp install) + git
+# Note: nodejs/npm already provided by playwright base image
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     git \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Install xreach-cli (Twitter thread fetching) and mcporter (XiaoHongShu)
