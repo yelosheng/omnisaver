@@ -1480,14 +1480,16 @@ def api_debug():
     
     conn.close()
     
-    # 检查 Docker 容器状态
+    # 检查 Docker 容器状态（通过 TCP 连接检测，兼容容器内无 docker CLI 的环境）
     def check_docker_container(name):
+        host, port = {
+            'xiaohongshu-mcp': ('xiaohongshu-mcp', 18060),
+        }.get(name, (name, 80))
         try:
-            result = subprocess.run(
-                ['docker', 'inspect', name, '--format', '{{.State.Running}}'],
-                capture_output=True, text=True, timeout=3
-            )
-            return result.returncode == 0 and result.stdout.strip() == 'true'
+            import socket
+            s = socket.create_connection((host, port), timeout=2)
+            s.close()
+            return True
         except Exception:
             return False
 
