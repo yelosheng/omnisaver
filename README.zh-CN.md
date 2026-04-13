@@ -85,6 +85,9 @@ python run_web.py
 
 Docker 是最简单的部署方式，镜像已内置 yt-dlp 和 FFmpeg。
 
+> 预构建镜像已发布到 Docker Hub，无需本地编译。
+> `docker pull irritable0971/omnisaver:latest`
+
 ```bash
 # 1. 克隆仓库
 git clone https://github.com/yelosheng/omnisaver.git

@@ -87,6 +87,9 @@ Open `http://localhost:6201` in your browser. Default login: `admin` / `admin`.
 
 Docker is the easiest deployment method. yt-dlp and FFmpeg are included in the image.
 
+> The pre-built image is available on Docker Hub — no local build required.
+> `docker pull irritable0971/omnisaver:latest`
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/yelosheng/omnisaver.git
@@ -95,7 +98,7 @@ cd omnisaver
 # 2. Copy config
 cp config.ini.example config.ini
 
-# 3. Build and start
+# 3. Start
 docker compose up -d
 
 # 4. Open http://localhost:6201
