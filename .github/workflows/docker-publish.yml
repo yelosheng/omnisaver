@@ -8,8 +8,8 @@ on:
       - 'v*.*.*'
 
 env:
-  DOCKERHUB_IMAGE: yelosheng/omnisaver
-  GHCR_IMAGE: ghcr.io/yelosheng/twitter-saver
+  DOCKERHUB_IMAGE: irritable0971/omnisaver
+  GHCR_IMAGE: ghcr.io/yelosheng/omnisaver
 
 jobs:
   build-and-push:

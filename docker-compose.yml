@@ -12,7 +12,7 @@ services:
       - .:/app
 
   omnisaver:
-    image: yelosheng/omnisaver:latest
+    image: irritable0971/omnisaver:latest
     # To build locally instead: replace the line above with `build: .`
     ports:
       - "6201:6201"
