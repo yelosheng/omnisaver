@@ -8,7 +8,7 @@ werkzeug>=2.3.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 markdownify>=0.13
-playwright>=1.40.0
+playwright==1.58.0
 python-telegram-bot>=20.0
 
 trafilatura>=1.6.0
