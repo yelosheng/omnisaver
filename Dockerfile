@@ -17,6 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install xreach-cli (Twitter thread fetching) and mcporter (XiaoHongShu)
 RUN npm install -g xreach-cli mcporter
 
+# Configure mcporter to use the xiaohongshu-mcp sidecar service
+RUN mkdir -p /root/.mcporter && \
+    printf '{"mcpServers":{"xiaohongshu":{"baseUrl":"http://xiaohongshu-mcp:18060/mcp"}},"imports":[]}' \
+    > /root/.mcporter/mcporter.json
+
 # Install yt-dlp (video downloads for Twitter/X and XiaoHongShu)
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod +x /usr/local/bin/yt-dlp

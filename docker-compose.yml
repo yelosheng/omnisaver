@@ -5,8 +5,7 @@ services:
       sh -c "
         mkdir -p /data/saved_tweets /data/xhs &&
         touch /data/xhs/cookies.json &&
-        [ -f /app/config.ini ] || cp /app/config.ini.example /app/config.ini &&
-        [ -f /app/docker-mcporter.json ] || printf '{\"mcpServers\":{\"xiaohongshu\":{\"baseUrl\":\"http://xiaohongshu-mcp:18060/mcp\"}},\"imports\":[]}' > /app/docker-mcporter.json
+        [ -f /app/config.ini ] || cp /app/config.ini.example /app/config.ini
       "
     volumes:
       - ./docker-data:/data
@@ -24,8 +23,7 @@ services:
       - ./docker-data/saved_tweets:/app/saved_tweets
       # XHS cookies (shared with xiaohongshu-mcp)
       - ./docker-data/xhs:/root/.agent-reach/xhs
-      # mcporter config pointing to xiaohongshu-mcp service
-      - ./docker-mcporter.json:/root/.mcporter/mcporter.json:ro
+      # mcporter config is baked into the image (points to xiaohongshu-mcp:18060)
     environment:
       - DATA_DIR=/data
       - SAVE_PATH=/app/saved_tweets
