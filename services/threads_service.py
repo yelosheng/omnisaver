@@ -53,7 +53,7 @@ class ThreadsService:
         return m.group(1) if m else ''
 
     async def _fetch_post_async(self, url: str) -> dict:
-        """Use Playwright to scrape a Threads post page."""
+        """Use Playwright to scrape a Threads post page, including full thread chains."""
         post_id = self.extract_post_id(url)
         username = self.extract_username(url)
         clean_url = f'https://www.threads.com/@{username}/post/{post_id}'
@@ -72,6 +72,7 @@ class ThreadsService:
 
             meta = {
                 'text': '',
+                'thread_posts': [],  # [{text, images, videos}, ...] one entry per thread post
                 'author_name': username,
                 'author_username': username,
                 'avatar_url': '',
@@ -85,7 +86,7 @@ class ThreadsService:
                 await page.goto(clean_url, wait_until='domcontentloaded', timeout=30000)
                 await asyncio.sleep(4)
 
-                # Try Open Graph meta tags
+                # --- Basic metadata from Open Graph / JSON-LD ---
                 og_data = await page.evaluate('''() => {
                     const get = (name) => {
                         const el = document.querySelector(`meta[property="${name}"], meta[name="${name}"]`);
@@ -97,7 +98,6 @@ class ThreadsService:
                     return {
                         title: get('og:title'),
                         description: get('og:description'),
-                        image: get('og:image'),
                         jsonLd,
                     };
                 }''')
@@ -105,13 +105,11 @@ class ThreadsService:
                 if og_data.get('description'):
                     meta['text'] = og_data['description']
 
-                # Parse author display name from title "Author on Threads"
                 if og_data.get('title'):
                     title_match = re.match(r'^(.+?)\s+on Threads', og_data['title'])
                     if title_match:
                         meta['author_name'] = title_match.group(1)
 
-                # Try JSON-LD
                 for item in og_data.get('jsonLd', []):
                     if isinstance(item, dict):
                         if item.get('@type') == 'SocialMediaPosting':
@@ -123,59 +121,146 @@ class ThreadsService:
                             meta['author_name'] = item.get('name', meta['author_name'])
                             meta['avatar_url'] = item.get('image', meta['avatar_url'])
 
-                # Fallback: DOM text scraping
-                if not meta['text']:
-                    text_content = await page.evaluate('''() => {
-                        const selectors = [
-                            '[data-pressable-container] span',
-                            'article span',
-                            'h1',
-                            '[dir="auto"]',
-                        ];
-                        for (const sel of selectors) {
-                            const els = Array.from(document.querySelectorAll(sel));
-                            const texts = els.map(e => e.innerText.trim()).filter(t => t.length > 20);
-                            if (texts.length) return texts[0];
+                # --- Thread-aware DOM scraping ---
+                # Find all consecutive posts by the same author (the thread chain).
+                # Each Threads post shows the author's profile link next to the post text.
+                # We walk author-link occurrences in DOM order and stop at the first
+                # occurrence of a different author (that marks the start of replies).
+                thread_posts_raw = await page.evaluate('''(targetUsername) => {
+                    targetUsername = (targetUsername || '').toLowerCase();
+                    const IMG_FILTER = (img) => {
+                        const src = img.src || '';
+                        const w = img.getBoundingClientRect().width || img.width || 0;
+                        return src && w > 200 && !src.includes('emoji') &&
+                               (src.includes('fbcdn') || src.includes('cdninstagram')) &&
+                               !src.includes('t51.2885-19');
+                    };
+
+                    // Find all author-profile links on the page (not /post/ links)
+                    const authorRe = new RegExp('/@' + targetUsername + '(/|\\\\?|$)', 'i');
+                    const allLinks = Array.from(document.querySelectorAll('a[href]'));
+                    const authorLinks = allLinks.filter(a =>
+                        authorRe.test(a.href) && !a.href.includes('/post/')
+                    );
+
+                    if (authorLinks.length === 0) return [];
+
+                    const posts = [];
+                    const processedContainers = new WeakSet();
+
+                    for (const link of authorLinks) {
+                        // Walk up to find a container that has [dir="auto"] text
+                        // but stop before body/main/html to avoid capturing the whole page
+                        let container = link.parentElement;
+                        let found = false;
+                        for (let i = 0; i < 15; i++) {
+                            if (!container) break;
+                            const tag = (container.tagName || '').toLowerCase();
+                            if (['body', 'main', 'html'].includes(tag)) break;
+                            if (container.querySelectorAll('[dir="auto"]').length > 0) {
+                                found = true;
+                                break;
+                            }
+                            container = container.parentElement;
                         }
-                        return '';
+                        if (!found || !container || processedContainers.has(container)) continue;
+                        processedContainers.add(container);
+
+                        // Extract text (deduplicate nested [dir="auto"] elements)
+                        const textParts = [];
+                        const seenText = new Set();
+                        Array.from(container.querySelectorAll('[dir="auto"]')).forEach(el => {
+                            const t = el.innerText.trim();
+                            if (t && !seenText.has(t)) { seenText.add(t); textParts.push(t); }
+                        });
+                        const text = textParts.join('\\n');
+                        if (!text) continue;
+
+                        // Extract post images (exclude avatars)
+                        const imgSeen = new Set();
+                        const images = [];
+                        Array.from(container.querySelectorAll('img')).forEach(img => {
+                            if (!IMG_FILTER(img)) return;
+                            const base = img.src.replace(/\\?.*$/, '');
+                            if (!imgSeen.has(base)) { imgSeen.add(base); images.push(img.src); }
+                        });
+
+                        // Extract videos
+                        const videos = Array.from(container.querySelectorAll('video source, video'))
+                            .map(v => v.src || v.currentSrc)
+                            .filter(s => s && s.startsWith('http'));
+
+                        posts.push({ text, images, videos });
+                    }
+
+                    return posts;
+                }''', username)
+
+                if thread_posts_raw:
+                    meta['thread_posts'] = thread_posts_raw
+                    # First post text is the authoritative text for title/preview
+                    meta['text'] = thread_posts_raw[0].get('text', meta['text']) or meta['text']
+                    # Aggregate all media (deduplicated) for downloading
+                    seen_img = set()
+                    seen_vid = set()
+                    for post in thread_posts_raw:
+                        for img in post.get('images', []):
+                            base = re.sub(r'\?.*$', '', img)
+                            if base not in seen_img:
+                                seen_img.add(base)
+                                meta['images'].append(img)
+                        for vid in post.get('videos', []):
+                            if vid not in seen_vid:
+                                seen_vid.add(vid)
+                                meta['videos'].append(vid)
+                    info(f'[Threads] Thread: {len(thread_posts_raw)} post(s), '
+                         f'images={len(meta["images"])}, videos={len(meta["videos"])}')
+                else:
+                    # Fallback: page-wide scrape (single post or DOM structure changed)
+                    if not meta['text']:
+                        text_content = await page.evaluate('''() => {
+                            const selectors = ['[data-pressable-container] span', 'article span', 'h1', '[dir="auto"]'];
+                            for (const sel of selectors) {
+                                const els = Array.from(document.querySelectorAll(sel));
+                                const texts = els.map(e => e.innerText.trim()).filter(t => t.length > 20);
+                                if (texts.length) return texts[0];
+                            }
+                            return '';
+                        }''')
+                        meta['text'] = text_content or ''
+
+                    images = await page.evaluate('''() => {
+                        return Array.from(document.querySelectorAll('img'))
+                            .filter(img => {
+                                const src = img.src || '';
+                                const w = img.getBoundingClientRect().width || img.width || 0;
+                                return src && w > 200 && !src.includes('emoji') &&
+                                       (src.includes('fbcdn') || src.includes('cdninstagram')) &&
+                                       !src.includes('t51.2885-19');
+                            })
+                            .map(img => img.src);
                     }''')
-                    meta['text'] = text_content or ''
+                    seen = set()
+                    for img in images:
+                        base = re.sub(r'\?.*$', '', img)
+                        if base not in seen:
+                            seen.add(base)
+                            meta['images'].append(img)
 
-                # Images — exclude profile pictures (t51.2885-19) and small rendered avatars
-                images = await page.evaluate('''() => {
-                    return Array.from(document.querySelectorAll('img'))
-                        .filter(img => {
-                            const src = img.src || '';
-                            // Rendered CSS width — avatars are small circles (32-60px), post images fill content width (200px+)
-                            const w = img.getBoundingClientRect().width || img.width || 0;
-                            return src && w > 200 && !src.includes('emoji') &&
-                                   (src.includes('fbcdn') || src.includes('cdninstagram')) &&
-                                   !src.includes('t51.2885-19');  // Meta CDN: profile pictures
-                        })
-                        .map(img => img.src);
-                }''')
-                seen = set()
-                for img in images:
-                    base = re.sub(r'\?.*$', '', img)
-                    if base not in seen:
-                        seen.add(base)
-                        meta['images'].append(img)
+                    videos = await page.evaluate('''() => {
+                        return Array.from(document.querySelectorAll('video source, video'))
+                            .map(v => v.src || v.currentSrc)
+                            .filter(s => s && s.startsWith('http'));
+                    }''')
+                    seen_v = set()
+                    for v in videos:
+                        if v not in seen_v:
+                            seen_v.add(v)
+                            meta['videos'].append(v)
+                    info(f'[Threads] Single post fallback: text={len(meta["text"])}ch, '
+                         f'images={len(meta["images"])}, videos={len(meta["videos"])}')
 
-                # Videos
-                videos = await page.evaluate('''() => {
-                    return Array.from(document.querySelectorAll('video source, video'))
-                        .map(v => v.src || v.currentSrc)
-                        .filter(s => s && s.startsWith('http'));
-                }''')
-                seen_videos = set()
-                deduped_videos = []
-                for v in videos:
-                    if v not in seen_videos:
-                        seen_videos.add(v)
-                        deduped_videos.append(v)
-                meta['videos'] = deduped_videos
-
-                # Avatar fallback
+                # Avatar
                 if not meta['avatar_url']:
                     avatar = await page.evaluate('''() => {
                         const imgs = Array.from(document.querySelectorAll('img[alt]'));
@@ -187,9 +272,6 @@ class ThreadsService:
                         return av ? av.src : '';
                     }''')
                     meta['avatar_url'] = avatar or ''
-
-                info(f'[Threads] Scraped: text={len(meta["text"])}ch, '
-                     f'images={len(meta["images"])}, videos={len(meta["videos"])}')
 
             except Exception as exc:
                 warning(f'[Threads] Playwright scrape error: {exc}')
@@ -215,7 +297,7 @@ class ThreadsService:
             return False
 
     def save_post(self, url: str) -> dict:
-        """Download and save a Threads post. Returns result dict for process_threads_task."""
+        """Download and save a Threads post (or full thread chain)."""
         meta = asyncio.run(self._fetch_post_async(url))
         post_id = meta['post_id']
         author_username = meta['author_username']
@@ -234,7 +316,7 @@ class ThreadsService:
         # Avatar
         self._download_file(meta['avatar_url'], post_dir / 'avatar.jpg', 'avatar')
 
-        # Images
+        # Download all images (global numbered list)
         images_dir = post_dir / 'images'
         downloaded_images = 0
         if meta['images']:
@@ -243,7 +325,7 @@ class ThreadsService:
                 if self._download_file(img_url, images_dir / f'image_{i:03d}.jpg', f'image {i}'):
                     downloaded_images += 1
 
-        # Videos
+        # Download all videos
         videos_dir = post_dir / 'videos'
         downloaded_videos = 0
         if meta['videos']:
@@ -254,6 +336,65 @@ class ThreadsService:
 
         media_count = downloaded_images + downloaded_videos
 
+        # Build content.md
+        # If we have a thread, render each post's text separated by ---
+        # with a running image index that advances per-post
+        content_lines = []
+        thread_posts = meta.get('thread_posts', [])
+
+        if len(thread_posts) > 1:
+            # Multi-post thread: track which image index corresponds to each post
+            img_idx = 1
+            vid_idx = 1
+            for p_num, post in enumerate(thread_posts):
+                text = post.get('text', '')
+                post_images = post.get('images', [])
+                post_videos = post.get('videos', [])
+
+                if text:
+                    content_lines.append(re.sub(r'(?m)^#', r'\\#', text))
+                    content_lines.append('')
+
+                # Images for this post
+                for _ in post_images:
+                    if img_idx <= downloaded_images:
+                        content_lines.append(f'![image {img_idx}](images/image_{img_idx:03d}.jpg)')
+                        img_idx += 1
+                if post_images:
+                    content_lines.append('')
+
+                # Videos for this post
+                for _ in post_videos:
+                    if vid_idx <= downloaded_videos:
+                        content_lines.append(f'[Video {vid_idx}](videos/video_{vid_idx:03d}.mp4)')
+                        vid_idx += 1
+                if post_videos:
+                    content_lines.append('')
+
+                # Separator between posts (not after last)
+                if p_num < len(thread_posts) - 1:
+                    content_lines.append('---')
+                    content_lines.append('')
+        else:
+            # Single post
+            if meta['text']:
+                content_lines.append(re.sub(r'(?m)^#', r'\\#', meta['text']))
+                content_lines.append('')
+            for i in range(1, downloaded_images + 1):
+                content_lines.append(f'![image {i}](images/image_{i:03d}.jpg)')
+            if downloaded_images:
+                content_lines.append('')
+            for i in range(1, downloaded_videos + 1):
+                content_lines.append(f'[Video {i}](videos/video_{i:03d}.mp4)')
+            if downloaded_videos:
+                content_lines.append('')
+
+        (post_dir / 'content.md').write_text('\n'.join(content_lines), encoding='utf-8')
+
+        # content.txt: all thread texts joined (for FTS)
+        all_texts = [p.get('text', '') for p in thread_posts if p.get('text')] or [meta['text']]
+        (post_dir / 'content.txt').write_text('\n\n---\n\n'.join(all_texts), encoding='utf-8')
+
         # metadata.json
         metadata = {
             'post_id': post_id,
@@ -262,6 +403,7 @@ class ThreadsService:
             'author_name': meta['author_name'],
             'text': meta['text'],
             'title': meta['text'][:100] if meta['text'] else f'Threads post by @{author_username}',
+            'thread_count': len(thread_posts) if thread_posts else 1,
             'images': meta['images'],
             'videos': meta['videos'],
             'saved_at': save_time.isoformat(),
@@ -270,25 +412,7 @@ class ThreadsService:
             json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf-8'
         )
 
-        # content.md
-        content_lines = []
-        if meta['text']:
-            escaped = re.sub(r'(?m)^#', r'\\#', meta['text'])
-            content_lines.append(escaped)
-            content_lines.append('')
-        for i in range(1, downloaded_images + 1):
-            content_lines.append(f'![image {i}](images/image_{i:03d}.jpg)')
-        if downloaded_images:
-            content_lines.append('')
-        for i in range(1, downloaded_videos + 1):
-            content_lines.append(f'[Video {i}](videos/video_{i:03d}.mp4)')
-        if downloaded_videos:
-            content_lines.append('')
-
-        (post_dir / 'content.md').write_text('\n'.join(content_lines), encoding='utf-8')
-        (post_dir / 'content.txt').write_text(meta['text'], encoding='utf-8')
-
-        success(f'[Threads] Saved post {post_id} by @{author_username} → {post_dir}')
+        success(f'[Threads] Saved {len(thread_posts) or 1} post(s) by @{author_username} → {post_dir}')
 
         return {
             'post_id': post_id,
