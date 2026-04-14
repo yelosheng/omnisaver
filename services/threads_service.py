@@ -167,11 +167,18 @@ class ThreadsService:
                         processedContainers.add(container);
 
                         // Extract text (deduplicate nested [dir="auto"] elements)
+                        // Skip engagement metrics: pure numbers, like/reply/repost counts,
+                        // timestamps (e.g. "2h", "1d", "Apr 12"), and username handles
+                        const SKIP_RE = /^[\d,.\s]+$|^\d[\d,.]* *(likes?|like|replies|reply|reposts?|views?|following|followers?|赞|回复|转发|浏览)(\s|$)/i;
+                        const TIMESTAMP_RE = /^\d+[smhd]$|^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d/i;
                         const textParts = [];
                         const seenText = new Set();
                         Array.from(container.querySelectorAll('[dir="auto"]')).forEach(el => {
                             const t = el.innerText.trim();
-                            if (t && !seenText.has(t)) { seenText.add(t); textParts.push(t); }
+                            if (!t || seenText.has(t)) return;
+                            if (SKIP_RE.test(t) || TIMESTAMP_RE.test(t)) return;
+                            seenText.add(t);
+                            textParts.push(t);
                         });
                         const text = textParts.join('\\n');
                         if (!text) continue;
