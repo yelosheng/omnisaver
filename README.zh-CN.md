@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="telegram_avatar.png" alt="OmniSaver" width="120">
+  <img src="omnisaver-banner.png" alt="OmniSaver" width="280">
 </div>
 
 # OmniSaver — 多平台内容归档工具
