@@ -165,7 +165,13 @@ class ThreadsService:
                         .map(v => v.src || v.currentSrc)
                         .filter(s => s && s.startsWith('http'));
                 }''')
-                meta['videos'] = list(set(videos))
+                seen_videos = set()
+                deduped_videos = []
+                for v in videos:
+                    if v not in seen_videos:
+                        seen_videos.add(v)
+                        deduped_videos.append(v)
+                meta['videos'] = deduped_videos
 
                 # Avatar fallback
                 if not meta['avatar_url']:
@@ -278,6 +284,7 @@ class ThreadsService:
             content_lines.append('')
 
         (post_dir / 'content.md').write_text('\n'.join(content_lines), encoding='utf-8')
+        (post_dir / 'content.txt').write_text(meta['text'], encoding='utf-8')
 
         success(f'[Threads] Saved post {post_id} by @{author_username} → {post_dir}')
 
