@@ -128,12 +128,15 @@ class ThreadsService:
                 # occurrence of a different author (that marks the start of replies).
                 thread_posts_raw = await page.evaluate('''(targetUsername) => {
                     targetUsername = (targetUsername || '').toLowerCase();
+                    // Meta CDN profile-picture paths end in -19 (e.g. t51.2885-19, t51.82787-19).
+                    // Post-content images use -15. Also filter small size params (s150x150, etc.)
+                    const AVATAR_CDN = /t51\\.\\d+-19|[?&]stp=dst-jpg_s\\d{2,3}x\\d{2,3}/;
                     const IMG_FILTER = (img) => {
                         const src = img.src || '';
                         const w = img.getBoundingClientRect().width || img.width || 0;
                         return src && w > 200 && !src.includes('emoji') &&
                                (src.includes('fbcdn') || src.includes('cdninstagram')) &&
-                               !src.includes('t51.2885-19');
+                               !AVATAR_CDN.test(src);
                     };
 
                     // Find all author-profile links on the page (not /post/ links)
@@ -237,13 +240,14 @@ class ThreadsService:
                         meta['text'] = text_content or ''
 
                     images = await page.evaluate('''() => {
+                        const AVATAR_CDN = /t51\\.\\d+-19|[?&]stp=dst-jpg_s\\d{2,3}x\\d{2,3}/;
                         return Array.from(document.querySelectorAll('img'))
                             .filter(img => {
                                 const src = img.src || '';
                                 const w = img.getBoundingClientRect().width || img.width || 0;
                                 return src && w > 200 && !src.includes('emoji') &&
                                        (src.includes('fbcdn') || src.includes('cdninstagram')) &&
-                                       !src.includes('t51.2885-19');
+                                       !AVATAR_CDN.test(src);
                             })
                             .map(img => img.src);
                     }''')
