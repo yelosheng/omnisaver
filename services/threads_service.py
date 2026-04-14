@@ -141,14 +141,16 @@ class ThreadsService:
                     }''')
                     meta['text'] = text_content or ''
 
-                # Images
+                # Images — exclude profile pictures (t51.2885-19) and small rendered avatars
                 images = await page.evaluate('''() => {
                     return Array.from(document.querySelectorAll('img'))
                         .filter(img => {
                             const src = img.src || '';
-                            const w = img.naturalWidth || img.width || 0;
-                            return src && w > 100 && !src.includes('emoji') &&
-                                   (src.includes('fbcdn') || src.includes('cdninstagram'));
+                            // Rendered CSS width — avatars are small circles (32-60px), post images fill content width (200px+)
+                            const w = img.getBoundingClientRect().width || img.width || 0;
+                            return src && w > 200 && !src.includes('emoji') &&
+                                   (src.includes('fbcdn') || src.includes('cdninstagram')) &&
+                                   !src.includes('t51.2885-19');  // Meta CDN: profile pictures
                         })
                         .map(img => img.src);
                 }''')
