@@ -677,7 +677,7 @@ def process_threads_task(task_id: int, url: str):
         )
         full_text = _read_full_text(result['save_path']) or result.get('tweet_text', '')
         fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''),
-                   full_text, title=result.get('title'))
+                   full_text, title=_read_title(result['save_path']))
         conn.commit()
         conn.close()
         success(f'[Threads Task {task_id}] Saved: {result.get("title", url)}')
