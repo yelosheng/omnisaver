@@ -294,6 +294,38 @@ class ThreadsService:
 
         return meta
 
+    @staticmethod
+    def _clean_text(text: str, username: str = '') -> str:
+        """Python-side cleanup: strip username handles, dates, engagement counts, UI strings.
+        Acts as a safety net in case the JS filter misses anything."""
+        skip_re = re.compile(
+            r'^[\d,.\s]+$'
+            r'|^\d[\d,.]*[KMBkmg]?\+?$'
+            r'|^\d[\d,.]* *(likes?|replies?|reposts?|retweets?|views?|following|followers?'
+            r'|赞|回复|转发|浏览)\b'
+            r'|^(Translate|See\s+(more|less|translation)|Reply|Repost|Like|Share'
+            r'|Follow|Following|More|Author)$',
+            re.IGNORECASE,
+        )
+        ts_re = re.compile(
+            r'^\d+[smhd]$'
+            r'|^\d{1,2}[./]\d{1,2}[./]\d{2,4}$'
+            r'|^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d',
+            re.IGNORECASE,
+        )
+        lines = text.split('\n')
+        clean = []
+        for line in lines:
+            t = line.strip()
+            if not t:
+                continue
+            if username and t.lower() == username.lower():
+                continue
+            if skip_re.match(t) or ts_re.match(t):
+                continue
+            clean.append(t)
+        return '\n'.join(clean)
+
     def _download_file(self, url: str, dest: Path, label: str = '') -> bool:
         if not url:
             return False
@@ -315,6 +347,15 @@ class ThreadsService:
         meta = asyncio.run(self._fetch_post_async(url))
         post_id = meta['post_id']
         author_username = meta['author_username']
+
+        # Apply Python-side cleaning as a safety net (JS filter may miss edge cases)
+        meta['text'] = self._clean_text(meta['text'], author_username)
+        if meta.get('thread_posts'):
+            for post in meta['thread_posts']:
+                if post.get('text'):
+                    post['text'] = self._clean_text(post['text'], author_username)
+            # Re-sync meta['text'] from first post after cleaning
+            meta['text'] = meta['thread_posts'][0].get('text', meta['text']) or meta['text']
 
         save_time = datetime.now()
         safe_title = re.sub(r'[^\w\u4e00-\u9fa5]+', '_', meta['text'])[:40].strip('_') or post_id
