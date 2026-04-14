@@ -1,6 +1,7 @@
 <svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-  <!-- Dark rounded-square background -->
-  <rect width="256" height="256" rx="52" fill="#1e293b"/>
+  <!-- Light rounded-square background -->
+  <rect width="256" height="256" rx="52" fill="#f1f5f9"/>
+  <rect width="256" height="256" rx="52" fill="none" stroke="#e2e8f0" stroke-width="4"/>
 
   <!-- Three colored folder tabs sticking up -->
   <rect x="52"  y="82" width="44" height="24" rx="8" fill="#6366f1"/>
