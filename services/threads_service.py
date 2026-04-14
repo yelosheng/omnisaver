@@ -172,13 +172,16 @@ class ThreadsService:
                         // Extract text (deduplicate nested [dir="auto"] elements)
                         // Skip engagement metrics: pure numbers, like/reply/repost counts,
                         // timestamps (e.g. "2h", "1d", "Apr 12"), and username handles
-                        const SKIP_RE = /^[\d,.\s]+$|^\d[\d,.]* *(likes?|like|replies|reply|reposts?|views?|following|followers?|赞|回复|转发|浏览)(\s|$)/i;
-                        const TIMESTAMP_RE = /^\d+[smhd]$|^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d/i;
+                        // Skip engagement numbers (plain or with K/M/B suffix), UI buttons,
+                        // date strings in any format, and the author's own username handle.
+                        const SKIP_RE = /^[\d,.\s]+$|^\d[\d,.]*[KMBkmg]?\+?$|^\d[\d,.]* *(likes?|like|replies|reply|reposts?|retweets?|views?|following|followers?|赞|回复|转发|浏览)(\s|$)|^(Translate|See (more|less|translation)|Reply|Repost|Like|Share|Follow|Following|More)$/i;
+                        const TIMESTAMP_RE = /^\d+[smhd]$|^\d{1,2}[./]\d{1,2}[./]\d{2,4}$|^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d/i;
                         const textParts = [];
                         const seenText = new Set();
                         Array.from(container.querySelectorAll('[dir="auto"]')).forEach(el => {
                             const t = el.innerText.trim();
                             if (!t || seenText.has(t)) return;
+                            if (t.toLowerCase() === targetUsername) return;
                             if (SKIP_RE.test(t) || TIMESTAMP_RE.test(t)) return;
                             seenText.add(t);
                             textParts.push(t);
