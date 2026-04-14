@@ -419,6 +419,14 @@ def make_reddit_service():
     return RedditService(base_path, create_date_folders=create_date_folders)
 
 
+def make_threads_service():
+    """Instantiate ThreadsService with configured save path."""
+    from services.threads_service import ThreadsService
+    base_path = _config_manager.get_save_path() if _config_manager else os.path.join(DATA_DIR, 'saved_tweets')
+    create_date_folders = _config_manager.get_create_date_folders() if _config_manager else True
+    return ThreadsService(base_path, create_date_folders=create_date_folders)
+
+
 def make_feishu_service():
     """Instantiate FeishuService with configured save path."""
     from services.feishu_service import FeishuService
@@ -636,6 +644,48 @@ def process_reddit_task(task_id: int, url: str):
         error(f'[Reddit Task {task_id}] Failed: {e}')
         try:
             _store_task_failure(task_id, e, url=url, stage='reddit save')
+        except Exception:
+            pass
+
+
+def process_threads_task(task_id: int, url: str):
+    """Queue worker handler for Threads tasks."""
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            'UPDATE tasks SET status = ?, processed_at = ? WHERE id = ?',
+            ('processing', format_time_for_db(get_current_time()), task_id)
+        )
+        conn.commit()
+        conn.close()
+
+        svc = make_threads_service()
+        result = svc.save_post(url)
+        slug = generate_unique_slug()
+        now = format_time_for_db(get_current_time())
+
+        conn = get_db_connection()
+        conn.execute(
+            '''UPDATE tasks SET status='completed', processed_at=?, tweet_id=?,
+               author_username=?, author_name=?, save_path=?, tweet_text=?,
+               share_slug=?, media_count=?, content_type='threads' WHERE id=?''',
+            (now, result['post_id'],
+             result.get('author_username', ''), result.get('author_name', ''),
+             result['save_path'], result.get('tweet_text', '')[:500],
+             slug, result.get('media_count', 0),
+             task_id)
+        )
+        full_text = _read_full_text(result['save_path']) or result.get('tweet_text', '')
+        fts_upsert(conn, task_id, result.get('author_name', ''), result.get('author_username', ''),
+                   full_text, title=result.get('title'))
+        conn.commit()
+        conn.close()
+        success(f'[Threads Task {task_id}] Saved: {result.get("title", url)}')
+
+    except Exception as e:
+        error(f'[Threads Task {task_id}] Failed: {e}')
+        try:
+            _store_task_failure(task_id, e, url=url, stage='threads save')
         except Exception:
             pass
 
@@ -1330,6 +1380,8 @@ def queue_processor():
                     process_pinterest_task(task_id, url)
                 elif _content_type == 'reddit':
                     process_reddit_task(task_id, url)
+                elif _content_type == 'threads':
+                    process_threads_task(task_id, url)
                 elif _content_type == 'feishu':
                     process_feishu_task(task_id, url)
                 elif _content_type == 'webpage':
