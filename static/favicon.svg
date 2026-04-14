@@ -1,19 +1,17 @@
 <svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-  <!-- Light rounded-square background -->
-  <rect width="256" height="256" rx="52" fill="#f1f5f9"/>
-  <rect width="256" height="256" rx="52" fill="none" stroke="#e2e8f0" stroke-width="4"/>
+  <!-- No background — transparent -->
 
-  <!-- Three colored folder tabs sticking up -->
-  <rect x="52"  y="82" width="44" height="24" rx="8" fill="#6366f1"/>
-  <rect x="106" y="68" width="44" height="38" rx="8" fill="#10b981"/>
-  <rect x="160" y="82" width="44" height="24" rx="8" fill="#f59e0b"/>
+  <!-- Colorful folder tabs (bright, high contrast) -->
+  <rect x="14"  y="60" width="62" height="52" rx="10" fill="#6366f1"/>
+  <rect x="97"  y="38" width="62" height="74" rx="10" fill="#10b981"/>
+  <rect x="180" y="60" width="62" height="52" rx="10" fill="#f59e0b"/>
 
-  <!-- Cabinet drawer body -->
-  <rect x="32" y="104" width="192" height="112" rx="20" fill="#334155"/>
+  <!-- Cabinet body (dark, fills most of canvas) -->
+  <rect x="8" y="108" width="240" height="136" rx="22" fill="#1e293b"/>
 
-  <!-- Drawer face (lighter strip at bottom) -->
-  <rect x="32" y="152" width="192" height="64" rx="20" fill="#475569"/>
+  <!-- Drawer face -->
+  <rect x="8" y="158" width="240" height="86" rx="22" fill="#334155"/>
 
   <!-- Handle -->
-  <rect x="100" y="180" width="56" height="10" rx="5" fill="#1e293b"/>
+  <rect x="96" y="192" width="64" height="12" rx="6" fill="#64748b"/>
 </svg>
