@@ -343,47 +343,45 @@ class ThreadsService:
 
         media_count = downloaded_images + downloaded_videos
 
-        # Build content.md
-        # If we have a thread, render each post's text separated by ---
-        # with a running image index that advances per-post
-        content_lines = []
+        import html as _html_mod
         thread_posts = meta.get('thread_posts', [])
 
         if len(thread_posts) > 1:
-            # Multi-post thread: track which image index corresponds to each post
+            # Multi-post thread: generate content.html with Twitter-style thread cards
+            # (app.py detects 'thread-tweet' class and rewrites relative media paths)
+            html_parts = []
             img_idx = 1
             vid_idx = 1
-            for p_num, post in enumerate(thread_posts):
+            for post in thread_posts:
                 text = post.get('text', '')
                 post_images = post.get('images', [])
                 post_videos = post.get('videos', [])
 
-                if text:
-                    content_lines.append(re.sub(r'(?m)^#', r'\\#', text))
-                    content_lines.append('')
+                body = _html_mod.escape(text).replace('\n', '<br>') if text else ''
 
-                # Images for this post
+                media_html = ''
                 for _ in post_images:
                     if img_idx <= downloaded_images:
-                        content_lines.append(f'![image {img_idx}](images/image_{img_idx:03d}.jpg)')
+                        media_html += (f'<img src="images/image_{img_idx:03d}.jpg" '
+                                       f'style="max-width:100%;border-radius:8px;margin:8px 0;display:block;">\n')
                         img_idx += 1
-                if post_images:
-                    content_lines.append('')
-
-                # Videos for this post
                 for _ in post_videos:
                     if vid_idx <= downloaded_videos:
-                        content_lines.append(f'[Video {vid_idx}](videos/video_{vid_idx:03d}.mp4)')
+                        media_html += (f'<video controls style="max-width:100%;border-radius:8px;margin:8px 0;">'
+                                       f'<source src="videos/video_{vid_idx:03d}.mp4" type="video/mp4"></video>\n')
                         vid_idx += 1
-                if post_videos:
-                    content_lines.append('')
 
-                # Separator between posts (not after last)
-                if p_num < len(thread_posts) - 1:
-                    content_lines.append('---')
-                    content_lines.append('')
+                html_parts.append(
+                    f'<div class="thread-tweet" style="margin-bottom:20px;padding-bottom:20px;'
+                    f'border-bottom:1px solid #e1e8ed;">\n'
+                    f'<p style="white-space:pre-line;margin:0 0 8px;">{body}</p>\n'
+                    f'{media_html}</div>\n'
+                )
+
+            (post_dir / 'content.html').write_text(''.join(html_parts), encoding='utf-8')
         else:
-            # Single post
+            # Single post: use content.md (rendered to HTML via markdown in app.py)
+            content_lines = []
             if meta['text']:
                 content_lines.append(re.sub(r'(?m)^#', r'\\#', meta['text']))
                 content_lines.append('')
@@ -395,8 +393,7 @@ class ThreadsService:
                 content_lines.append(f'[Video {i}](videos/video_{i:03d}.mp4)')
             if downloaded_videos:
                 content_lines.append('')
-
-        (post_dir / 'content.md').write_text('\n'.join(content_lines), encoding='utf-8')
+            (post_dir / 'content.md').write_text('\n'.join(content_lines), encoding='utf-8')
 
         # content.txt: all thread texts joined (for FTS)
         all_texts = [p.get('text', '') for p in thread_posts if p.get('text')] or [meta['text']]
