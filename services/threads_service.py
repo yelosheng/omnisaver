@@ -150,8 +150,9 @@ class ThreadsService:
                 thread_posts_raw = await page.evaluate('''(targetUsername) => {
                     targetUsername = (targetUsername || '').toLowerCase();
                     // Meta CDN profile-picture paths end in -19 (e.g. t51.2885-19, t51.82787-19).
-                    // Post-content images use -15. Also filter small size params (s150x150, etc.)
-                    const AVATAR_CDN = /t51\\.\\d+-19|[?&]stp=dst-jpg_s\\d{2,3}x\\d{2,3}/;
+                    // t51.71878-15 is video poster/thumbnail frames, not standalone images.
+                    // Also filter small size params (s150x150, etc. = avatars).
+                    const AVATAR_CDN = /t51\\.\\d+-19|t51\\.71878-15|[?&]stp=dst-jpg_s\\d{2,3}x\\d{2,3}/;
                     const IMG_FILTER = (img) => {
                         const src = img.src || '';
                         const w = img.getBoundingClientRect().width || img.width || 0;
@@ -272,7 +273,7 @@ class ThreadsService:
                         meta['text'] = text_content or ''
 
                     images = await page.evaluate('''() => {
-                        const AVATAR_CDN = /t51\\.\\d+-19|[?&]stp=dst-jpg_s\\d{2,3}x\\d{2,3}/;
+                        const AVATAR_CDN = /t51\\.\\d+-19|t51\\.71878-15|[?&]stp=dst-jpg_s\\d{2,3}x\\d{2,3}/;
                         return Array.from(document.querySelectorAll('img'))
                             .filter(img => {
                                 const src = img.src || '';
