@@ -140,6 +140,27 @@ class FacebookService:
                 final_url = page.url
                 meta['canonical_url'] = final_url
 
+                # Detect login wall: Facebook redirects unauthenticated users to
+                # the home/login page (no post path in URL) or shows a login form.
+                _login_wall = False
+                _final_path = re.sub(r'\?.*$', '', final_url).rstrip('/')
+                if re.search(r'facebook\.com/?$', _final_path) or \
+                   re.search(r'facebook\.com/login', _final_path):
+                    _login_wall = True
+                if not _login_wall:
+                    _login_wall = await page.evaluate('''() => {
+                        const text = (document.body.innerText || '').toLowerCase();
+                        return text.includes('log in to facebook') ||
+                               text.includes('create new account') ||
+                               document.querySelector('[data-testid="royal_login_button"], #loginbutton, #email[name="email"]') !== null;
+                    }''')
+
+                if _login_wall:
+                    raise FacebookServiceError(
+                        'Facebook requires login to view this content. '
+                        'The post may be private or Facebook is blocking anonymous access.'
+                    )
+
                 # Re-extract IDs from the final redirected URL
                 final_id = self._extract_post_id(final_url)
                 if final_id:
