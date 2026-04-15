@@ -317,6 +317,22 @@ class ThreadsService:
                     }''')
                     meta['avatar_url'] = avatar or ''
 
+                # Download images inside the browser context (CDN URLs are session-signed)
+                img_bytes_list = []
+                for img_url in meta['images']:
+                    try:
+                        data = await page.evaluate('''async (url) => {
+                            const resp = await fetch(url, {credentials: "include"});
+                            if (!resp.ok) return null;
+                            const buf = await resp.arrayBuffer();
+                            return Array.from(new Uint8Array(buf));
+                        }''', img_url)
+                        img_bytes_list.append(bytes(data) if data else None)
+                    except Exception as exc:
+                        warning(f'[Threads] In-browser image fetch failed: {exc}')
+                        img_bytes_list.append(None)
+                meta['image_bytes'] = img_bytes_list
+
             except Exception as exc:
                 warning(f'[Threads] Playwright scrape error: {exc}')
             finally:
@@ -413,7 +429,11 @@ class ThreadsService:
         try:
             req = urllib.request.Request(
                 url,
-                headers={'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15'},
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.threads.com/',
+                    'Origin': 'https://www.threads.com',
+                },
             )
             with urllib.request.urlopen(req, timeout=20) as resp:
                 dest.write_bytes(resp.read())
@@ -452,13 +472,20 @@ class ThreadsService:
         # Avatar
         self._download_file(meta['avatar_url'], post_dir / 'avatar.jpg', 'avatar')
 
-        # Download all images (global numbered list)
+        # Save images — use in-browser fetched bytes when available (CDN URLs are session-signed)
         images_dir = post_dir / 'images'
         downloaded_images = 0
+        image_bytes_list = meta.get('image_bytes', [])
         if meta['images']:
             images_dir.mkdir(exist_ok=True)
             for i, img_url in enumerate(meta['images'], 1):
-                if self._download_file(img_url, images_dir / f'image_{i:03d}.jpg', f'image {i}'):
+                dest = images_dir / f'image_{i:03d}.jpg'
+                img_bytes = image_bytes_list[i - 1] if i - 1 < len(image_bytes_list) else None
+                if img_bytes and len(img_bytes) > 5000:
+                    dest.write_bytes(img_bytes)
+                    info(f'[Threads] Saved image {i} ({len(img_bytes)} bytes) from browser context')
+                    downloaded_images += 1
+                elif self._download_file(img_url, dest, f'image {i}'):
                     downloaded_images += 1
 
         # Download all videos and generate thumbnails
