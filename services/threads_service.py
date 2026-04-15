@@ -174,8 +174,8 @@ class ThreadsService:
                         // timestamps (e.g. "2h", "1d", "Apr 12"), and username handles
                         // Skip engagement numbers (plain or with K/M/B suffix), UI buttons,
                         // date strings in any format, and the author's own username handle.
-                        const SKIP_RE = /^[\d,.\s]+$|^\d[\d,.]*[KMBkmg]?\+?$|^\d[\d,.]* *(likes?|like|replies|reply|reposts?|retweets?|views?|following|followers?|赞|回复|转发|浏览)(\s|$)|^(Translate|See (more|less|translation)|Reply|Repost|Like|Share|Follow|Following|More)$/i;
-                        const TIMESTAMP_RE = /^\d+[smhd]$|^\d{1,2}[./]\d{1,2}[./]\d{2,4}$|^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d/i;
+                        const SKIP_RE = /^[\d,.\s·\u00b7]+$|^\d[\d,.]*[KMBkmg]?\+?$|^\d[\d,.]* *(likes?|like|replies|reply|reposts?|retweets?|views?|following|followers?|赞|回复|转发|浏览)(\s|$)|^(Translate|See (more|less|translation)|Reply|Repost|Like|Share|Follow|Following|More|作者|Author)$|^·+$/i;
+                        const TIMESTAMP_RE = /^\d+[smhd]$|^\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}$|\d{4}[./\-]\d{1,2}[./\-]\d{1,2}|^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d/i;
                         const textParts = [];
                         const seenText = new Set();
                         Array.from(container.querySelectorAll('[dir="auto"]')).forEach(el => {
@@ -299,17 +299,19 @@ class ThreadsService:
         """Python-side cleanup: strip username handles, dates, engagement counts, UI strings.
         Acts as a safety net in case the JS filter misses anything."""
         skip_re = re.compile(
-            r'^[\d,.\s]+$'
+            r'^[\d,.\s·\u00b7]+$'
             r'|^\d[\d,.]*[KMBkmg]?\+?$'
             r'|^\d[\d,.]* *(likes?|replies?|reposts?|retweets?|views?|following|followers?'
             r'|赞|回复|转发|浏览)\b'
             r'|^(Translate|See\s+(more|less|translation)|Reply|Repost|Like|Share'
-            r'|Follow|Following|More|Author)$',
+            r'|Follow|Following|More|Author|作者)$'
+            r'|^[·\u00b7]+$',
             re.IGNORECASE,
         )
         ts_re = re.compile(
             r'^\d+[smhd]$'
-            r'|^\d{1,2}[./]\d{1,2}[./]\d{2,4}$'
+            r'|^\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}$'
+            r'|\d{4}[./\-]\d{1,2}[./\-]\d{1,2}'
             r'|^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d',
             re.IGNORECASE,
         )
