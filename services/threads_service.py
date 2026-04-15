@@ -454,6 +454,17 @@ class ThreadsService:
                     f'{media_html}</div>\n'
                 )
 
+            # Append any videos not assigned to specific posts to the FIRST post
+            # (network-intercepted videos have no DOM post association;
+            #  the first post is the original content most likely to contain media)
+            if vid_idx <= downloaded_videos and html_parts:
+                extra_vids = ''
+                while vid_idx <= downloaded_videos:
+                    extra_vids += (f'<video controls style="max-width:100%;border-radius:8px;margin:8px 0;">'
+                                   f'<source src="videos/video_{vid_idx:03d}.mp4" type="video/mp4"></video>\n')
+                    vid_idx += 1
+                html_parts[0] = html_parts[0].replace('</div>\n', extra_vids + '</div>\n', 1)
+
             (post_dir / 'content.html').write_text(''.join(html_parts), encoding='utf-8')
         else:
             # Single post: use content.md (rendered to HTML via markdown in app.py)
