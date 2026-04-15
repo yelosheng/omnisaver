@@ -61,11 +61,14 @@ class ThreadsService:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
+                # Desktop UA: mobile UA causes Threads to show video error messages
+                # and prevents videos from loading via network requests
                 user_agent=(
-                    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) '
-                    'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/120.0.0.0 Safari/537.36'
                 ),
-                viewport={'width': 390, 'height': 844},
+                viewport={'width': 1280, 'height': 900},
                 locale='en-US',
             )
             page = await context.new_page()
@@ -81,10 +84,25 @@ class ThreadsService:
                 'post_id': post_id,
             }
 
+            # Intercept network requests to capture video mp4 URLs
+            # (Threads loads videos dynamically; they don't appear in <video> DOM elements)
+            intercepted_videos: list[str] = []
+            seen_video_bases: set[str] = set()
+
+            def _on_request(request):
+                u = request.url
+                if '.mp4' in u and ('fbcdn' in u or 'cdninstagram' in u):
+                    base = re.sub(r'\?.*$', '', u)
+                    if base not in seen_video_bases:
+                        seen_video_bases.add(base)
+                        intercepted_videos.append(u)
+
+            page.on('request', _on_request)
+
             try:
                 info(f'[Threads] Navigating to {clean_url}')
-                await page.goto(clean_url, wait_until='domcontentloaded', timeout=30000)
-                await asyncio.sleep(4)
+                await page.goto(clean_url, wait_until='networkidle', timeout=40000)
+                await asyncio.sleep(3)
 
                 # --- Basic metadata from Open Graph / JSON-LD ---
                 og_data = await page.evaluate('''() => {
@@ -174,7 +192,7 @@ class ThreadsService:
                         // timestamps (e.g. "2h", "1d", "Apr 12"), and username handles
                         // Skip engagement numbers (plain or with K/M/B suffix), UI buttons,
                         // date strings in any format, and the author's own username handle.
-                        const SKIP_RE = /^[\d,.\s·\u00b7]+$|^\d[\d,.]*[KMBkmg]?\+?$|^\d[\d,.]* *(likes?|like|replies|reply|reposts?|retweets?|views?|following|followers?|赞|回复|转发|浏览)(\s|$)|^(Translate|See (more|less|translation)|Reply|Repost|Like|Share|Follow|Following|More|作者|Author)$|^·+$/i;
+                        const SKIP_RE = /^[\d,.\s·\u00b7]+$|^\d[\d,.]*[KMBkmg]?\+?$|^\d[\d,.]* *(likes?|like|replies|reply|reposts?|retweets?|views?|following|followers?|赞|回复|转发|浏览)(\s|$)|^(Translate|See (more|less|translation)|Reply|Repost|Like|Share|Follow|Following|More|作者|Author|Learn more)$|^Sorry,\s+we.re\s+having\s+trouble|^·+$/i;
                         const TIMESTAMP_RE = /^\d+[smhd]$|^\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}$|\d{4}[./\-]\d{1,2}[./\-]\d{1,2}|^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d/i;
                         const textParts = [];
                         const seenText = new Set();
@@ -226,6 +244,12 @@ class ThreadsService:
                             if vid not in seen_vid:
                                 seen_vid.add(vid)
                                 meta['videos'].append(vid)
+                    # Merge network-intercepted video URLs (not in DOM, loaded dynamically)
+                    for vid in intercepted_videos:
+                        base = re.sub(r'\?.*$', '', vid)
+                        if base not in seen_vid:
+                            seen_vid.add(base)
+                            meta['videos'].append(vid)
                     info(f'[Threads] Thread: {len(thread_posts_raw)} post(s), '
                          f'images={len(meta["images"])}, videos={len(meta["videos"])}')
                 else:
@@ -267,9 +291,10 @@ class ThreadsService:
                             .filter(s => s && s.startsWith('http'));
                     }''')
                     seen_v = set()
-                    for v in videos:
-                        if v not in seen_v:
-                            seen_v.add(v)
+                    for v in videos + intercepted_videos:
+                        base = re.sub(r'\?.*$', '', v)
+                        if base not in seen_v:
+                            seen_v.add(base)
                             meta['videos'].append(v)
                     info(f'[Threads] Single post fallback: text={len(meta["text"])}ch, '
                          f'images={len(meta["images"])}, videos={len(meta["videos"])}')
@@ -304,7 +329,8 @@ class ThreadsService:
             r'|^\d[\d,.]* *(likes?|replies?|reposts?|retweets?|views?|following|followers?'
             r'|赞|回复|转发|浏览)\b'
             r'|^(Translate|See\s+(more|less|translation)|Reply|Repost|Like|Share'
-            r'|Follow|Following|More|Author|作者)$'
+            r'|Follow|Following|More|Author|作者|Learn\s+more)$'
+            r'|^Sorry,\s+we\'re\s+having\s+trouble'
             r'|^[·\u00b7]+$',
             re.IGNORECASE,
         )
