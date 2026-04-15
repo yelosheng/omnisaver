@@ -1,7 +1,10 @@
 import asyncio
+import base64
 import json
 import os
 import re
+import shutil
+import subprocess
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -244,8 +247,10 @@ class ThreadsService:
                             if vid not in seen_vid:
                                 seen_vid.add(vid)
                                 meta['videos'].append(vid)
-                    # Merge network-intercepted video URLs (not in DOM, loaded dynamically)
-                    for vid in intercepted_videos:
+                    # Merge network-intercepted video URLs (not in DOM, loaded dynamically).
+                    # Filter first: keep only the longest-duration videos to exclude
+                    # short clips that Threads preloads from unrelated posts.
+                    for vid in self._filter_videos(intercepted_videos):
                         base = re.sub(r'\?.*$', '', vid)
                         if base not in seen_vid:
                             seen_vid.add(base)
@@ -291,7 +296,7 @@ class ThreadsService:
                             .filter(s => s && s.startsWith('http'));
                     }''')
                     seen_v = set()
-                    for v in videos + intercepted_videos:
+                    for v in videos + self._filter_videos(intercepted_videos):
                         base = re.sub(r'\?.*$', '', v)
                         if base not in seen_v:
                             seen_v.add(base)
@@ -318,6 +323,54 @@ class ThreadsService:
                 await browser.close()
 
         return meta
+
+    @staticmethod
+    def _decode_video_duration(url: str) -> float:
+        """Decode the efg parameter in a Meta CDN video URL to get duration_s."""
+        m = re.search(r'[?&]efg=([^&]+)', url)
+        if not m:
+            return 0.0
+        try:
+            data = json.loads(base64.b64decode(m.group(1) + '==').decode())
+            return float(data.get('duration_s', 0))
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _filter_videos(urls: list[str]) -> list[str]:
+        """From all intercepted video URLs, keep only those belonging to the target post.
+        Strategy: keep URLs with the longest duration (Threads preloads shorter clips
+        from other posts; the current post's videos are the longest ones)."""
+        if not urls:
+            return []
+        durations = [(u, ThreadsService._decode_video_duration(u)) for u in urls]
+        max_dur = max(d for _, d in durations)
+        if max_dur == 0:
+            return urls  # Can't decode; keep all
+        # Keep videos within 20% of the longest duration, or all if only one
+        threshold = max_dur * 0.5
+        filtered = [u for u, d in durations if d >= threshold]
+        return filtered if filtered else urls
+
+    @staticmethod
+    def _generate_thumbnail(video_path: Path, save_dir: Path) -> bool:
+        """Generate a thumbnail jpg from a video using FFmpeg."""
+        if not shutil.which('ffmpeg'):
+            return False
+        thumbnails_dir = save_dir / 'thumbnails'
+        thumbnails_dir.mkdir(exist_ok=True)
+        thumb = thumbnails_dir / (video_path.stem + '_thumb.jpg')
+        if thumb.exists():
+            return True
+        try:
+            result = subprocess.run(
+                ['ffmpeg', '-y', '-i', str(video_path), '-ss', '00:00:01',
+                 '-vframes', '1', '-q:v', '2', str(thumb)],
+                capture_output=True, timeout=30,
+            )
+            return result.returncode == 0 and thumb.exists()
+        except Exception:
+            return False
 
     @staticmethod
     def _clean_text(text: str, username: str = '') -> str:
@@ -408,14 +461,16 @@ class ThreadsService:
                 if self._download_file(img_url, images_dir / f'image_{i:03d}.jpg', f'image {i}'):
                     downloaded_images += 1
 
-        # Download all videos
+        # Download all videos and generate thumbnails
         videos_dir = post_dir / 'videos'
         downloaded_videos = 0
         if meta['videos']:
             videos_dir.mkdir(exist_ok=True)
             for i, vid_url in enumerate(meta['videos'], 1):
-                if self._download_file(vid_url, videos_dir / f'video_{i:03d}.mp4', f'video {i}'):
+                vid_path = videos_dir / f'video_{i:03d}.mp4'
+                if self._download_file(vid_url, vid_path, f'video {i}'):
                     downloaded_videos += 1
+                    self._generate_thumbnail(vid_path, post_dir)
 
         media_count = downloaded_images + downloaded_videos
 
