@@ -33,7 +33,6 @@ from services.zhihu_service import ZhihuService, ZhihuServiceError
 from services.pinterest_service import PinterestService, PinterestServiceError
 from services.reddit_service import RedditService, RedditServiceError
 from services.threads_service import ThreadsService, ThreadsServiceError
-from services.facebook_service import FacebookService, FacebookServiceError
 from services.feishu_service import FeishuService
 from services.webpage_service import WebpageService, WebpageServiceError
 from utils.url_parser import TwitterURLParser
@@ -395,7 +394,6 @@ def submit_url():
     pinterest_extracted = PinterestService.extract_url_from_share_text(url)
     reddit_extracted = RedditService.extract_url_from_share_text(url)
     threads_extracted = ThreadsService.extract_url_from_share_text(url)
-    facebook_extracted = FacebookService.extract_url_from_share_text(url)
 
     if douyin_extracted:
         url = douyin_extracted
@@ -424,9 +422,6 @@ def submit_url():
     elif threads_extracted:
         url = threads_extracted
         content_type = 'threads'
-    elif facebook_extracted:
-        url = facebook_extracted
-        content_type = 'facebook'
     elif FeishuService.is_valid_feishu_url(url):
         content_type = 'feishu'
     elif YoutubeService.is_valid_youtube_url(url):
@@ -440,8 +435,6 @@ def submit_url():
         content_type = 'reddit'
     elif ThreadsService.is_valid_threads_url(url):
         content_type = 'threads'
-    elif FacebookService.is_valid_facebook_url(url):
-        content_type = 'facebook'
     elif XHSService.is_valid_xhs_url(url):
         content_type = 'xhs'
     elif WechatService.is_valid_wechat_url(url):
@@ -1111,7 +1104,7 @@ def show_tweet(slug):
         )
 
     # XHS / WeChat articles: render content.md as HTML with local image paths
-    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'instagram', 'zhihu', 'pinterest', 'reddit', 'feishu', 'threads', 'facebook') and not tweet_html:
+    if content_type in ('xhs', 'wechat', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'instagram', 'zhihu', 'pinterest', 'reddit', 'feishu', 'threads') and not tweet_html:
         content_md_file = os.path.join(actual_save_path, 'content.md')
         if os.path.exists(content_md_file):
             try:
@@ -1219,7 +1212,7 @@ def show_tweet(slug):
 
     # WeChat/YouTube/webpage/thread-style tweet: media is already inline in HTML — suppress separate grid
     display_media_files = [] if (
-        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram', 'zhihu', 'pinterest', 'reddit', 'feishu', 'threads', 'facebook') and tweet_html
+        content_type in ('wechat', 'youtube', 'douyin', 'weibo', 'bilibili', 'kuaishou', 'webpage', 'instagram', 'zhihu', 'pinterest', 'reddit', 'feishu', 'threads') and tweet_html
     ) or _has_thread_html else media_files
 
     # Check for transcript
@@ -1246,8 +1239,7 @@ def show_tweet(slug):
                         'douyin': 'Douyin/TikTok', 'weibo': 'Weibo Post', 'bilibili': 'Bilibili Video',
                         'kuaishou': 'Kuaishou Video', 'zhihu': 'Zhihu Post',
                         'pinterest': 'Pinterest Pin', 'reddit': 'Reddit Post',
-                        'feishu': '飞书文档', 'threads': 'Threads Post',
-                        'facebook': 'Facebook Post'}
+                        'feishu': '飞书文档', 'threads': 'Threads Post'}
         page_title = _type_labels.get(content_type, 'Content')
 
     tweet_data = {
@@ -1497,16 +1489,18 @@ def api_debug():
     
     # 检查 Docker 容器状态（通过 TCP 连接检测，兼容容器内无 docker CLI 的环境）
     def check_docker_container(name):
-        host, port = {
-            'xiaohongshu-mcp': ('xiaohongshu-mcp', 18060),
-        }.get(name, (name, 80))
-        try:
-            import socket
-            s = socket.create_connection((host, port), timeout=2)
-            s.close()
-            return True
-        except Exception:
-            return False
+        host_candidates = {
+            'xiaohongshu-mcp': [('xiaohongshu-mcp', 18060), ('localhost', 18060), ('127.0.0.1', 18060)],
+        }.get(name, [(name, 80)])
+        import socket
+        for host, port in host_candidates:
+            try:
+                s = socket.create_connection((host, port), timeout=2)
+                s.close()
+                return True
+            except Exception:
+                continue
+        return False
 
     # 检查服务状态
     services_status = {
@@ -2282,56 +2276,6 @@ def api_reddit_save_cookies():
         with open(cookies_path, 'w', encoding='utf-8') as f:
             json.dump(cookies, f, ensure_ascii=False, indent=2)
 
-        return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies.'})
-    except json.JSONDecodeError:
-        return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-
-@app.route('/api/facebook/cookie-status')
-@login_required
-def api_facebook_cookie_status():
-    """Check if Facebook cookies are configured."""
-    cookies_path = FacebookService.get_cookies_path()
-    if os.path.exists(cookies_path):
-        mtime = os.path.getmtime(cookies_path)
-        age_days = (datetime.now().timestamp() - mtime) / 86400
-        try:
-            with open(cookies_path, 'r', encoding='utf-8') as f:
-                cookies = json.load(f)
-            cookie_map = {c['name']: c['value'] for c in cookies if isinstance(c, dict)}
-            user_id = cookie_map.get('c_user', '')
-            return jsonify({
-                'configured': True,
-                'count': len(cookies),
-                'age_days': round(age_days, 1),
-                'user_id': user_id,
-            })
-        except Exception:
-            pass
-    return jsonify({'configured': False})
-
-
-@app.route('/api/facebook/cookies', methods=['POST'])
-@login_required
-def api_facebook_save_cookies():
-    """Save Facebook cookies from Cookie-Editor JSON export."""
-    data = request.get_json()
-    if not data or not data.get('cookies'):
-        return jsonify({'success': False, 'message': 'No cookie data provided'}), 400
-    try:
-        cookies = json.loads(data['cookies'])
-        if not isinstance(cookies, list):
-            return jsonify({'success': False, 'message': 'Expected a JSON array of cookies'}), 400
-        cookie_map = {c['name']: c['value'] for c in cookies if isinstance(c, dict) and 'name' in c}
-        if not cookie_map.get('xs') or not cookie_map.get('c_user'):
-            return jsonify({'success': False,
-                            'message': 'xs and c_user cookies not found — make sure you exported from facebook.com'}), 400
-        cookies_path = FacebookService.get_cookies_path()
-        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
-        with open(cookies_path, 'w', encoding='utf-8') as f:
-            json.dump(cookies, f, ensure_ascii=False, indent=2)
         return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies.'})
     except json.JSONDecodeError:
         return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
