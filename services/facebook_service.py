@@ -164,8 +164,15 @@ class FacebookService:
 
             try:
                 info(f'[Facebook] Navigating to {url}')
-                await page.goto(url, wait_until='networkidle', timeout=40000)
-                await asyncio.sleep(2)
+                # Use 'load' instead of 'networkidle': Facebook never stops loading resources,
+                # so networkidle always times out. 'load' fires after DOMContentLoaded + resources.
+                try:
+                    await page.goto(url, wait_until='load', timeout=60000)
+                except Exception as nav_exc:
+                    # Timeout on 'load' can still happen for heavy pages.
+                    # Continue anyway — the page may be partially rendered.
+                    warning(f'[Facebook] Navigation timeout (continuing): {nav_exc}')
+                await asyncio.sleep(3)
 
                 # Capture final URL after redirect
                 final_url = page.url
@@ -337,10 +344,19 @@ class FacebookService:
                 info(f'[Facebook] Scraped: text={len(meta["text"])}ch, '
                      f'images={len(meta["images"])}, videos={len(meta["videos"])}')
 
+            except FacebookServiceError:
+                raise
             except Exception as exc:
                 warning(f'[Facebook] Playwright scrape error: {exc}')
             finally:
                 await browser.close()
+
+        # Require at least some content before returning
+        if not meta['text'] and not meta['images'] and not meta['videos']:
+            raise FacebookServiceError(
+                'No content could be extracted from this Facebook URL. '
+                'The post may require login, be private, or the page failed to load.'
+            )
 
         return meta
 
