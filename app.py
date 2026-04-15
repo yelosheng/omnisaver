@@ -2289,6 +2289,56 @@ def api_reddit_save_cookies():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/facebook/cookie-status')
+@login_required
+def api_facebook_cookie_status():
+    """Check if Facebook cookies are configured."""
+    cookies_path = FacebookService.get_cookies_path()
+    if os.path.exists(cookies_path):
+        mtime = os.path.getmtime(cookies_path)
+        age_days = (datetime.now().timestamp() - mtime) / 86400
+        try:
+            with open(cookies_path, 'r', encoding='utf-8') as f:
+                cookies = json.load(f)
+            cookie_map = {c['name']: c['value'] for c in cookies if isinstance(c, dict)}
+            user_id = cookie_map.get('c_user', '')
+            return jsonify({
+                'configured': True,
+                'count': len(cookies),
+                'age_days': round(age_days, 1),
+                'user_id': user_id,
+            })
+        except Exception:
+            pass
+    return jsonify({'configured': False})
+
+
+@app.route('/api/facebook/cookies', methods=['POST'])
+@login_required
+def api_facebook_save_cookies():
+    """Save Facebook cookies from Cookie-Editor JSON export."""
+    data = request.get_json()
+    if not data or not data.get('cookies'):
+        return jsonify({'success': False, 'message': 'No cookie data provided'}), 400
+    try:
+        cookies = json.loads(data['cookies'])
+        if not isinstance(cookies, list):
+            return jsonify({'success': False, 'message': 'Expected a JSON array of cookies'}), 400
+        cookie_map = {c['name']: c['value'] for c in cookies if isinstance(c, dict) and 'name' in c}
+        if not cookie_map.get('xs') or not cookie_map.get('c_user'):
+            return jsonify({'success': False,
+                            'message': 'xs and c_user cookies not found — make sure you exported from facebook.com'}), 400
+        cookies_path = FacebookService.get_cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        with open(cookies_path, 'w', encoding='utf-8') as f:
+            json.dump(cookies, f, ensure_ascii=False, indent=2)
+        return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies.'})
+    except json.JSONDecodeError:
+        return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @app.route('/api/zhihu/cookie', methods=['GET'])
 @login_required
 def api_zhihu_cookie_get():

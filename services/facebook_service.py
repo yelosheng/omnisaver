@@ -20,6 +20,8 @@ class FacebookServiceError(Exception):
 class FacebookService:
     """Facebook post downloader using Playwright."""
 
+    _COOKIES_PATH = os.path.expanduser('~/.agent-reach/facebook/cookies.json')
+
     _DOMAIN_RE = re.compile(
         r'https?://(?:www\.|m\.)?(?:facebook\.com|fb\.com)',
         re.IGNORECASE,
@@ -37,6 +39,10 @@ class FacebookService:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.create_date_folders = create_date_folders
+
+    @classmethod
+    def get_cookies_path(cls) -> str:
+        return cls._COOKIES_PATH
 
     @classmethod
     def is_valid_facebook_url(cls, url: str) -> bool:
@@ -104,6 +110,31 @@ class FacebookService:
                 viewport={'width': 1280, 'height': 900},
                 locale='en-US',
             )
+            # Load saved Facebook cookies (from Cookie-Editor JSON export)
+            if os.path.exists(self._COOKIES_PATH):
+                try:
+                    raw = json.loads(Path(self._COOKIES_PATH).read_text())
+                    pw_cookies = []
+                    for c in raw:
+                        if not isinstance(c, dict) or 'name' not in c or 'value' not in c:
+                            continue
+                        entry = {
+                            'name': c['name'],
+                            'value': c['value'],
+                            'domain': c.get('domain', '.facebook.com'),
+                            'path': c.get('path', '/'),
+                        }
+                        if c.get('secure') is not None:
+                            entry['secure'] = bool(c['secure'])
+                        if c.get('httpOnly') is not None:
+                            entry['httpOnly'] = bool(c['httpOnly'])
+                        pw_cookies.append(entry)
+                    if pw_cookies:
+                        await context.add_cookies(pw_cookies)
+                        info(f'[Facebook] Loaded {len(pw_cookies)} cookies')
+                except Exception as exc:
+                    warning(f'[Facebook] Failed to load cookies: {exc}')
+
             page = await context.new_page()
 
             meta = {

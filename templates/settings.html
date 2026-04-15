@@ -283,6 +283,31 @@
             </div>
         </div>
 
+        <!-- Facebook Cookie -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="#1877F2" style="vertical-align:-2px;" class="me-2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 4.99 3.657 9.128 8.438 9.878v-6.987h-2.54V12.07h2.54V9.845c0-2.507 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12.07h2.773l-.443 2.89h-2.33v6.988C20.343 21.201 24 17.063 24 12.073z"/></svg>
+                    Facebook Cookie
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">Login to <strong>facebook.com</strong>, install <a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Cookie-Editor</a> extension, export all cookies as JSON, and paste here. Requires <code>xs</code> and <code>c_user</code> cookies.</p>
+                <div id="facebook-cookie-status" class="mb-3"></div>
+                <div class="mb-3">
+                    <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
+                    <textarea class="form-control font-monospace" id="facebook-cookie-json" rows="5"
+                              placeholder='Paste Cookie-Editor JSON export here...' style="font-size:0.8rem;"></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="saveFacebookCookies()">
+                        <i class="bi bi-check-lg"></i> {{ t.settings_save_cookies_btn }}
+                    </button>
+                </div>
+                <div id="facebook-cookie-result" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
         <!-- Language -->
         <div class="card mb-4">
             <div class="card-header">
@@ -535,10 +560,60 @@ async function saveZhihuCookie() {
     }
 }
 
+// ── Facebook Cookie ──────────────────────────────────────────────
+async function loadFacebookCookieStatus() {
+    const el = document.getElementById('facebook-cookie-status');
+    try {
+        const resp = await fetch('/api/facebook/cookie-status');
+        const d = await resp.json();
+        if (d.configured) {
+            el.innerHTML = `<span class="badge bg-success">Configured</span> <span class="text-muted small ms-2">${d.count} cookies · ${d.age_days}d old${d.user_id ? ' · c_user: ' + d.user_id : ''}</span>`;
+        } else {
+            el.innerHTML = `<span class="badge bg-warning text-dark">Not configured</span>`;
+        }
+    } catch (e) {
+        el.innerHTML = `<span class="text-danger small">Failed to check: ${e.message}</span>`;
+    }
+}
+
+async function saveFacebookCookies() {
+    const jsonStr = document.getElementById('facebook-cookie-json').value.trim();
+    const result = document.getElementById('facebook-cookie-result');
+    if (!jsonStr) { result.style.display = 'block'; result.innerHTML = '<span class="text-danger">Please paste cookie JSON first.</span>'; return; }
+    try {
+        JSON.parse(jsonStr);
+    } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = '<span class="text-danger">Invalid JSON format. Please export from Cookie-Editor as JSON.</span>';
+        return;
+    }
+    try {
+        const resp = await fetch('/api/facebook/cookies', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: jsonStr})
+        });
+        const data = await resp.json();
+        result.style.display = 'block';
+        if (data.success) {
+            result.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${data.message}</span>`;
+            document.getElementById('facebook-cookie-json').value = '';
+            loadFacebookCookieStatus();
+        } else {
+            result.innerHTML = `<span class="text-danger">${data.message}</span>`;
+        }
+        setTimeout(() => result.style.display = 'none', 5000);
+    } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
+    }
+}
+
 loadTwitterCookieStatus();
 loadXhsCookieStatus();
 loadRedditCookieStatus();
 loadZhihuCookieStatus();
+loadFacebookCookieStatus();
 
 // ── System Configuration ─────────────────────────────────────────
 fetch('/api/debug')
