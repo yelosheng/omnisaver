@@ -2,8 +2,10 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import tempfile
+import time
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -221,8 +223,18 @@ class XHSService:
     @staticmethod
     def _download_image(url: str, path: Path):
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            path.write_bytes(resp.read())
+        last_error = None
+        contexts = [None, ssl._create_unverified_context()]
+        for attempt in range(3):
+            for context in contexts:
+                try:
+                    with urllib.request.urlopen(req, timeout=20, context=context) as resp:
+                        path.write_bytes(resp.read())
+                        return
+                except Exception as e:
+                    last_error = e
+            time.sleep(0.5 * (attempt + 1))
+        raise last_error
 
     @staticmethod
     def _download_video(post_url: str, output_dir: Path):
