@@ -141,6 +141,10 @@
   "password_cancel": "Cancel",
 
   "settings_title": "Settings",
+  "settings_tab_general": "General",
+  "settings_tab_platforms": "Platforms",
+  "settings_tab_connections": "Connections",
+  "settings_tab_advanced": "Advanced",
   "settings_api_key": "API Key",
   "settings_api_key_desc": "Used by external tools (Tampermonkey, mobile app, etc.) to call <code>POST /api/submit</code>. Once set, all external requests must include this key. Without it, the endpoint is unprotected.",
   "settings_no_key_warning": "No authentication — anyone can access the submit endpoint",
