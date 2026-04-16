@@ -115,8 +115,8 @@
                 </ul>
                 <div class="d-flex align-items-center gap-3">
                     <!-- + Save button -->
-                    <button class="btn btn-success btn-sm" onclick="openSaveModal()" title="{{ t.nav_save_title }}">
-                        <i class="bi bi-plus-lg"></i> {{ t.nav_save }}
+                    <button class="btn btn-outline-light btn-sm px-3" onclick="openSaveModal()" title="{{ t.nav_save_title }}">
+                        <i class="bi bi-plus-circle"></i> {{ t.nav_save }}
                     </button>
                     <form class="d-none d-lg-flex" onsubmit="navSearch(event)" style="margin:0;position:relative;">
                         <input type="text" id="nav-search-input" class="form-control form-control-sm" placeholder="{{ t.nav_search_placeholder }}"
@@ -207,21 +207,22 @@
     <div class="modal fade" id="saveModal" tabindex="-1" aria-labelledby="saveModalLabel">
       <div class="modal-dialog">
         <div class="modal-content">
-          <div class="modal-header">
+          <div class="modal-header border-0 pb-0">
             <h5 class="modal-title" id="saveModalLabel">
-              <i class="bi bi-plus-circle"></i> {{ t.nav_save_title }}
+              <i class="bi bi-cloud-download text-primary"></i> {{ t.nav_save_title }}
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body">
-            <input type="url" id="save-modal-url" class="form-control"
-                   placeholder="{{ t.nav_save_placeholder }}">
+          <div class="modal-body pt-2">
+            <p class="text-muted small mb-3">{{ t.nav_save_description }}</p>
+            <input type="url" id="save-modal-url" class="form-control form-control-lg"
+                   placeholder="{{ t.nav_save_placeholder }}" autofocus>
             <div id="save-modal-msg" class="mt-2" style="display:none"></div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t.nav_cancel }}</button>
-            <button type="button" class="btn btn-success" onclick="submitSaveModal()">
-              <i class="bi bi-download"></i> {{ t.nav_save }}
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ t.nav_cancel }}</button>
+            <button type="button" class="btn btn-primary px-4" onclick="submitSaveModal()">
+              <i class="bi bi-cloud-download"></i> {{ t.nav_save }}
             </button>
           </div>
         </div>
@@ -304,13 +305,17 @@
             if (q) window.location.href = '/saved?q=' + encodeURIComponent(q);
         }
 
+        // Focus input when modal is fully shown
+        document.getElementById('saveModal').addEventListener('shown.bs.modal', () => {
+            document.getElementById('save-modal-url').focus();
+        });
+
         function openSaveModal() {
             document.getElementById('save-modal-url').value = '';
             const msgEl = document.getElementById('save-modal-msg');
             msgEl.style.display = 'none';
             msgEl.innerHTML = '';
             new bootstrap.Modal(document.getElementById('saveModal')).show();
-            setTimeout(() => document.getElementById('save-modal-url').focus(), 350);
         }
 
         function submitSaveModal() {

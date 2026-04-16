@@ -794,7 +794,7 @@ const _i18n = {
 
 // ── System Configuration ─────────────────────────────────────────────────────
 function loadSystemConfig() {
-    fetch('/api/debug')
+    fetch('/api/settings/config')
         .then(r => r.json())
         .then(data => {
             const config = data.config_info || {};
@@ -1469,9 +1469,9 @@ function classifyLevel(text) {
 }
 
 function getLogColor(line) {
-    if (/\bERROR\b|\bCRITICAL\b/i.test(line)) return '#ff6b6b';
-    if (/\bWARN(ING)?\b/i.test(line))          return '#ffd93d';
-    if (/\bSUCCESS\b|✓|✅/i.test(line))        return '#6bcb77';
+    if (/error|critical/i.test(line))  return '#ff6b6b';
+    if (/warn/i.test(line))            return '#ffd93d';
+    if (/success|✓|✅/i.test(line))    return '#6bcb77';
     return '#00ff00';
 }
 

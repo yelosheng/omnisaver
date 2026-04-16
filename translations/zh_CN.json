@@ -20,6 +20,7 @@
   "nav_save_title": "保存网址",
   "nav_save_placeholder": "粘贴要保存的网址...",
   "nav_cancel": "取消",
+  "nav_save_description": "支持 Twitter/X、YouTube、小红书、微信等平台",
   "login_tagline": "登录以继续",
   "login_username": "用户名",
   "login_password": "密码",

@@ -612,8 +612,10 @@ def api_health():
     except Exception:
         pass
 
+    import services.background as _bg
+    _pt = _bg.processing_thread
     return jsonify({
-        'worker_alive': processing_thread.is_alive() if processing_thread else False,
+        'worker_alive': _pt.is_alive() if _pt else False,
         'is_processing': is_processing,
         'status_counts': status_counts,
         'credentials': credentials,
@@ -2207,6 +2209,24 @@ def api_key_generate():
 def api_key_revoke():
     set_setting('api_key', '')
     return jsonify({'success': True})
+
+
+@app.route('/api/settings/config', methods=['GET'])
+@login_required
+def api_get_config():
+    """Return current system configuration values (fast, no subprocess)."""
+    if not config_manager:
+        return jsonify({'success': False, 'error': 'Config not initialized'}), 500
+    return jsonify({
+        'success': True,
+        'config_info': {
+            'save_path': config_manager.get_save_path(),
+            'max_retries': config_manager.get_max_retries(),
+            'timeout_seconds': config_manager.get_timeout_seconds(),
+            'create_date_folders': config_manager.get_create_date_folders(),
+            'playwright_headless': config_manager.get_playwright_headless(),
+        }
+    })
 
 
 @app.route('/api/settings/config', methods=['POST'])
