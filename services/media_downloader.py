@@ -243,11 +243,11 @@ class MediaDownloader:
                 file_path = os.path.join(save_path, filename)
                 
                 # Download file
-                success = self._download_file(url, file_path, show_progress=True)
-                if success:
+                ok = self._download_file(url, file_path, show_progress=True)
+                if ok:
                     # Get file size
                     file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-                    
+
                     # Create MediaFile object for avatar
                     media_file = MediaFile(
                         url=url,

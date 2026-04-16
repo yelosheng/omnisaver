@@ -85,6 +85,16 @@ def main():
         sys.exit(1)
     print("Service initialization complete")
     
+    # Load pending tasks BEFORE starting background thread,
+    # so stuck 'processing' tasks are reset to 'pending' before the queue starts.
+    print("Loading pending tasks...")
+    try:
+        load_pending_tasks()
+        print("Pending tasks loaded")
+    except Exception as e:
+        print(f"Failed to load pending tasks: {e}")
+        # 不退出，因为这不是致命错误
+
     # Start background processing thread
     print("Starting background processing...")
     try:
@@ -93,7 +103,7 @@ def main():
     except Exception as e:
         print(f"Failed to start background processing: {e}")
         sys.exit(1)
-    
+
     # Start Telegram bot if configured
     print("Starting Telegram bot...")
     try:
@@ -124,15 +134,6 @@ def main():
             print("XHS auto-save not enabled (configure at /xhs)")
     except Exception as e:
         print(f"XHS auto-save startup failed (non-fatal): {e}")
-
-    # Load pending tasks
-    print("Loading pending tasks...")
-    try:
-        load_pending_tasks()
-        print("Pending tasks loaded")
-    except Exception as e:
-        print(f"Failed to load pending tasks: {e}")
-        # 不退出，因为这不是致命错误
     
     # Start browser
     if '--no-browser' not in sys.argv:

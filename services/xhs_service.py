@@ -79,7 +79,8 @@ class XHSService:
                 if final and final != current:
                     current = final
                 break
-            except Exception:
+            except Exception as e:
+                warning(f'resolve_xhslink failed for {current}: {e}')
                 break
         return current
 
@@ -92,7 +93,11 @@ class XHSService:
 
     @staticmethod
     def normalize_xhs_url(url: str) -> str:
-        """Convert /discovery/item/<id> to /explore/<id> keeping query params."""
+        """Convert /discovery/item/<id> to /explore/<id> keeping query params.
+
+        Also handles xiaohongshu.com/404?noteId=<id> redirects produced by the
+        share-link resolver, extracting the noteId to rebuild a proper explore URL.
+        """
         parsed = urllib.parse.urlparse(url)
         path = parsed.path.rstrip('/')
         if '/discovery/item/' in path:
@@ -100,6 +105,15 @@ class XHSService:
             path = f'/explore/{feed_id}'
             parsed = parsed._replace(path=path)
             url = urllib.parse.urlunparse(parsed)
+        elif path == '/404' and 'xiaohongshu.com' in parsed.netloc:
+            params = urllib.parse.parse_qs(parsed.query)
+            note_id = params.get('noteId', [''])[0]
+            if note_id:
+                xsec_token = params.get('xsec_token', [''])[0]
+                if xsec_token:
+                    url = f'https://www.xiaohongshu.com/explore/{note_id}?xsec_token={urllib.parse.quote(xsec_token, safe="")}&xsec_source=app_share'
+                else:
+                    url = f'https://www.xiaohongshu.com/explore/{note_id}'
         return url
 
     @staticmethod
@@ -202,6 +216,26 @@ class XHSService:
     # Core fetch
     # ------------------------------------------------------------------
 
+    def _check_login_status(self) -> tuple[bool, str]:
+        """Return whether XHS MCP is logged in, plus a human-readable message."""
+        try:
+            result = subprocess.run(
+                ['mcporter', 'call', '--output', 'json', 'xiaohongshu.check_login_status'],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode != 0:
+                detail = result.stderr.strip() or result.stdout.strip() or 'unknown error'
+                return False, f'XHS MCP login check failed: {detail}'
+
+            text = result.stdout or ''
+            if '✅ 已登录' in text:
+                return True, 'XHS MCP 已登录'
+            if '❌ 未登录' in text:
+                return False, 'XHS MCP 未登录，cookie 可能已过期，请更新 cookie 后重试'
+            return False, f'XHS MCP 登录状态未知: {text.strip()[:200]}'
+        except Exception as e:
+            return False, f'XHS MCP login check failed: {e}'
+
     def _get_post(self, feed_id: str, xsec_token: str) -> dict:
         result = subprocess.run(
             ['mcporter', 'call',
@@ -236,16 +270,48 @@ class XHSService:
             time.sleep(0.5 * (attempt + 1))
         raise last_error
 
-    @staticmethod
-    def _download_video(post_url: str, output_dir: Path):
+    _COOKIES_NETSCAPE_PATH = os.path.expanduser('~/.agent-reach/xhs/cookies.txt')
+
+    @classmethod
+    def _ensure_netscape_cookies(cls) -> str | None:
+        """Convert ~/.agent-reach/xhs/cookies.json to Netscape format for yt-dlp.
+
+        Returns the path to the Netscape cookies file, or None if unavailable.
+        """
+        src = os.path.expanduser('~/.agent-reach/xhs/cookies.json')
+        dst = cls._COOKIES_NETSCAPE_PATH
+        if not os.path.exists(src):
+            return None
+        try:
+            cookies = json.loads(open(src).read())
+            lines = ['# Netscape HTTP Cookie File']
+            for c in cookies:
+                domain = c.get('domain', '')
+                flag = 'TRUE' if domain.startswith('.') else 'FALSE'
+                path = c.get('path', '/')
+                secure = 'TRUE' if c.get('secure') in (True, 'True', 'true') else 'FALSE'
+                exp = str(int(float(c.get('expirationDate', 0))))
+                name = c.get('name', '')
+                value = c.get('value', '')
+                lines.append(f'{domain}\t{flag}\t{path}\t{secure}\t{exp}\t{name}\t{value}')
+            open(dst, 'w').write('\n'.join(lines) + '\n')
+            return dst
+        except Exception as e:
+            warning(f'Failed to convert XHS cookies for yt-dlp: {e}')
+            return None
+
+    @classmethod
+    def _download_video(cls, post_url: str, output_dir: Path):
         # Download to /tmp first to avoid NAS I/O errors during ffmpeg merge
         tmp_dir = tempfile.mkdtemp(prefix='xhs_dl_')
         try:
-            result = subprocess.run(
-                ['yt-dlp', '-o', os.path.join(tmp_dir, 'video.%(ext)s'),
-                 '--no-playlist', '--merge-output-format', 'mp4', post_url],
-                capture_output=True, text=True, timeout=120
-            )
+            cmd = ['yt-dlp', '-o', os.path.join(tmp_dir, 'video.%(ext)s'),
+                   '--no-playlist', '--merge-output-format', 'mp4']
+            cookies_file = cls._ensure_netscape_cookies()
+            if cookies_file:
+                cmd += ['--cookies', cookies_file]
+            cmd.append(post_url)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode != 0:
                 raise XHSServiceError(f'yt-dlp failed: {result.stderr.strip()[:200]}')
             # Move downloaded file(s) to final output_dir
@@ -284,6 +350,10 @@ class XHSService:
         feed_id, xsec_token = self.parse_url(url)
         if not xsec_token:
             raise XHSServiceError('xsec_token missing from URL')
+
+        logged_in, login_message = self._check_login_status()
+        if not logged_in:
+            raise XHSServiceError(login_message)
 
         info(f'Fetching XHS post {feed_id}...')
         data = self._get_post(feed_id, xsec_token)

@@ -65,10 +65,17 @@ class WebpageService:
                 'trafilatura is not installed. Run: pip install trafilatura'
             )
 
+        url = self._normalize_url(url)
         info(f'[WebpageService] Fetching: {url}')
+
+        # Fetch static HTML early so we can fall back when browser automation hangs.
+        static_html = trafilatura.fetch_url(url) or ''
 
         # --- render with Playwright + run Readability.js in browser ---
         result = self._fetch_with_readability(url)
+        if not result and static_html:
+            warning(f'[WebpageService] Falling back to static extraction for: {url}')
+            result = self._extract_with_trafilatura(static_html, _extract_meta)
         if not result:
             raise WebpageServiceError(f'Failed to fetch or extract content from: {url}')
 
@@ -82,7 +89,6 @@ class WebpageService:
 
         # --- metadata from trafilatura (better date/sitename extraction) ---
         # Use a static fetch just for metadata (much faster than a second Playwright load)
-        static_html = trafilatura.fetch_url(url) or ''
         if static_html:
             meta = _extract_meta(static_html)
             if not title:
@@ -193,6 +199,38 @@ class WebpageService:
             'tweet_text': plain[:500] if plain else description[:500],
         }
 
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        """Drop fragment identifiers; they do not affect server-side article content."""
+        parsed = urllib.parse.urlsplit(url.strip())
+        return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ''))
+
+    @staticmethod
+    def _extract_with_trafilatura(static_html: str, extract_meta) -> dict | None:
+        """Fallback extractor for sites that hang in Playwright but serve usable static HTML."""
+        try:
+            import trafilatura
+        except ImportError:
+            return None
+
+        article_html = trafilatura.extract(
+            static_html,
+            output_format='html',
+            include_links=True,
+            include_images=True,
+            no_fallback=False,
+        ) or ''
+        if not article_html:
+            return None
+
+        meta = extract_meta(static_html)
+        return {
+            'content': article_html,
+            'title': (getattr(meta, 'title', None) or '').strip(),
+            'byline': (getattr(meta, 'author', None) or '').strip(),
+            'excerpt': (getattr(meta, 'description', None) or '').strip(),
+        }
+
     def _fetch_with_readability(self, url: str) -> dict | None:
         """
         Use Playwright to render the page, inject Mozilla Readability.js,
@@ -227,7 +265,7 @@ class WebpageService:
             )
             page = await context.new_page()
             try:
-                await page.goto(url, wait_until='networkidle', timeout=30000)
+                await self._goto_with_fallbacks(page, url)
                 # Scroll to trigger lazy-loaded images
                 await page.evaluate("""
                     async () => {
@@ -260,6 +298,24 @@ class WebpageService:
                 await browser.close()
 
             return article
+
+    async def _goto_with_fallbacks(self, page, url: str) -> None:
+        """Try strict readiness first, then looser waits for pages with long-lived requests."""
+        strategies = [
+            ('networkidle', 30000),
+            ('domcontentloaded', 30000),
+            ('load', 45000),
+        ]
+        last_error = None
+        for wait_until, timeout in strategies:
+            try:
+                info(f'[WebpageService] Navigating with wait_until={wait_until}, timeout={timeout}ms')
+                await page.goto(url, wait_until=wait_until, timeout=timeout)
+                return
+            except Exception as e:
+                last_error = e
+                warning(f'[WebpageService] page.goto failed with wait_until={wait_until}: {e}')
+        raise last_error
 
     def _download_images(self, html_content: str, post_dir: Path, base_url: str):
         """

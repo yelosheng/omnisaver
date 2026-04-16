@@ -1,86 +1,109 @@
-<svg width="256" height="256" viewBox="10 8 236 214" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%">
   <defs>
-    <filter id="s">
-      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.13"/>
-    </filter>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#f0f4ff"/>
-      <stop offset="100%" style="stop-color:#fafafa"/>
+    <!-- 卡片渐变：增加微弱的光影质感 -->
+    <linearGradient id="blackGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#27272A"/>
+      <stop offset="100%" stop-color="#09090B"/>
     </linearGradient>
+    <!-- 新增：YouTube 风格的白底和红色渐变 -->
+    <linearGradient id="whiteCardGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F1F5F9"/>
+    </linearGradient>
+    <!-- 新增：蓝色药丸渐变 (替代原先的红色) -->
+    <linearGradient id="bluePillGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#DB2777"/>
+    </linearGradient>
+    <!-- 文件夹与盒子渐变：增加立体感 -->
+    <linearGradient id="folderGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A6080"/>
+      <stop offset="100%" stop-color="#2D4160"/>
+    </linearGradient>
+    <!-- 新增：边缘专用的更明亮的渐变 -->
+    <linearGradient id="rimGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7A9AB8"/>
+      <stop offset="100%" stop-color="#4A6080"/>
+    </linearGradient>
+    <!-- 通用投影 -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
   </defs>
 
-  <!-- Cabinet Body -->
-  <g filter="url(#s)">
-    <rect x="18" y="118" width="220" height="96" rx="18" fill="#1e293b"/>
+  <!-- 1. 内部白色文件夹层 -->
+  <g>
+    <!-- 彩色分类标签 (还原原图细节) -->
+    <rect x="12" y="24" width="10" height="6" rx="2" fill="#8B5CF6" />
+    <rect x="27" y="24" width="10" height="6" rx="2" fill="#0EA5E9" />
+    <rect x="42" y="24" width="10" height="6" rx="2" fill="#10B981" />
+    <!-- 文件夹主体 -->
+    <rect x="6" y="27" width="52" height="15" rx="2" fill="url(#folderGrad)" />
+    <!-- 文件夹内部暗角投影，增加深度 -->
+    <rect x="6" y="27" width="52" height="3" fill="#000000" opacity="0.05" />
   </g>
 
-  <!-- Card 4 (back, darkest) -->
-  <rect x="52" y="115" width="152" height="65" rx="5" fill="#64748b"/>
-
-  <!-- === 绿色文档：插在 card3 和 card2 之间（较深层）=== -->
-  <g filter="url(#s)">
-    <rect x="60" y="76" width="52" height="52" rx="13" fill="#10b981"/>
+  <!-- 2. 后层卡片 (左侧 X，右侧 Video) -->
+  <!-- 左侧：X 图标 (作为通用字母符号/极简线条，相对安全) -->
+  <g transform="translate(8, 12) rotate(-12, 9, 14)" filter="url(#shadow)">
+    <rect x="0" y="0" width="18" height="28" rx="4" fill="url(#blackGrad)" />
+    <line x1="4" y1="8" x2="14" y2="18" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
+    <line x1="14" y1="8" x2="4" y2="18" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
   </g>
-  <rect x="70" y="85" width="32" height="34" rx="3" fill="white"/>
-  <rect x="75" y="91" width="22" height="4" rx="2" fill="#10b981"/>
-  <rect x="75" y="99" width="22" height="2.5" rx="1.2" fill="#10b981" opacity="0.5"/>
-  <rect x="75" y="105" width="22" height="2.5" rx="1.2" fill="#10b981" opacity="0.5"/>
-  <rect x="75" y="111" width="14" height="2.5" rx="1.2" fill="#10b981" opacity="0.5"/>
 
-  <!-- Card 3 -->
-  <rect x="45" y="118" width="166" height="64" rx="5" fill="#94a3b8"/>
+  <!-- 右侧：媒体/视频 图标 (YouTube 药丸样式，蓝底白三角) -->
+  <g transform="translate(38, 14) rotate(12, 9, 14)" filter="url(#shadow)">
+    <!-- 白色卡片底色 -->
+    <rect x="0" y="0" width="18" height="28" rx="4" fill="url(#whiteCardGrad)" />
+    <!-- 细微边框增强边缘分离 -->
+    <rect x="0" y="0" width="18" height="28" rx="4" stroke="#E2E8F0" stroke-width="0.5" fill="none" />
 
-  <!-- Card 2 -->
-  <rect x="38" y="121" width="180" height="62" rx="5" fill="#cbd5e1"/>
-
-  <!-- === X 图标：插在 card2 和 card1 之间（较浅层）=== -->
-  <g filter="url(#s)">
-    <rect x="152" y="84" width="52" height="52" rx="13" fill="#0f172a"/>
+    <!-- 蓝色药丸底色 -->
+    <rect x="2" y="9" width="14" height="10" rx="3" fill="url(#bluePillGrad)" />
+    <!-- 白色播放键 -->
+    <polygon points="7,11.5 12,14 7,16.5" fill="#ffffff" />
   </g>
-  <line x1="165" y1="97" x2="191" y2="123" stroke="white" stroke-width="6.5" stroke-linecap="round"/>
-  <line x1="191" y1="97" x2="165" y2="123" stroke="white" stroke-width="6.5" stroke-linecap="round"/>
 
-  <!-- Card 1 (front) -->
-  <rect x="36" y="124" width="184" height="56" rx="4" fill="#f1f5f9"/>
-
-  <!-- Folder Tabs -->
-  <rect x="50" y="113" width="22" height="13" rx="4" fill="#6366f1"/>
-  <rect x="117" y="113" width="22" height="13" rx="4" fill="#0ea5e9"/>
-  <rect x="184" y="113" width="22" height="13" rx="4" fill="#10b981"/>
-  <!-- Drawer Face -->
-  <rect x="18" y="156" width="220" height="58" rx="18" fill="#334155"/>
-  <!-- Handle -->
-  <rect x="108" y="181" width="40" height="7" rx="3.5" fill="#0f172a"/>
-
-  <!-- ===== 悬浮图标（完全在抽屉上方）===== -->
-
-  <!-- 1. VIDEO — clapperboard (top-left) -->
-  <g filter="url(#s)">
-    <rect x="36" y="28" width="52" height="52" rx="13" fill="#6366f1"/>
+  <!-- 3. 前层卡片 (中心 Image) -->
+  <!-- 中心：图片/图像 -->
+  <g transform="translate(21, 5)" filter="url(#shadow)">
+    <rect x="0" y="0" width="22" height="34" rx="5" fill="url(#pinkGrad)" />
+    <!-- 简化的图片图标 (相框、太阳、山峰) -->
+    <rect x="4" y="10" width="14" height="12" rx="2" stroke="#ffffff" stroke-width="2" fill="none" />
+    <circle cx="13.5" cy="13.5" r="1.5" fill="#ffffff" />
+    <path d="M 4 20 L 8.5 15 L 12.5 19 L 15 16.5 L 18 19.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
   </g>
-  <rect x="45" y="42" width="34" height="26" rx="3" fill="white"/>
-  <rect x="45" y="36" width="34" height="9" rx="3" fill="white" opacity="0.85"/>
-  <line x1="51" y1="36" x2="48" y2="45" stroke="#6366f1" stroke-width="2.5"/>
-  <line x1="59" y1="36" x2="56" y2="45" stroke="#6366f1" stroke-width="2.5"/>
-  <line x1="67" y1="36" x2="64" y2="45" stroke="#6366f1" stroke-width="2.5"/>
-  <polygon points="54,49 54,62 67,55.5" fill="#6366f1"/>
 
-  <!-- 2. IMAGE — photo frame with mountain (top-right) -->
-  <g filter="url(#s)">
-    <rect x="150" y="16" width="52" height="52" rx="13" fill="#0ea5e9"/>
-  </g>
-  <rect x="159" y="25" width="34" height="26" rx="3" fill="white"/>
-  <circle cx="166" cy="32" r="3.5" fill="#fbbf24"/>
-  <polygon points="159,51 170,35 181,51" fill="#0ea5e9" opacity="0.7"/>
-  <polygon points="168,51 178,40 193,51" fill="#0ea5e9"/>
-  <rect x="159" y="47" width="34" height="4" fill="#bae6fd"/>
+  <!-- 4. 正面 3D 档案盒 -->
+  <g>
+    <!-- 盒子主体 (比顶部边缘稍窄，产生向内收缩的层次感) -->
+    <path d="M 4 38 L 60 38 L 60 52 A 8 8 0 0 1 52 60 L 12 60 A 8 8 0 0 1 4 52 Z" fill="url(#boxGrad)" />
 
-  <!-- 5. AUDIO — microphone (top-center) -->
-  <g filter="url(#s)">
-    <rect x="108" y="48" width="52" height="52" rx="13" fill="#ec4899"/>
+    <!-- 边缘在盒子主体上投下的微弱阴影 -->
+    <path d="M 4 38 L 60 38 L 60 41 L 4 41 Z" fill="#000000" opacity="0.15" />
+
+    <!-- 盒子上方的宽边 / 盖子边缘 (向外扩出) -->
+    <rect x="1" y="34" width="62" height="5" rx="1.5" fill="url(#rimGrad)" filter="url(#shadow)" />
+
+    <!-- 宽边顶部的一道细高光，增强厚度与塑料/金属质感 -->
+    <rect x="1.5" y="34.5" width="61" height="1" rx="0.5" fill="#94A3B8" opacity="0.8" />
+
+    <!-- 凹陷的把手 -->
+    <!-- 凹槽外框 -->
+    <rect x="21.5" y="45.5" width="21" height="7" rx="3.5" fill="#0F1A2A" />
+    <!-- 凹槽内部 -->
+    <rect x="22" y="46" width="20" height="6" rx="3" fill="#111C2E" />
+    <!-- 把手横杆：亮银色 -->
+    <rect x="24" y="48" width="16" height="3" rx="1.5" fill="#B8C8D8" />
+    <!-- 把手顶部高光 -->
+    <rect x="24" y="48" width="16" height="1" rx="0.5" fill="#E2EBF3" />
   </g>
-  <rect x="127" y="57" width="14" height="20" rx="7" fill="white"/>
-  <path d="M121,73 Q121,84 134,84 Q147,84 147,73" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="134" y1="84" x2="134" y2="91" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="129" y1="91" x2="139" y2="91" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
 </svg>

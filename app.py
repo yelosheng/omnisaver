@@ -1502,7 +1502,26 @@ def api_debug():
                 continue
         return False
 
+    def check_xhs_login_status():
+        try:
+            result = subprocess.run(
+                ['mcporter', 'call', '--output', 'json', 'xiaohongshu.check_login_status'],
+                capture_output=True, text=True, timeout=15
+            )
+            output = (result.stdout or '').strip()
+            if result.returncode != 0:
+                detail = (result.stderr or output or 'unknown error').strip()
+                return False, f'check failed: {detail[:120]}'
+            if '✅ 已登录' in output:
+                return True, 'logged in'
+            if '❌ 未登录' in output:
+                return False, 'cookie expired / not logged in'
+            return False, f'unknown: {output[:120]}'
+        except Exception as e:
+            return False, f'check failed: {e}'
+
     # 检查服务状态
+    xhs_login_ok, xhs_login_message = check_xhs_login_status()
     services_status = {
         'config_manager': config_manager is not None,
         'twitter_service': twitter_service is not None,
@@ -1510,7 +1529,8 @@ def api_debug():
         'file_manager': file_manager is not None,
         'processing_thread_alive': processing_thread.is_alive() if processing_thread else False,
         'processing_thread_exists': processing_thread is not None,
-        'xhs_mcp_docker': check_docker_container('xiaohongshu-mcp')
+        'xhs_mcp_docker': check_docker_container('xiaohongshu-mcp'),
+        'xhs_mcp_logged_in': xhs_login_ok,
     }
     
     # 获取配置信息
@@ -1539,6 +1559,7 @@ def api_debug():
         'queued_task_ids_count': len(queued_ids_snapshot),
         'is_processing': is_processing,
         'services_status': services_status,
+        'xhs_login_message': xhs_login_message,
         'config_info': config_info,
         'recent_tasks': tasks_info,
         'current_time': get_current_time().strftime('%Y-%m-%d %H:%M:%S'),
@@ -1678,8 +1699,6 @@ def initialize_app():
     if not hasattr(app, '_background_thread_started'):
         info("[Flask] First request - initializing background thread")
         start_background_thread()
-        # 自动检测并修复卡住的任务
-        auto_fix_stuck_tasks()
         app._background_thread_started = True
 
 @app.route('/api/retry-tasks')
@@ -1959,9 +1978,14 @@ def api_submit():
             if extracted and XHSService.is_valid_xhs_url(extracted):
                 url = extracted
                 _ct = 'xhs'
+            elif extracted and re.search(r'https?://xhslink\.com/', extracted):
+                # resolve_xhslink failed (SSL/network), but it's a known XHS short link
+                url = extracted
+                _ct = 'xhs'
             elif WebpageService.is_valid_webpage_url(url):
                 _ct = 'webpage'
             else:
+                error(f'Cannot process URL: {url}')
                 return jsonify({
                     'success': False,
                     'error': 'Unsupported URL',

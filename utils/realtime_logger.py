@@ -35,13 +35,15 @@ def log(message, level="INFO"):
     sys.stdout.flush()
     
     # 添加到日志缓冲区
+    # SSE protocol breaks on newlines inside data: field — collapse them
+    safe_message = str(message).replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
     with log_lock:
         _log_seq += 1
         log_buffer.append({
             'seq': _log_seq,
             'timestamp': datetime.now().strftime('%H:%M:%S'),
             'level': level,
-            'message': str(message),
+            'message': safe_message,
         })
 
 def get_logs():

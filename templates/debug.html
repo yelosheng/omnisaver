@@ -70,10 +70,12 @@
             </div>
             <div class="btn-group btn-group-sm" id="level-toggles">
                 <button class="btn btn-outline-secondary active" data-level="all" onclick="setLevelFilter('all')">All</button>
-                <button class="btn btn-danger btn-sm" data-level="error" onclick="setLevelFilter('error')">ERROR</button>
-                <button class="btn btn-warning btn-sm" data-level="warning" onclick="setLevelFilter('warning')">WARN</button>
-                <button class="btn btn-info btn-sm" data-level="info" onclick="setLevelFilter('info')">INFO</button>
-                <button class="btn btn-secondary btn-sm" data-level="other" onclick="setLevelFilter('other')">OTHER</button>
+                <button class="btn btn-outline-danger" data-level="error" onclick="setLevelFilter('error')">ERROR</button>
+                <button class="btn btn-outline-warning" data-level="warning" onclick="setLevelFilter('warning')">WARN</button>
+                <button class="btn btn-outline-success" data-level="success" onclick="setLevelFilter('success')">SUCCESS</button>
+                <button class="btn btn-outline-info" data-level="info" onclick="setLevelFilter('info')">INFO</button>
+                <button class="btn btn-outline-secondary" data-level="debug" onclick="setLevelFilter('debug')">DEBUG</button>
+                <button class="btn btn-outline-secondary" data-level="other" onclick="setLevelFilter('other')">OTHER</button>
             </div>
             <div class="form-check form-switch ms-1">
                 <input class="form-check-input" type="checkbox" id="failure-only-toggle" onchange="toggleFailureOnly()">
@@ -141,6 +143,7 @@
             `${dot(s.twitter_service)} Twitter`,
             `${dot(s.media_downloader)} Media`,
             `${dot(s.xhs_mcp_docker)} XHS MCP`,
+            `${dot(s.xhs_mcp_logged_in)} XHS Login: <strong>${data.xhs_login_message || 'unknown'}</strong>`,
         ];
         const html = items.join('<span class="text-muted mx-1">|</span>');
         const bar = document.getElementById('status-bar');
@@ -226,14 +229,26 @@
     // ── Log entry rendering ──────────────────────────────────────────────────
 
     function classifyLevel(text) {
-        if (text.includes('[ERROR]') || text.includes('ERROR') || text.includes('failed') || text.includes('Failed') || text.includes('Exception')) return 'error';
-        if (text.includes('[WARNING]') || text.includes('WARNING') || text.includes('⚠️')) return 'warning';
-        if (text.includes('[INFO]') || text.includes('Starting') || text.includes('[SUCCESS]') || text.includes('Successfully') || text.includes('✓')) return 'info';
+        if (text.includes('[ERROR]')) return 'error';
+        if (text.includes('[WARNING]')) return 'warning';
+        if (text.includes('[SUCCESS]')) return 'success';
+        if (text.includes('[DEBUG]')) return 'debug';
+        if (text.includes('[INFO]')) return 'info';
+        // fallback keyword matching
+        if (text.includes('ERROR') || text.includes('failed') || text.includes('Failed') || text.includes('Exception')) return 'error';
+        if (text.includes('WARNING') || text.includes('⚠️')) return 'warning';
         return 'other';
     }
 
     function levelColor(level) {
-        return { error: '#ff4444', warning: '#ffaa00', info: '#44aaff', other: '#00ff00' }[level] || '#00ff00';
+        return {
+            error:   '#ff4444',
+            warning: '#ffaa00',
+            success: '#00cc66',
+            info:    '#44aaff',
+            debug:   '#888888',
+            other:   '#cccccc',
+        }[level] || '#cccccc';
     }
 
     function extractTaskId(text) {
@@ -361,19 +376,18 @@
 
     function setLevelFilter(level) {
         activeLevelFilter = level;
+        const styleMap = {
+            all:     ['btn-secondary',  'btn-outline-secondary'],
+            error:   ['btn-danger',     'btn-outline-danger'],
+            warning: ['btn-warning',    'btn-outline-warning'],
+            success: ['btn-success',    'btn-outline-success'],
+            info:    ['btn-info',       'btn-outline-info'],
+            debug:   ['btn-secondary',  'btn-outline-secondary'],
+            other:   ['btn-secondary',  'btn-outline-secondary'],
+        };
         document.querySelectorAll('#level-toggles button').forEach(btn => {
-            const isActive = btn.dataset.level === level;
-            if (btn.dataset.level === 'all') {
-                btn.className = isActive ? 'btn btn-secondary btn-sm active' : 'btn btn-outline-secondary btn-sm';
-            } else if (btn.dataset.level === 'error') {
-                btn.className = isActive ? 'btn btn-danger btn-sm active' : 'btn btn-outline-danger btn-sm';
-            } else if (btn.dataset.level === 'warning') {
-                btn.className = isActive ? 'btn btn-warning btn-sm active' : 'btn btn-outline-warning btn-sm';
-            } else if (btn.dataset.level === 'info') {
-                btn.className = isActive ? 'btn btn-info btn-sm active' : 'btn btn-outline-info btn-sm';
-            } else {
-                btn.className = isActive ? 'btn btn-secondary btn-sm active' : 'btn btn-outline-secondary btn-sm';
-            }
+            const [active, inactive] = styleMap[btn.dataset.level] || ['btn-secondary', 'btn-outline-secondary'];
+            btn.className = `btn btn-sm ${btn.dataset.level === level ? active + ' active' : inactive}`;
         });
         applyFilters();
     }
