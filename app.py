@@ -1431,7 +1431,7 @@ def debug_page():
 @app.route('/help')
 @login_required
 def help_page():
-    return redirect(url_for('settings_page') + '#connections')
+    return redirect(url_for('settings_page') + '#extension')
 
 @app.route('/tampermonkey/twitter-saver.user.js')
 def serve_userscript():
@@ -2586,7 +2586,7 @@ def _telegram_submit(url: str) -> dict:
 @app.route('/telegram')
 @login_required
 def telegram_page():
-    return redirect(url_for('settings_page') + '#connections')
+    return redirect(url_for('settings_page') + '#telegram')
 
 
 @app.route('/api/telegram/status')

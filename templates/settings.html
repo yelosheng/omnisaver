@@ -46,8 +46,14 @@
             <a href="#" class="nav-link" data-tab="platforms">
                 <i class="bi bi-globe me-2"></i>{{ t.settings_tab_platforms }}
             </a>
-            <a href="#" class="nav-link" data-tab="connections">
-                <i class="bi bi-plug me-2"></i>{{ t.settings_tab_connections }}
+            <a href="#" class="nav-link" data-tab="apikey">
+                <i class="bi bi-key me-2"></i>{{ t.settings_tab_apikey }}
+            </a>
+            <a href="#" class="nav-link" data-tab="telegram">
+                <i class="bi bi-telegram me-2"></i>{{ t.settings_tab_telegram }}
+            </a>
+            <a href="#" class="nav-link" data-tab="extension">
+                <i class="bi bi-puzzle me-2"></i>{{ t.settings_tab_extension }}
             </a>
             <a href="#" class="nav-link" data-tab="advanced">
                 <i class="bi bi-bug me-2"></i>{{ t.settings_tab_advanced }}
@@ -289,9 +295,9 @@
         </div>
 
         <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- TAB: Connections                                           -->
+        <!-- TAB: API Key                                               -->
         <!-- ═══════════════════════════════════════════════════════════ -->
-        <div id="tab-connections" style="display:none">
+        <div id="tab-apikey" style="display:none">
 
             <!-- API Key -->
             <div class="card mb-4">
@@ -358,6 +364,13 @@
                     <div id="api-key-result" class="mt-2" style="display:none;"></div>
                 </div>
             </div>
+
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- TAB: Telegram                                              -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <div id="tab-telegram" style="display:none">
 
             <!-- Telegram Bot -->
             <div class="card mb-4">
@@ -434,6 +447,13 @@
                     </ol>
                 </div>
             </div>
+
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- TAB: Extension                                             -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <div id="tab-extension" style="display:none">
 
             <!-- Browser Extension (from help.html) -->
             <div class="card mb-4">
@@ -713,7 +733,7 @@
 
 <script>
 // ── Tab switching ────────────────────────────────────────────────────────────
-const _TAB_NAMES = ['general','platforms','connections','advanced'];
+const _TAB_NAMES = ['general','platforms','apikey','telegram','extension','advanced'];
 
 document.querySelectorAll('#settings-tabs .nav-link').forEach(link => {
     link.addEventListener('click', e => {
@@ -731,10 +751,14 @@ document.querySelectorAll('#settings-tabs .nav-link').forEach(link => {
             loadDebugInfo();
             startLogStream();
         }
-        // Lazy-init connections tab (Telegram polling) when first opened
-        if (tab === 'connections' && !_connectionsInited) {
-            _connectionsInited = true;
+        // Lazy-init apikey tab when first opened
+        if (tab === 'apikey' && !_apikeyInited) {
+            _apikeyInited = true;
             loadApiKey();
+        }
+        // Lazy-init telegram tab (Telegram polling) when first opened
+        if (tab === 'telegram' && !_telegramInited) {
+            _telegramInited = true;
             loadTelegramStatus();
             _telegramInterval = setInterval(loadTelegramStatus, 5000);
         }
@@ -742,7 +766,8 @@ document.querySelectorAll('#settings-tabs .nav-link').forEach(link => {
 });
 
 let _advancedInited = false;
-let _connectionsInited = false;
+let _apikeyInited = false;
+let _telegramInited = false;
 let _telegramInterval = null;
 
 // Auto-activate tab from URL hash
