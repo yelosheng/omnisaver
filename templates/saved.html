@@ -3,6 +3,41 @@
 {% block title %}Saved - OmniSaver{% endblock %}
 
 {% block content %}
+<!-- Search + filter bar -->
+<div class="mb-3">
+  <div class="input-group">
+    <input type="text" id="search-input" class="form-control"
+           placeholder="{{ t.search_placeholder }}"
+           value="{{ initial_query | default('') | e }}">
+    <button class="btn btn-outline-secondary" type="button" id="filter-toggle-btn"
+            onclick="toggleFilterPanel()">
+      <i class="bi bi-funnel" id="filter-funnel-icon"></i>
+      <span id="filter-toggle-label">{{ t.search_filters }}</span>
+    </button>
+    <button class="btn btn-primary" type="button" onclick="triggerSearch()">
+      <i class="bi bi-search"></i>
+    </button>
+  </div>
+
+  <!-- Collapsible filter panel — hidden by default -->
+  <div id="search-filter-panel" class="card card-body mt-2 pt-2 pb-2" style="display:none">
+    <!-- Date quick buttons -->
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+      <span class="text-muted small fw-semibold">{{ t.search_date }}:</span>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="setQuickDate('today')">{{ t.search_today }}</button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="setQuickDate('week')">{{ t.search_week }}</button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="setQuickDate('month')">{{ t.search_month }}</button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" onclick="setQuickDate('year')">{{ t.search_year }}</button>
+      <input type="date" id="date-from-input" class="form-control form-control-sm" style="width:145px" title="{{ t.search_date_from }}">
+      <span class="text-muted">–</span>
+      <input type="date" id="date-to-input" class="form-control form-control-sm" style="width:145px" title="{{ t.search_date_to }}">
+      <button class="btn btn-sm btn-outline-danger ms-auto" type="button" onclick="clearSearchFilters()">
+        <i class="bi bi-x-circle"></i> {{ t.search_clear }}
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-archive"></i> {{ t.saved_title }}</h2>
     <div class="d-flex align-items-center gap-2">
@@ -425,6 +460,41 @@
         if (!isNaN(val)) goToPage(val);
     }
 
+    // --- Search and filter panel ---
+
+    function toggleFilterPanel() {
+        const panel = document.getElementById('search-filter-panel');
+        const icon = document.getElementById('filter-funnel-icon');
+        const visible = panel.style.display !== 'none';
+        panel.style.display = visible ? 'none' : '';
+        icon.className = visible ? 'bi bi-funnel' : 'bi bi-funnel-fill';
+    }
+
+    function setQuickDate(preset) {
+        const today = new Date();
+        const fmt = d => d.toISOString().slice(0, 10);
+        document.getElementById('date-to-input').value = fmt(today);
+        const d = new Date(today);
+        if      (preset === 'today') { document.getElementById('date-from-input').value = fmt(today); }
+        else if (preset === 'week')  { d.setDate(d.getDate() - 7); document.getElementById('date-from-input').value = fmt(d); }
+        else if (preset === 'month') { d.setMonth(d.getMonth() - 1); document.getElementById('date-from-input').value = fmt(d); }
+        else if (preset === 'year')  { d.setFullYear(d.getFullYear() - 1); document.getElementById('date-from-input').value = fmt(d); }
+    }
+
+    function clearSearchFilters() {
+        document.getElementById('search-input').value = '';
+        document.getElementById('date-from-input').value = '';
+        document.getElementById('date-to-input').value = '';
+        triggerSearch();
+    }
+
+    function triggerSearch() {
+        currentPage = 1;
+        hasMoreData = true;
+        totalPages = 1;
+        loadSaved(1, false);
+    }
+
     // --- Platform filter ---
 
     function getSelectedPlatforms() {
@@ -452,6 +522,20 @@
                 loadSaved(1, false);
             });
         });
+
+        // Search on Enter key
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') triggerSearch();
+            });
+        }
+
+        // Pre-populate search from URL ?q= param
+        const _urlQ = new URLSearchParams(window.location.search).get('q');
+        if (_urlQ && searchInput) {
+            searchInput.value = _urlQ;
+        }
     });
 
     // --- End view mode ---
@@ -490,6 +574,16 @@
         if (selectedPlatforms.length) {
             params.set('content_type', selectedPlatforms.join(','));
         }
+
+        const searchInputEl = document.getElementById('search-input');
+        const dateFromEl = document.getElementById('date-from-input');
+        const dateToEl = document.getElementById('date-to-input');
+        const searchQ = searchInputEl ? searchInputEl.value.trim() : '';
+        const dateFrom = dateFromEl ? dateFromEl.value : '';
+        const dateTo = dateToEl ? dateToEl.value : '';
+        if (searchQ) params.set('q', searchQ);
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
 
         fetch(`/api/saved?${params}`)
             .then(response => response.json())

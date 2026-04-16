@@ -717,7 +717,8 @@ def _requeue_task_for_redownload(task_id: int):
 @login_required
 def saved():
     """已保存推文列表页面"""
-    return render_template('saved.html')
+    q = request.args.get('q', '')
+    return render_template('saved.html', initial_query=q)
 
 
 @app.route('/search')
@@ -856,7 +857,7 @@ def api_saved():
     """获取已保存推文列表API，支持搜索功能"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
-    search_query = request.args.get('search', '').strip()
+    search_query = (request.args.get('q') or request.args.get('search', '')).strip()
     content_types = [ct.strip() for ct in request.args.get('content_type', '').split(',') if ct.strip()]
     # 'tweet' and 'article' are both Twitter content — treat them as one platform
     if 'tweet' in content_types and 'article' not in content_types:
