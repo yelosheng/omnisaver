@@ -17,6 +17,10 @@
   "nav_queue_idle": "Idle",
   "nav_queue_processing": "Processing",
   "nav_language": "Language",
+  "nav_save": "Save",
+  "nav_save_title": "Save a URL",
+  "nav_save_placeholder": "Paste a URL to save...",
+  "nav_cancel": "Cancel",
 
   "login_tagline": "Sign in to continue",
   "login_username": "Username",

@@ -95,47 +95,29 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('status_page') }}">
-                            <i class="bi bi-speedometer2"></i> {{ t.nav_status }}
+                        <a class="nav-link {% if request.endpoint == 'status_page' %}active{% endif %}"
+                           href="{{ url_for('status_page') }}">
+                            <i class="bi bi-activity"></i> {{ t.nav_status }}
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('tasks') }}">
-                            <i class="bi bi-list-task"></i> {{ t.nav_queue }}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('saved') }}">
+                        <a class="nav-link {% if request.endpoint == 'saved' %}active{% endif %}"
+                           href="{{ url_for('saved') }}">
                             <i class="bi bi-archive"></i> {{ t.nav_saved }}
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('search') }}">
-                            <i class="bi bi-search"></i> {{ t.nav_search }}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('debug') }}">
-                            <i class="bi bi-bug"></i> {{ t.nav_debug }}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('help_page') }}">
-                            <i class="bi bi-puzzle"></i> {{ t.nav_script }}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('telegram_page') }}">
-                            <i class="bi bi-telegram"></i> {{ t.nav_telegram }}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/settings">
-                            <i class="bi bi-gear"></i> {{ t.nav_settings }}
+                        <a class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}"
+                           href="{{ url_for('tasks') }}">
+                            <i class="bi bi-list-task"></i> {{ t.nav_queue }}
                         </a>
                     </li>
                 </ul>
                 <div class="d-flex align-items-center gap-3">
+                    <!-- + Save button -->
+                    <button class="btn btn-success btn-sm" onclick="openSaveModal()" title="{{ t.nav_save_title }}">
+                        <i class="bi bi-plus-lg"></i> {{ t.nav_save }}
+                    </button>
                     <form class="d-none d-lg-flex" onsubmit="navSearch(event)" style="margin:0;position:relative;">
                         <input type="text" id="nav-search-input" class="form-control form-control-sm" placeholder="{{ t.nav_search_placeholder }}"
                                style="width:180px;background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff;padding-right:2rem;"
@@ -214,6 +196,31 @@
         </div>
     </div>
 
+    <!-- + Save Modal -->
+    <div class="modal fade" id="saveModal" tabindex="-1" aria-labelledby="saveModalLabel">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="saveModalLabel">
+              <i class="bi bi-plus-circle"></i> {{ t.nav_save_title }}
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="url" id="save-modal-url" class="form-control"
+                   placeholder="{{ t.nav_save_placeholder }}">
+            <div id="save-modal-msg" class="mt-2" style="display:none"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t.nav_cancel }}</button>
+            <button type="button" class="btn btn-success" onclick="submitSaveModal()">
+              <i class="bi bi-download"></i> {{ t.nav_save }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Show toast message
@@ -287,8 +294,53 @@
         function navSearch(e) {
             e.preventDefault();
             const q = document.getElementById('nav-search-input').value.trim();
-            if (q) window.location.href = '/search?q=' + encodeURIComponent(q);
+            if (q) window.location.href = '/saved?q=' + encodeURIComponent(q);
         }
+
+        function openSaveModal() {
+            document.getElementById('save-modal-url').value = '';
+            const msgEl = document.getElementById('save-modal-msg');
+            msgEl.style.display = 'none';
+            msgEl.innerHTML = '';
+            new bootstrap.Modal(document.getElementById('saveModal')).show();
+            setTimeout(() => document.getElementById('save-modal-url').focus(), 350);
+        }
+
+        function submitSaveModal() {
+            const url = document.getElementById('save-modal-url').value.trim();
+            const msgEl = document.getElementById('save-modal-msg');
+            if (!url) return;
+            fetch('/api/submit', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({url: url})
+            })
+            .then(r => r.json())
+            .then(data => {
+                msgEl.style.display = '';
+                if (data.success) {
+                    msgEl.innerHTML = '<div class="alert alert-success mb-0 py-2">' + (data.message || 'Submitted!') + '</div>';
+                    setTimeout(() => {
+                        bootstrap.Modal.getInstance(document.getElementById('saveModal')).hide();
+                    }, 1500);
+                } else {
+                    msgEl.innerHTML = '<div class="alert alert-danger mb-0 py-2">' + (data.message || 'Error') + '</div>';
+                }
+            })
+            .catch(() => {
+                msgEl.style.display = '';
+                msgEl.innerHTML = '<div class="alert alert-danger mb-0 py-2">Network error</div>';
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const input = document.getElementById('save-modal-url');
+            if (input) {
+                input.addEventListener('keydown', e => {
+                    if (e.key === 'Enter') submitSaveModal();
+                });
+            }
+        });
     </script>
 
     {% block scripts %}{% endblock %}
