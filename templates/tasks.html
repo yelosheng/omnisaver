@@ -28,7 +28,11 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-list-task"></i> {{ t.tasks_title }}</h2>
     <div>
-        <select class="form-select" id="status-filter" style="width: auto; display: inline-block;">
+        <input type="text" id="url-filter-input" class="form-control form-control-sm"
+               placeholder="{{ t.tasks_url_filter_placeholder }}"
+               style="max-width: 300px;"
+               oninput="applyUrlFilter()">
+        <select class="form-select ms-2" id="status-filter" style="width: auto; display: inline-block;">
             <option value="">{{ t.tasks_filter_all }}</option>
             <option value="pending">{{ t.tasks_filter_pending }}</option>
             <option value="processing">{{ t.tasks_filter_processing }}</option>
@@ -163,6 +167,7 @@
 
         tasks.forEach(task => {
             const row = document.createElement('tr');
+            row.dataset.url = task.url || '';
             const retryCount = task.retry_count || 0;
             const maxRetries = task.max_retries || 3;
             const isRetrying = task.status === 'failed' && retryCount > 0;
@@ -300,6 +305,16 @@
                 }
             })
             .catch(() => { showToast('Delete request failed', 'error'); restore(); });
+    }
+
+    // ── URL filter ────────────────────────────────────────────────────────────
+
+    function applyUrlFilter() {
+        const q = document.getElementById('url-filter-input').value.toLowerCase().trim();
+        document.querySelectorAll('tbody tr[data-url]').forEach(row => {
+            const url = (row.dataset.url || '').toLowerCase();
+            row.style.display = (!q || url.includes(q)) ? '' : 'none';
+        });
     }
 
     // ── Init ──────────────────────────────────────────────────────────────────

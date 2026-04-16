@@ -1443,15 +1443,22 @@ function classifyLevel(text) {
     return 'other';
 }
 
+function getLogColor(line) {
+    if (/\bERROR\b|\bCRITICAL\b/i.test(line)) return '#ff6b6b';
+    if (/\bWARN(ING)?\b/i.test(line))          return '#ffd93d';
+    if (/\bSUCCESS\b|✓|✅/i.test(line))        return '#6bcb77';
+    return '#00ff00';
+}
+
 function levelColor(level) {
     return {
-        error:   '#ff4444',
-        warning: '#ffaa00',
-        success: '#00cc66',
-        info:    '#44aaff',
-        debug:   '#888888',
-        other:   '#cccccc',
-    }[level] || '#cccccc';
+        error:   '#ff6b6b',
+        warning: '#ffd93d',
+        success: '#6bcb77',
+        info:    '#00ff00',
+        debug:   '#00ff00',
+        other:   '#00ff00',
+    }[level] || '#00ff00';
 }
 
 function extractTaskId(text) {
@@ -1534,11 +1541,13 @@ function addRealTimeLog(logText) {
     const logsContainer = document.getElementById('logs');
     const el = document.createElement('div');
     el.style.cssText = 'margin-bottom:1px; word-break:break-word;';
-    el.style.color = levelColor(level);
     el.dataset.level = level;
     el.dataset.taskId = taskId;
     el.dataset.failure = failure ? '1' : '0';
-    el.textContent = logText;
+    const span = document.createElement('span');
+    span.style.color = getLogColor(logText);
+    span.textContent = logText;
+    el.appendChild(span);
 
     const kw = document.getElementById('log-filter').value.trim().toLowerCase();
     const entry = { text: logText, level, taskId, isFailure: failure, el };

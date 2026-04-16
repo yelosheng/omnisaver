@@ -69,11 +69,11 @@
             </ul>
         </div>
         <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
-            <button type="button" class="btn btn-outline-secondary" id="btn-infinite"
+            <button type="button" class="btn btn-outline-secondary" id="btn-view-infinite"
                     onclick="setViewMode('infinite')" title="Infinite Scroll">
                 <i class="bi bi-arrow-down-circle"></i>
             </button>
-            <button type="button" class="btn btn-outline-secondary" id="btn-paginated"
+            <button type="button" class="btn btn-outline-secondary" id="btn-view-paginated"
                     onclick="setViewMode('paginated')" title="Pagination">
                 <i class="bi bi-file-earmark-text"></i>
             </button>
@@ -414,19 +414,19 @@
     }
 
     function applyViewMode() {
-        const btnInfinite = document.getElementById('btn-infinite');
-        const btnPaginated = document.getElementById('btn-paginated');
+        const btnInfinite = document.getElementById('btn-view-infinite');
+        const btnPaginated = document.getElementById('btn-view-paginated');
         const paginationControls = document.getElementById('pagination-controls');
         const noMoreData = document.getElementById('no-more-data');
 
         if (viewMode === 'infinite') {
-            btnInfinite.classList.add('active');
-            btnPaginated.classList.remove('active');
+            btnInfinite.className = 'btn btn-primary';
+            btnPaginated.className = 'btn btn-outline-secondary';
             hideElement(paginationControls);
             window.addEventListener('scroll', throttledScrollCheck);
         } else {
-            btnPaginated.classList.add('active');
-            btnInfinite.classList.remove('active');
+            btnPaginated.className = 'btn btn-primary';
+            btnInfinite.className = 'btn btn-outline-secondary';
             showElement(paginationControls);
             hideElement(noMoreData);
             window.removeEventListener('scroll', throttledScrollCheck);
