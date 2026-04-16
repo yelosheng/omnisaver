@@ -56,6 +56,7 @@
   "tasks_filter_completed": "Completed",
   "tasks_filter_failed": "Failed",
   "tasks_filter_retrying": "Retrying",
+  "tasks_url_filter_placeholder": "Filter by URL...",
   "tasks_refresh": "Refresh",
   "tasks_col_id": "ID",
   "tasks_col_author": "Author",

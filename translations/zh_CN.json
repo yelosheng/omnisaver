@@ -52,6 +52,7 @@
   "tasks_filter_completed": "已完成",
   "tasks_filter_failed": "失败",
   "tasks_filter_retrying": "重试中",
+  "tasks_url_filter_placeholder": "按网址筛选...",
   "tasks_refresh": "刷新",
   "tasks_col_id": "ID",
   "tasks_col_author": "作者",
