@@ -566,3 +566,11 @@ def stop_bot() -> None:
         logger.info("Telegram bot stop requested")
     else:
         logger.info("Telegram bot is not running, nothing to stop")
+
+
+def get_bot_status() -> dict:
+    """Return bot health snapshot for /api/health."""
+    return {
+        'token_set': _bot_thread is not None,
+        'running': _bot_running and _bot_thread is not None and _bot_thread.is_alive(),
+    }

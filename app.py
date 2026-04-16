@@ -543,6 +543,84 @@ def status():
         'processing_thread_alive': processing_thread.is_alive() if processing_thread else False
     })
 
+@app.route('/api/health')
+@login_required
+def api_health():
+    """Aggregated system health for the Status dashboard."""
+    import shutil
+    from datetime import datetime
+
+    # Queue counts
+    conn = get_db_connection()
+    stats = conn.execute(
+        'SELECT status, COUNT(*) as count FROM tasks GROUP BY status'
+    ).fetchall()
+    conn.close()
+    status_counts = {row['status']: row['count'] for row in stats}
+
+    # Platform credentials
+    credentials = {}
+
+    # XHS cookie
+    xhs_cookie_path = os.path.expanduser('~/.agent-reach/xhs/cookies.json')
+    if os.path.exists(xhs_cookie_path):
+        mtime = os.path.getmtime(xhs_cookie_path)
+        age_days = (datetime.now().timestamp() - mtime) / 86400
+        credentials['xhs'] = {
+            'configured': True,
+            'warning': age_days > 25,
+            'age_days': round(age_days, 1)
+        }
+    else:
+        credentials['xhs'] = {'configured': False}
+
+    # Twitter cookies
+    auth_token = config_manager.get_twitter_auth_token() if config_manager else None
+    ct0 = config_manager.get_twitter_ct0() if config_manager else None
+    credentials['twitter'] = {'configured': bool(auth_token and ct0)}
+
+    # YouTube API key
+    yt_key = config_manager.get_youtube_api_key() if config_manager else None
+    credentials['youtube'] = {'configured': bool(yt_key)}
+
+    # Telegram bot
+    try:
+        from services.telegram_bot import get_bot_status
+        bot_status = get_bot_status()
+    except Exception:
+        bot_status = {'token_set': False, 'running': False}
+    credentials['telegram'] = {
+        'configured': bot_status.get('token_set', False),
+        'running': bot_status.get('running', False)
+    }
+
+    # AI keys
+    gemini_key = config_manager.get_gemini_api_key() if config_manager else None
+    credentials['ai'] = {
+        'gemini': bool(gemini_key),
+        'claude': False
+    }
+
+    # Storage
+    save_path = config_manager.get_save_path() if config_manager else '.'
+    storage = {'path': save_path, 'accessible': False, 'free_gb': None}
+    try:
+        if os.path.exists(save_path):
+            storage['accessible'] = True
+            usage = shutil.disk_usage(save_path)
+            storage['free_gb'] = round(usage.free / (1024 ** 3), 1)
+    except Exception:
+        pass
+
+    return jsonify({
+        'worker_alive': processing_thread.is_alive() if processing_thread else False,
+        'is_processing': is_processing,
+        'status_counts': status_counts,
+        'credentials': credentials,
+        'storage': storage,
+    })
+
+
 @app.route('/tasks')
 @login_required
 def tasks():
