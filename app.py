@@ -645,8 +645,10 @@ def saved():
 @app.route('/search')
 @login_required
 def search():
-    """搜索页面"""
-    return render_template('search.html')
+    q = request.args.get('q', '')
+    if q:
+        return redirect(url_for('saved') + '?q=' + q)
+    return redirect(url_for('saved'))
 
 
 @app.route('/retries')
@@ -1344,15 +1346,13 @@ def delete_tweet(task_id):
 @app.route('/debug', endpoint='debug')
 @login_required
 def debug_page():
-    """调试页面"""
-    return render_template('debug.html')
+    return redirect(url_for('settings_page') + '#advanced')
 
 @app.route('/script')
-@app.route('/help')  # backward compat redirect
+@app.route('/help')
 @login_required
 def help_page():
-    """Tampermonkey script page"""
-    return render_template('help.html')
+    return redirect(url_for('settings_page') + '#connections')
 
 @app.route('/tampermonkey/twitter-saver.user.js')
 def serve_userscript():
@@ -2506,8 +2506,7 @@ def _telegram_submit(url: str) -> dict:
 @app.route('/telegram')
 @login_required
 def telegram_page():
-    """Telegram bot configuration page."""
-    return render_template('telegram.html')
+    return redirect(url_for('settings_page') + '#connections')
 
 
 @app.route('/api/telegram/status')
