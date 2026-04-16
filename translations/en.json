@@ -193,5 +193,24 @@
   "settings_key_revoked": "Key revoked \u2014 endpoint is now unprotected",
   "settings_key_hidden_alert": "Full key is only shown once when generated. Regenerate to view.",
   "settings_key_copy_alert": "Full key can only be copied when generated. Regenerate to copy.",
-  "settings_copied": "Copied to clipboard"
+  "settings_copied": "Copied to clipboard",
+
+  "status_queue_title": "Queue",
+  "status_worker_title": "Background Worker",
+  "status_storage_title": "Storage",
+  "status_credentials_title": "Platform Credentials",
+  "status_loading": "Loading...",
+  "status_pending": "Pending",
+  "status_processing": "Processing",
+  "status_completed": "Completed",
+  "status_failed": "Failed",
+  "status_worker_idle": "Idle",
+  "status_worker_processing": "Processing",
+  "status_worker_down": "Not Running",
+  "status_ok": "OK",
+  "status_expiring": "Expiring Soon",
+  "status_not_configured": "Not Configured",
+  "status_free": "Free",
+  "status_path_inaccessible": "Path inaccessible",
+  "status_configure": "Configure"
 }

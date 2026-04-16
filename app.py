@@ -370,7 +370,7 @@ def index():
 @login_required
 def status_page():
     """状态页面 - 显示系统状态和提交界面"""
-    return render_template('index.html')
+    return render_template('status.html')
 
 @app.route('/submit', methods=['POST'])
 @login_required

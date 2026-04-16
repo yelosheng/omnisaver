@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}{{ t.nav_status }} — OmniSaver{% endblock %}
+
+{% block styles %}
+<style>
+.health-card { transition: box-shadow .15s; }
+.health-card.clickable { cursor: pointer; }
+.health-card.clickable:hover { box-shadow: 0 4px 12px rgba(0,0,0,.15); transform: translateY(-1px); }
+.cred-row { display:flex; align-items:center; gap:.5rem; padding:.5rem 0; border-bottom:1px solid #f0f0f0; flex-wrap:wrap; }
+.cred-row:last-child { border-bottom:none; }
+.cred-label { min-width:140px; font-weight:500; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Queue summary cards -->
+  <div class="col-12">
+    <h5 class="text-muted mb-2"><i class="bi bi-activity"></i> {{ t.status_queue_title }}</h5>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card health-card clickable text-center border-warning h-100"
+         onclick="window.location='/tasks?status=pending'" style="transition: box-shadow .15s, transform .15s;">
+      <div class="card-body py-3">
+        <i class="bi bi-hourglass-split text-warning fs-3"></i>
+        <div id="count-pending" class="display-6 fw-bold mt-1">—</div>
+        <small class="text-muted">{{ t.status_pending }}</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card health-card clickable text-center border-info h-100"
+         onclick="window.location='/tasks?status=processing'" style="transition: box-shadow .15s, transform .15s;">
+      <div class="card-body py-3">
+        <i class="bi bi-arrow-repeat text-info fs-3"></i>
+        <div id="count-processing" class="display-6 fw-bold mt-1">—</div>
+        <small class="text-muted">{{ t.status_processing }}</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card health-card clickable text-center border-success h-100"
+         onclick="window.location='/tasks?status=completed'" style="transition: box-shadow .15s, transform .15s;">
+      <div class="card-body py-3">
+        <i class="bi bi-check-circle text-success fs-3"></i>
+        <div id="count-completed" class="display-6 fw-bold mt-1">—</div>
+        <small class="text-muted">{{ t.status_completed }}</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card health-card clickable text-center border-danger h-100"
+         onclick="window.location='/tasks?status=failed'" style="transition: box-shadow .15s, transform .15s;">
+      <div class="card-body py-3">
+        <i class="bi bi-x-circle text-danger fs-3"></i>
+        <div id="count-failed" class="display-6 fw-bold mt-1">—</div>
+        <small class="text-muted">{{ t.status_failed }}</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Worker status -->
+  <div class="col-12 col-md-6">
+    <div class="card health-card h-100">
+      <div class="card-body">
+        <h6 class="card-title mb-3"><i class="bi bi-cpu"></i> {{ t.status_worker_title }}</h6>
+        <div id="worker-status" class="d-flex align-items-center gap-2">
+          <div class="spinner-border spinner-border-sm text-secondary"></div>
+          <span class="text-muted">{{ t.status_loading }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Storage status -->
+  <div class="col-12 col-md-6">
+    <div class="card health-card h-100">
+      <div class="card-body">
+        <h6 class="card-title mb-3"><i class="bi bi-hdd"></i> {{ t.status_storage_title }}</h6>
+        <div id="storage-status" class="text-muted">{{ t.status_loading }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Platform credentials -->
+  <div class="col-12">
+    <div class="card health-card">
+      <div class="card-body">
+        <h6 class="card-title mb-3"><i class="bi bi-shield-check"></i> {{ t.status_credentials_title }}</h6>
+        <div id="credentials-list">
+          <span class="text-muted">{{ t.status_loading }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renderBadge(ok, warning) {
+    if (ok && warning) return '<span class="badge bg-warning text-dark">{{ t.status_expiring }}</span>';
+    if (ok)            return '<span class="badge bg-success">{{ t.status_ok }}</span>';
+    return '<span class="badge bg-secondary">{{ t.status_not_configured }}</span>';
+}
+
+function refresh() {
+    fetch('/api/health')
+        .then(r => r.json())
+        .then(data => {
+            // Queue counts
+            const counts = data.status_counts || {};
+            ['pending','processing','completed','failed'].forEach(s => {
+                const el = document.getElementById('count-' + s);
+                if (el) el.textContent = counts[s] || 0;
+            });
+
+            // Worker
+            const workerEl = document.getElementById('worker-status');
+            if (data.worker_alive) {
+                const label = data.is_processing
+                    ? '{{ t.status_worker_processing }}'
+                    : '{{ t.status_worker_idle }}';
+                const color = data.is_processing ? 'success' : 'secondary';
+                workerEl.innerHTML = `<span class="badge bg-${color} fs-6">${label}</span>`;
+            } else {
+                workerEl.innerHTML = '<span class="badge bg-danger fs-6">{{ t.status_worker_down }}</span>';
+            }
+
+            // Storage
+            const st = data.storage || {};
+            const storageEl = document.getElementById('storage-status');
+            if (st.accessible) {
+                storageEl.innerHTML = `<code>${st.path}</code><br><small class="text-muted">{{ t.status_free }}: ${st.free_gb} GB</small>`;
+            } else {
+                storageEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> {{ t.status_path_inaccessible }}</span><br><code>${st.path}</code>`;
+            }
+
+            // Credentials
+            const creds = data.credentials || {};
+            let html = '';
+
+            const xhs = creds.xhs || {};
+            let xhsExtra = xhs.age_days ? `<small class="text-muted ms-1">${xhs.age_days}d old</small>` : '';
+            html += credRow('XHS Cookie', renderBadge(xhs.configured, xhs.warning) + xhsExtra, '#platforms');
+
+            const tw = creds.twitter || {};
+            html += credRow('Twitter Cookie', renderBadge(tw.configured), '#platforms');
+
+            const yt = creds.youtube || {};
+            html += credRow('YouTube API Key', renderBadge(yt.configured), '#platforms');
+
+            const tg = creds.telegram || {};
+            let tgExtra = (tg.configured && !tg.running) ? '<small class="text-warning ms-1">configured but not running</small>' : '';
+            html += credRow('Telegram Bot', renderBadge(tg.configured && tg.running) + tgExtra, '#connections');
+
+            const ai = creds.ai || {};
+            html += credRow('AI Tag Generation', renderBadge(ai.gemini || ai.claude), '#connections');
+
+            document.getElementById('credentials-list').innerHTML = html;
+        })
+        .catch(() => {});
+}
+
+function credRow(label, badgeHtml, settingsHash) {
+    return `<div class="cred-row">
+        <span class="cred-label">${label}</span>
+        ${badgeHtml}
+        <a href="/settings${settingsHash}" class="ms-auto btn btn-sm btn-outline-secondary py-0">{{ t.status_configure }}</a>
+    </div>`;
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+{% endblock %}
