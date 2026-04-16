@@ -161,6 +161,13 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li>
+                                <a class="dropdown-item {% if request.endpoint == 'settings_page' %}active{% endif %}"
+                                   href="{{ url_for('settings_page') }}">
+                                    <i class="bi bi-gear"></i> {{ t.nav_settings }}
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
                                 <a class="dropdown-item" href="{{ url_for('change_password') }}">
                                     <i class="bi bi-key"></i> {{ t.nav_change_password }}
                                 </a>

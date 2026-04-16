@@ -1938,17 +1938,18 @@ def api_submit():
     3. Text: 直接在body中放置URL
     """
     try:
-        # --- API Key auth ---
-        provided = None
-        auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer '):
-            provided = auth_header[7:]
-        if not provided and request.is_json:
-            body = request.get_json(silent=True) or {}
-            provided = body.get('api_key')
-        if not check_api_key(provided or ''):
-            return jsonify({'success': False, 'error': 'Unauthorized',
-                            'message': 'Valid API key required'}), 401
+        # --- Auth: session OR API key ---
+        if not session.get('logged_in'):
+            provided = None
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                provided = auth_header[7:]
+            if not provided and request.is_json:
+                body = request.get_json(silent=True) or {}
+                provided = body.get('api_key')
+            if not check_api_key(provided or ''):
+                return jsonify({'success': False, 'error': 'Unauthorized',
+                                'message': 'Valid API key required'}), 401
         # --- end auth ---
 
         # 尝试多种方式获取URL
