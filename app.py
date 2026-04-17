@@ -2246,26 +2246,52 @@ def api_set_youtube_api_key():
     return jsonify({'success': True})
 
 
-@app.route('/api/settings/api-key', methods=['GET'])
+@app.route('/api/settings/api-keys', methods=['GET'])
 @login_required
-def api_key_get():
-    key = get_setting('api_key', '')
-    return jsonify({'has_key': bool(key), 'key_preview': key[:8] + '...' if key else ''})
+def api_keys_list():
+    conn = get_db_connection()
+    rows = conn.execute(
+        'SELECT id, name, key, created_at FROM api_keys ORDER BY created_at ASC'
+    ).fetchall()
+    conn.close()
+    return jsonify([{
+        'id': r['id'],
+        'name': r['name'],
+        'key': r['key'],
+        'created_at': r['created_at']
+    } for r in rows])
 
 
-@app.route('/api/settings/api-key/generate', methods=['POST'])
+@app.route('/api/settings/api-keys', methods=['POST'])
 @login_required
-def api_key_generate():
+def api_keys_create():
+    data = request.get_json() or {}
+    name = str(data.get('name', '')).strip() or 'Unnamed'
     import secrets
     new_key = secrets.token_hex(32)
-    set_setting('api_key', new_key)
-    return jsonify({'success': True, 'key': new_key})
+    conn = get_db_connection()
+    conn.execute('INSERT INTO api_keys (name, key) VALUES (?, ?)', (name, new_key))
+    conn.commit()
+    row = conn.execute(
+        'SELECT id, name, key, created_at FROM api_keys WHERE key = ?', (new_key,)
+    ).fetchone()
+    conn.close()
+    return jsonify({
+        'success': True,
+        'id': row['id'],
+        'name': row['name'],
+        'key': row['key'],
+        'created_at': row['created_at']
+    })
 
 
-@app.route('/api/settings/api-key', methods=['DELETE'])
+@app.route('/api/settings/api-keys/<int:key_id>', methods=['DELETE'])
 @login_required
-def api_key_revoke():
-    set_setting('api_key', '')
+def api_keys_delete(key_id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM api_keys WHERE id = ?', (key_id,))
+    conn.commit()
+    conn.close()
     return jsonify({'success': True})
 
 
