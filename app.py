@@ -91,9 +91,10 @@ from services.db import (
     _read_title, rebuild_fts_index, get_db_connection,
     get_setting, set_setting,
 )
+import services.background as _bg
 from services.background import (
     processing_queue, is_processing, _queued_task_ids,
-    _queued_task_ids_lock, processing_thread, current_task_status,
+    _queued_task_ids_lock, current_task_status,
     _xhs_autosave_stop, enqueue_task, start_background_thread,
     load_pending_tasks, start_xhs_autosave, stop_xhs_autosave,
     auto_fix_stuck_tasks, update_task_progress,
@@ -540,7 +541,7 @@ def status():
         'is_processing': is_processing,
         'status_counts': status_counts,
         'recent_tasks': recent_tasks_list,
-        'processing_thread_alive': processing_thread.is_alive() if processing_thread else False
+        'processing_thread_alive': _bg.processing_thread.is_alive() if _bg.processing_thread else False
     })
 
 @app.route('/api/health')
@@ -555,8 +556,14 @@ def api_health():
     stats = conn.execute(
         'SELECT status, COUNT(*) as count FROM tasks GROUP BY status'
     ).fetchall()
-    conn.close()
     status_counts = {row['status']: row['count'] for row in stats}
+
+    # Platform content counts (completed tasks only)
+    platform_stats = conn.execute(
+        "SELECT content_type, COUNT(*) as count FROM tasks WHERE status='completed' GROUP BY content_type"
+    ).fetchall()
+    conn.close()
+    platform_counts = {row['content_type']: row['count'] for row in platform_stats}
 
     # Platform credentials
     credentials = {}
@@ -612,15 +619,58 @@ def api_health():
     except Exception:
         pass
 
-    import services.background as _bg
+    # Service status (fast checks only — no slow subprocess)
+    import socket
+    def _tcp_check(host_port_list):
+        for host, port in host_port_list:
+            try:
+                s = socket.create_connection((host, port), timeout=2)
+                s.close()
+                return True
+            except Exception:
+                continue
+        return False
+
     _pt = _bg.processing_thread
+    services = {
+        'background_worker': _pt.is_alive() if _pt else False,
+        'twitter': twitter_service is not None,
+        'media': media_downloader is not None,
+        'xhs_mcp': _tcp_check([('xiaohongshu-mcp', 18060), ('localhost', 18060)]),
+        'telegram_bot': bot_status.get('running', False),
+    }
+
     return jsonify({
         'worker_alive': _pt.is_alive() if _pt else False,
         'is_processing': is_processing,
         'status_counts': status_counts,
+        'platform_counts': platform_counts,
         'credentials': credentials,
         'storage': storage,
+        'services': services,
     })
+
+
+@app.route('/api/xhs-login-status')
+@login_required
+def api_xhs_login_status():
+    """Check XHS login status (slow — up to 15s subprocess call)."""
+    try:
+        result = subprocess.run(
+            ['mcporter', 'call', '--output', 'json', 'xiaohongshu.check_login_status'],
+            capture_output=True, text=True, timeout=15
+        )
+        output = (result.stdout or '').strip()
+        if result.returncode != 0:
+            detail = (result.stderr or output or 'unknown error').strip()
+            return jsonify({'logged_in': False, 'message': detail[:120]})
+        if '✅ 已登录' in output:
+            return jsonify({'logged_in': True, 'message': 'logged in'})
+        if '❌ 未登录' in output:
+            return jsonify({'logged_in': False, 'message': 'cookie expired / not logged in'})
+        return jsonify({'logged_in': False, 'message': f'unknown: {output[:120]}'})
+    except Exception as e:
+        return jsonify({'logged_in': False, 'message': str(e)[:120]})
 
 
 @app.route('/tasks')
@@ -635,16 +685,22 @@ def api_tasks():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     status_filter = request.args.get('status', '')
-    
+    url_filter = request.args.get('url', '').strip()
+
     conn = get_db_connection()
-    
+
     # 构建查询
-    where_clause = ''
+    conditions = []
     params = []
-    
+
     if status_filter:
-        where_clause = 'WHERE status = ?'
+        conditions.append('status = ?')
         params.append(status_filter)
+    if url_filter:
+        conditions.append('url LIKE ?')
+        params.append(f'%{url_filter}%')
+
+    where_clause = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
     
     # 获取总数
     total_query = f'SELECT COUNT(*) as count FROM tasks {where_clause}'
@@ -1487,13 +1543,11 @@ def reset_stuck_tasks():
 @app.route('/force_start_queue')
 def force_start_queue():
     """强制启动队列处理器"""
-    global processing_thread
-    
     try:
         warning("[Force Start] Force starting queue processor")
-        
+
         # 检查线程状态
-        thread_alive = processing_thread.is_alive() if processing_thread else False
+        thread_alive = _bg.processing_thread.is_alive() if _bg.processing_thread else False
         info(f"[Force Start] Thread alive: {thread_alive}")
         
         # 强制重置所有processing任务为pending
@@ -1523,7 +1577,7 @@ def force_start_queue():
         
         return jsonify({
             'success': True,
-            'message': f'Queue processor restarted. Thread alive: {processing_thread.is_alive() if processing_thread else False}, Queue size: {queue_size}',
+            'message': f'Queue processor restarted. Thread alive: {_bg.processing_thread.is_alive() if _bg.processing_thread else False}, Queue size: {queue_size}',
             'queue_size': queue_size
         })
     except Exception as e:
@@ -1608,8 +1662,8 @@ def api_debug():
         'twitter_service': twitter_service is not None,
         'media_downloader': media_downloader is not None,
         'file_manager': file_manager is not None,
-        'processing_thread_alive': processing_thread.is_alive() if processing_thread else False,
-        'processing_thread_exists': processing_thread is not None,
+        'processing_thread_alive': _bg.processing_thread.is_alive() if _bg.processing_thread else False,
+        'processing_thread_exists': _bg.processing_thread is not None,
         'xhs_mcp_docker': check_docker_container('xiaohongshu-mcp'),
         'xhs_mcp_logged_in': xhs_login_ok,
     }

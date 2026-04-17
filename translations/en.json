@@ -282,10 +282,16 @@
   "status_worker_idle": "Idle",
   "status_worker_processing": "Processing",
   "status_worker_down": "Not Running",
-  "status_ok": "OK",
+  "status_ok": "Configured",
   "status_expiring": "Expiring Soon",
   "status_not_configured": "Not Configured",
   "status_free": "Free",
   "status_path_inaccessible": "Path inaccessible",
-  "status_configure": "Configure"
+  "status_configure": "Configure",
+  "status_services_title": "Services",
+  "status_service_up": "Running",
+  "status_service_down": "Offline",
+  "status_checking": "Checking...",
+  "status_platform_counts_title": "Saved Content",
+  "status_total": "Total"
 }

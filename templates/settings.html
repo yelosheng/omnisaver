@@ -627,26 +627,14 @@
         <!-- ═══════════════════════════════════════════════════════════ -->
         <div id="tab-advanced" style="display:none">
 
-            <!-- System Status Bar -->
-            <div class="card mb-3">
-                <div class="card-body py-2 px-3">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div id="status-bar" class="d-flex flex-wrap gap-3 align-items-center" style="font-size: 13px;">
-                            <span class="text-muted">{{ t.settings_loading }}</span>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-secondary" onclick="loadDebugInfo()">
-                                <i class="bi bi-arrow-clockwise"></i> {{ t.debug_refresh }}
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="forceStartQueue()">
-                                <i class="bi bi-play-fill"></i> {{ t.debug_force_start }}
-                            </button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="resetStuckTasks()">
-                                <i class="bi bi-arrow-clockwise"></i> {{ t.debug_reset_stuck }}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            <!-- Admin Actions -->
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-sm btn-outline-danger" onclick="forceStartQueue()">
+                    <i class="bi bi-play-fill"></i> {{ t.debug_force_start }}
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="resetStuckTasks()">
+                    <i class="bi bi-arrow-clockwise"></i> {{ t.debug_reset_stuck }}
+                </button>
             </div>
 
             <!-- Live Logs -->
@@ -748,7 +736,6 @@ document.querySelectorAll('#settings-tabs .nav-link').forEach(link => {
         // Lazy-init advanced tab when first opened
         if (tab === 'advanced' && !_advancedInited) {
             _advancedInited = true;
-            loadDebugInfo();
             startLogStream();
         }
         // Lazy-init apikey tab when first opened
@@ -1375,33 +1362,6 @@ let failuresOnly = false;
 let userScrolledUp = false;
 let isSelecting = false;
 
-function loadDebugInfo() {
-    fetch('/api/debug')
-        .then(r => r.json())
-        .then(data => {
-            updateStatusBar(data);
-        })
-        .catch(err => addRealTimeLog(`[ERROR] Failed to load debug info: ${err}`));
-}
-
-function updateStatusBar(data) {
-    const s = data.services_status || {};
-    function dot(ok) {
-        return `<span style="color:${ok ? '#198754' : '#dc3545'}">●</span>`;
-    }
-    const items = [
-        `${dot(s.processing_thread_alive)} Worker: <strong>${data.is_processing ? 'Active' : 'Idle'}</strong>`,
-        `<span style="color:#0d6efd">▣</span> Queue: <strong>${data.queue_size}</strong>`,
-        `${dot(s.twitter_service)} Twitter`,
-        `${dot(s.media_downloader)} Media`,
-        `${dot(s.xhs_mcp_docker)} XHS MCP`,
-        `${dot(s.xhs_mcp_logged_in)} XHS Login: <strong>${data.xhs_login_message || 'unknown'}</strong>`,
-    ];
-    const html = items.join('<span class="text-muted mx-1">|</span>');
-    const bar = document.getElementById('status-bar');
-    if (bar.innerHTML !== html) bar.innerHTML = html;
-}
-
 function toggleLogStream() {
     eventSource ? stopLogStream() : startLogStream();
 }
@@ -1469,21 +1429,23 @@ function classifyLevel(text) {
 }
 
 function getLogColor(line) {
-    if (/error|critical/i.test(line))  return '#ff6b6b';
-    if (/warn/i.test(line))            return '#ffd93d';
-    if (/success|✓|✅/i.test(line))    return '#6bcb77';
-    return '#00ff00';
+    if (/error|critical/i.test(line))  return '#dc3545';  // btn-danger
+    if (/warn/i.test(line))            return '#ffc107';  // btn-warning
+    if (/success|✓|✅/i.test(line))    return '#2ecc71';  // bright green
+    if (/\[info\]/i.test(line))        return '#0dcaf0';  // btn-info
+    if (/\[debug\]/i.test(line))       return '#6c757d';  // btn-secondary
+    return '#0dcaf0';                                     // default: info cyan
 }
 
 function levelColor(level) {
     return {
-        error:   '#ff6b6b',
-        warning: '#ffd93d',
-        success: '#6bcb77',
-        info:    '#00ff00',
-        debug:   '#00ff00',
-        other:   '#00ff00',
-    }[level] || '#00ff00';
+        error:   '#dc3545',
+        warning: '#ffc107',
+        success: '#2ecc71',
+        info:    '#0dcaf0',
+        debug:   '#6c757d',
+        other:   '#adb5bd',
+    }[level] || '#adb5bd';
 }
 
 function extractTaskId(text) {
@@ -1709,7 +1671,7 @@ function forceStartQueue() {
         .then(r => r.json())
         .then(data => {
             addRealTimeLog(data.success ? `[INFO] ${data.message}` : `[ERROR] ${data.message}`);
-            if (data.success) setTimeout(loadDebugInfo, 1000);
+            if (data.success) addRealTimeLog('[INFO] Operation completed successfully');
         })
         .catch(err => addRealTimeLog(`[ERROR] Request failed: ${err}`));
 }
@@ -1719,7 +1681,7 @@ function resetStuckTasks() {
         .then(r => r.json())
         .then(data => {
             addRealTimeLog(data.success ? `[INFO] ${data.message}` : `[ERROR] ${data.message}`);
-            if (data.success) setTimeout(loadDebugInfo, 1000);
+            if (data.success) addRealTimeLog('[INFO] Operation completed successfully');
         })
         .catch(err => addRealTimeLog(`[ERROR] Request failed: ${err}`));
 }

@@ -532,10 +532,13 @@
         }
 
         // Pre-populate search from URL ?q= param
-        const _urlQ = new URLSearchParams(window.location.search).get('q');
+        const _urlParams = new URLSearchParams(window.location.search);
+        const _urlQ = _urlParams.get('q');
         if (_urlQ && searchInput) {
             searchInput.value = _urlQ;
         }
+
+        // Platform pre-selection from URL is handled before initial loadSaved() below
     });
 
     // --- End view mode ---
@@ -912,6 +915,18 @@
 
     // Sync per-page select to saved preference
     document.getElementById('per-page-select').value = perPage;
+
+    // Pre-select platform from URL ?platform= param (must happen before loadSaved)
+    (function() {
+        const p = new URLSearchParams(window.location.search).get('platform');
+        if (p) {
+            const types = p.split(',');
+            document.querySelectorAll('#platform-menu .platform-cb').forEach(cb => {
+                cb.checked = types.includes(cb.value);
+            });
+            updatePlatformBtnLabel();
+        }
+    })();
 
     // Apply saved view mode preference and initial load
     applyViewMode();

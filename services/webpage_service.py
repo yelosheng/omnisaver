@@ -201,7 +201,13 @@ class WebpageService:
 
     @staticmethod
     def _normalize_url(url: str) -> str:
-        """Drop fragment identifiers; they do not affect server-side article content."""
+        """Keep the URL as-is (including fragment) — some sites use JS to render
+        different content based on the hash (e.g. #1 and #2 show different tabs)."""
+        return url.strip()
+
+    @staticmethod
+    def _url_without_fragment(url: str) -> str:
+        """Strip fragment for deduplication and folder naming only."""
         parsed = urllib.parse.urlsplit(url.strip())
         return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ''))
 

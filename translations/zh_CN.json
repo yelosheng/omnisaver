@@ -271,10 +271,16 @@
   "status_worker_idle": "空闲",
   "status_worker_processing": "处理中",
   "status_worker_down": "未运行",
-  "status_ok": "正常",
+  "status_ok": "已配置",
   "status_expiring": "即将过期",
   "status_not_configured": "未配置",
   "status_free": "剩余",
   "status_path_inaccessible": "路径不可访问",
-  "status_configure": "配置"
+  "status_configure": "配置",
+  "status_services_title": "服务状态",
+  "status_service_up": "运行中",
+  "status_service_down": "离线",
+  "status_checking": "检查中...",
+  "status_platform_counts_title": "已保存内容",
+  "status_total": "总计"
 }

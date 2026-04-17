@@ -27,12 +27,12 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-list-task"></i> {{ t.tasks_title }}</h2>
-    <div>
+    <div class="d-flex align-items-center gap-2">
         <input type="text" id="url-filter-input" class="form-control form-control-sm"
                placeholder="{{ t.tasks_url_filter_placeholder }}"
-               style="max-width: 300px;"
-               oninput="applyUrlFilter()">
-        <select class="form-select ms-2" id="status-filter" style="width: auto; display: inline-block;">
+               style="width: 320px;"
+               oninput="debouncedUrlFilter()">
+        <select class="form-select form-select-sm" id="status-filter" style="width: auto;">
             <option value="">{{ t.tasks_filter_all }}</option>
             <option value="pending">{{ t.tasks_filter_pending }}</option>
             <option value="processing">{{ t.tasks_filter_processing }}</option>
@@ -40,9 +40,6 @@
             <option value="failed">{{ t.tasks_filter_failed }}</option>
             <option value="retrying">{{ t.tasks_filter_retrying }}</option>
         </select>
-        <button class="btn btn-outline-primary ms-2" onclick="loadTasks()">
-            <i class="bi bi-arrow-clockwise"></i> {{ t.tasks_refresh }}
-        </button>
     </div>
 </div>
 
@@ -126,9 +123,11 @@
         noTasks.style.display = 'none';
 
         // "retrying" is a client-side filter: fetch failed tasks, then filter by retry_count > 0
+        const urlFilter = document.getElementById('url-filter-input').value.trim();
         const apiStatus = statusFilter === 'retrying' ? 'failed' : statusFilter;
         const params = new URLSearchParams({ page, per_page: perPage });
         if (apiStatus) params.append('status', apiStatus);
+        if (urlFilter) params.append('url', urlFilter);
 
         fetch(`/api/tasks?${params}`)
             .then(r => r.json())
@@ -307,14 +306,12 @@
             .catch(() => { showToast('Delete request failed', 'error'); restore(); });
     }
 
-    // ── URL filter ────────────────────────────────────────────────────────────
+    // ── URL filter (debounced, backend search) ─────────────────────────────
 
-    function applyUrlFilter() {
-        const q = document.getElementById('url-filter-input').value.toLowerCase().trim();
-        document.querySelectorAll('tbody tr[data-url]').forEach(row => {
-            const url = (row.dataset.url || '').toLowerCase();
-            row.style.display = (!q || url.includes(q)) ? '' : 'none';
-        });
+    let _urlFilterTimer = null;
+    function debouncedUrlFilter() {
+        clearTimeout(_urlFilterTimer);
+        _urlFilterTimer = setTimeout(() => loadTasks(1), 400);
     }
 
     // ── Init ──────────────────────────────────────────────────────────────────
@@ -331,7 +328,10 @@
     loadTasks();
 
     setInterval(() => {
-        if (currentPage === 1 && !document.getElementById('status-filter').value) loadTasks(1);
+        const urlVal = document.getElementById('url-filter-input').value.trim();
+        const statusVal = document.getElementById('status-filter').value;
+        if (urlVal || statusVal) return; // don't auto-refresh while filtering
+        if (currentPage === 1) loadTasks(1);
     }, 5000);
 </script>
 {% endblock %}
