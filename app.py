@@ -217,13 +217,17 @@ def check_api_key(provided_key: str) -> bool:
     """Return True if the request is authorized.
 
     Authorization logic:
-    - If no api_key is configured in app_settings, always allow (backward compat).
-    - Otherwise, provided_key must match exactly.
+    - If api_keys table is empty, always allow (no auth configured).
+    - Otherwise, provided_key must match any row in api_keys.
     """
-    configured = get_setting('api_key', '')
-    if not configured:
+    conn = get_db_connection()
+    row = conn.execute('SELECT id FROM api_keys WHERE key = ?', (provided_key,)).fetchone()
+    if row:
+        conn.close()
         return True
-    return provided_key == configured
+    count = conn.execute('SELECT COUNT(*) as c FROM api_keys').fetchone()['c']
+    conn.close()
+    return count == 0
 
 
 

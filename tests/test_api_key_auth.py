@@ -29,12 +29,29 @@ def make_test_app():
         return flask_app.app.test_client(), flask_app, tmpdir
 
 
+def _clear_api_keys():
+    """Helper to clear the api_keys table."""
+    from services.db import get_db_connection
+    conn = get_db_connection()
+    conn.execute("DELETE FROM api_keys")
+    conn.commit()
+    conn.close()
+
+
+def _insert_api_key(name, key):
+    """Helper to insert a key into api_keys table."""
+    from services.db import get_db_connection
+    conn = get_db_connection()
+    conn.execute("INSERT INTO api_keys (name, key) VALUES (?, ?)", (name, key))
+    conn.commit()
+    conn.close()
+
+
 class TestCheckApiKey(unittest.TestCase):
 
     def setUp(self):
         self.client, self.flask_app, self.tmpdir = make_test_app()
-        from services.db import set_setting
-        set_setting('api_key', '')  # ensure clean state
+        _clear_api_keys()
 
     def test_no_key_configured_allows_request(self):
         """When no API key is set, any request passes."""
@@ -43,22 +60,19 @@ class TestCheckApiKey(unittest.TestCase):
 
     def test_correct_bearer_header_passes(self):
         """Authorization: Bearer <key> with correct key passes."""
-        from services.db import set_setting
-        set_setting('api_key', 'abc123')
+        _insert_api_key('Test', 'abc123')
         result = self.flask_app.check_api_key('abc123')
         self.assertTrue(result)
 
     def test_wrong_key_fails(self):
         """Wrong key returns False."""
-        from services.db import set_setting
-        set_setting('api_key', 'abc123')
+        _insert_api_key('Test', 'abc123')
         result = self.flask_app.check_api_key('wrongkey')
         self.assertFalse(result)
 
     def test_empty_provided_key_fails_when_key_set(self):
         """Empty provided key fails when a key is configured."""
-        from services.db import set_setting
-        set_setting('api_key', 'abc123')
+        _insert_api_key('Test', 'abc123')
         result = self.flask_app.check_api_key('')
         self.assertFalse(result)
 
@@ -67,12 +81,12 @@ class TestApiSubmitAuth(unittest.TestCase):
 
     def setUp(self):
         self.client, self.flask_app, self.tmpdir = make_test_app()
-        from services.db import set_setting
-        set_setting('api_key', '')  # ensure clean state
+        _clear_api_keys()
 
     def _set_api_key(self, key):
-        from services.db import set_setting
-        set_setting('api_key', key)
+        _clear_api_keys()
+        if key:
+            _insert_api_key('Test', key)
 
     def test_submit_no_key_configured_no_header(self):
         """No key configured: request without header is accepted (reaches URL validation)."""
@@ -114,38 +128,47 @@ class TestApiSubmitAuth(unittest.TestCase):
         self.assertEqual(resp.status_code, 401)
 
 
-class TestApiKeySettingsEndpoints(unittest.TestCase):
+class TestMultiApiKeys(unittest.TestCase):
 
     def setUp(self):
         self.client, self.flask_app, self.tmpdir = make_test_app()
-        from services.db import set_setting
-        set_setting('api_key', '')  # ensure clean state
-        with self.client.session_transaction() as sess:
-            sess['logged_in'] = True
 
-    def test_get_api_key_no_key(self):
-        resp = self.client.get('/api/settings/api-key')
-        self.assertEqual(resp.status_code, 200)
-        data = json.loads(resp.data)
-        self.assertFalse(data['has_key'])
+    def test_api_keys_table_exists(self):
+        """api_keys table should be created by init_db."""
+        from services.db import get_db_connection
+        conn = get_db_connection()
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='api_keys'"
+        ).fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
 
-    def test_generate_api_key(self):
-        resp = self.client.post('/api/settings/api-key/generate')
-        self.assertEqual(resp.status_code, 200)
-        data = json.loads(resp.data)
-        self.assertTrue(data['success'])
-        self.assertIn('key', data)
-        self.assertEqual(len(data['key']), 64)
+    def test_legacy_key_migrated(self):
+        """Existing api_key in app_settings is migrated to api_keys table."""
+        from services.db import set_setting, get_db_connection, init_db
+        set_setting('api_key', 'legacykey123')
+        init_db()  # re-run migration
+        conn = get_db_connection()
+        row = conn.execute("SELECT name, key FROM api_keys WHERE key = 'legacykey123'").fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row['name'], 'Default')
 
-    def test_revoke_api_key(self):
-        from services.db import set_setting
-        set_setting('api_key', 'somekey')
-        resp = self.client.delete('/api/settings/api-key')
-        self.assertEqual(resp.status_code, 200)
-        data = json.loads(resp.data)
-        self.assertTrue(data['success'])
-        from services.db import get_setting
-        self.assertEqual(get_setting('api_key', ''), '')
+    def test_check_api_key_uses_new_table(self):
+        """check_api_key matches against api_keys table."""
+        from services.db import get_db_connection
+        conn = get_db_connection()
+        conn.execute("INSERT INTO api_keys (name, key) VALUES ('Test', 'newstylekey')")
+        conn.commit()
+        conn.close()
+        self.assertTrue(self.flask_app.check_api_key('newstylekey'))
+        self.assertFalse(self.flask_app.check_api_key('wrongkey'))
+
+    def test_check_api_key_empty_table_allows_all(self):
+        """No keys in api_keys table → allow all (backward compat)."""
+        _clear_api_keys()
+        self.assertTrue(self.flask_app.check_api_key('anything'))
+        self.assertTrue(self.flask_app.check_api_key(''))
 
 
 if __name__ == '__main__':

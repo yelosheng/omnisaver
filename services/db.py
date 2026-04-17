@@ -187,6 +187,25 @@ def init_db():
         ]
     )
 
+    # Multi-key API authentication table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL DEFAULT '',
+            key TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    # Migrate legacy single api_key if present and table is empty
+    legacy = cursor.execute(
+        "SELECT value FROM app_settings WHERE key = 'api_key'"
+    ).fetchone()
+    if legacy and legacy[0]:
+        cursor.execute(
+            "INSERT OR IGNORE INTO api_keys (name, key) VALUES (?, ?)",
+            ('Default', legacy[0])
+        )
+
     # FTS5 full-text search table (trigram tokenizer for CJK substring matching)
     # Recreate if schema changed (e.g. added trigram, switched to content-storing)
     _fts_exists = cursor.execute(
