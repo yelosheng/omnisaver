@@ -299,69 +299,96 @@
         <!-- ═══════════════════════════════════════════════════════════ -->
         <div id="tab-apikey" style="display:none">
 
-            <!-- API Key -->
             <div class="card mb-4">
-                <div class="card-header">
+                <div class="card-header d-flex align-items-center justify-content-between">
                     <h5 class="mb-0"><i class="bi bi-key"></i> {{ t.settings_api_key }}</h5>
+                    <button class="btn btn-sm btn-primary" onclick="showCreateKeyForm()">
+                        <i class="bi bi-plus-circle"></i> {{ t.settings_api_key_add }}
+                    </button>
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">{{ t.settings_api_key_desc | safe }}</p>
-                    <div id="api-key-no-key" style="display:none;">
-                        <div class="alert alert-warning py-2 mb-3">
-                            <i class="bi bi-exclamation-triangle"></i>
-                            {{ t.settings_no_key_warning }}
+
+                    <!-- Create form (hidden by default) -->
+                    <div id="api-key-create-form" class="mb-3 p-3 border rounded bg-light" style="display:none;">
+                        <label class="form-label fw-semibold">{{ t.settings_api_key_name_label }}</label>
+                        <div class="d-flex gap-2" style="max-width:480px;">
+                            <input type="text" class="form-control" id="api-key-new-name"
+                                   placeholder="{{ t.settings_api_key_name_placeholder }}"
+                                   maxlength="60" onkeydown="if(event.key==='Enter')createApiKey()">
+                            <button class="btn btn-primary" onclick="createApiKey()">
+                                <i class="bi bi-plus-circle"></i> {{ t.settings_api_key_generate_btn }}
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="hideCreateKeyForm()">
+                                <i class="bi bi-x"></i>
+                            </button>
                         </div>
-                        <button class="btn btn-primary" onclick="generateApiKey()">
-                            <i class="bi bi-plus-circle"></i> {{ t.settings_generate_key }}
-                        </button>
                     </div>
-                    <div id="api-key-has-key" style="display:none;">
-                        <div class="mb-3">
-                            <label class="form-label"><strong>{{ t.settings_current_key }}</strong></label>
-                            <div class="input-group" style="max-width:520px;">
-                                <input type="password" class="form-control font-monospace"
-                                       id="api-key-display" readonly>
-                                <button class="btn btn-outline-secondary" type="button"
-                                        onclick="toggleApiKeyVisibility()" id="api-key-toggle-btn"
-                                        title="{{ t.settings_toggle_visibility }}">
-                                    <i class="bi bi-eye" id="api-key-eye-icon"></i>
-                                </button>
-                                <button class="btn btn-outline-secondary" type="button"
-                                        onclick="copyApiKey()" title="{{ t.settings_copy }}">
+
+                    <!-- Keys list -->
+                    <div id="api-keys-list-wrap">
+                        <div id="api-keys-empty" class="text-muted small py-2" style="display:none;">
+                            {{ t.settings_api_key_list_empty }}
+                        </div>
+                        <table class="table table-sm align-middle mb-0" id="api-keys-table" style="display:none;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{{ t.settings_api_key_col_name }}</th>
+                                    <th>{{ t.settings_api_key_col_preview }}</th>
+                                    <th>{{ t.settings_api_key_col_created }}</th>
+                                    <th class="text-end">{{ t.settings_api_key_col_actions }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="api-keys-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="api-key-result" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
+            <!-- QR Modal -->
+            <div class="modal fade" id="api-key-qr-modal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="bi bi-qr-code"></i> {{ t.settings_api_key_scan_title }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <p class="text-muted small mb-3">{{ t.settings_api_key_scan_desc }}</p>
+                            <div id="api-key-qr-modal-canvas" class="d-inline-block border rounded p-2 bg-white mb-2"></div>
+                            <div class="text-muted small">{{ t.settings_api_key_scan_footer }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Created key Modal -->
+            <div class="modal fade" id="api-key-created-modal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="bi bi-check-circle text-success"></i> {{ t.settings_api_key_created_title }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning py-2 small mb-3">
+                                <i class="bi bi-exclamation-triangle"></i> {{ t.settings_api_key_created_desc }}
+                            </div>
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control font-monospace" id="api-key-created-display" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyCreatedApiKey()" title="{{ t.settings_copy }}">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
                             </div>
-                        </div>
-                        <div class="d-flex gap-2 mb-4">
-                            <button class="btn btn-warning" onclick="generateApiKey()">
-                                <i class="bi bi-arrow-clockwise"></i> {{ t.settings_regenerate }}
-                            </button>
-                            <button class="btn btn-outline-danger" onclick="revokeApiKey()">
-                                <i class="bi bi-x-circle"></i> {{ t.settings_revoke }}
-                            </button>
-                        </div>
-
-                        <!-- QR Code section -->
-                        <div id="api-key-qr-section">
-                            <hr class="my-3">
-                            <label class="form-label"><strong><i class="bi bi-qr-code"></i> {{ t.settings_qr_title }}</strong></label>
-                            <!-- QR available (key just generated this session) -->
-                            <div id="api-key-qr-available" style="display:none;">
-                                <p class="text-muted small mb-2">{{ t.settings_qr_desc }}</p>
-                                <div id="api-key-qr-canvas" class="mb-2" style="display:inline-block;border:1px solid #dee2e6;border-radius:8px;padding:8px;background:#fff;">
-                                </div>
-                                <div class="text-muted small">{{ t.settings_qr_footer }}</div>
-                            </div>
-                            <!-- QR not available (page reloaded, full key unknown) -->
-                            <div id="api-key-qr-unavailable" style="display:none;">
-                                <div class="alert alert-secondary py-2 d-flex align-items-center gap-2" style="max-width:420px;">
-                                    <i class="bi bi-info-circle flex-shrink-0"></i>
-                                    <span class="small">{{ t.settings_qr_unavailable }}</span>
-                                </div>
+                            <div class="text-center">
+                                <p class="text-muted small mb-2">{{ t.settings_api_key_scan_desc }}</p>
+                                <div id="api-key-created-qr" class="d-inline-block border rounded p-2 bg-white mb-1"></div>
+                                <div class="text-muted small">{{ t.settings_api_key_scan_footer }}</div>
                             </div>
                         </div>
                     </div>
-                    <div id="api-key-result" class="mt-2" style="display:none;"></div>
                 </div>
             </div>
 
@@ -741,7 +768,7 @@ document.querySelectorAll('#settings-tabs .nav-link').forEach(link => {
         // Lazy-init apikey tab when first opened
         if (tab === 'apikey' && !_apikeyInited) {
             _apikeyInited = true;
-            loadApiKey();
+            loadApiKeys();
         }
         // Lazy-init telegram tab (Telegram polling) when first opened
         if (tab === 'telegram' && !_telegramInited) {
@@ -770,13 +797,9 @@ let _telegramInterval = null;
 
 // ── i18n ─────────────────────────────────────────────────────────────────────
 const _i18n = {
-    regenerate_confirm: {{ t.settings_regenerate_confirm | tojson }},
-    key_generated:      {{ t.settings_key_generated | tojson }},
-    revoke_confirm:     {{ t.settings_revoke_confirm | tojson }},
-    key_revoked:        {{ t.settings_key_revoked | tojson }},
-    key_hidden_alert:   {{ t.settings_key_hidden_alert | tojson }},
-    key_copy_alert:     {{ t.settings_key_copy_alert | tojson }},
-    copied:             {{ t.settings_copied | tojson }},
+    api_key_delete_confirm: {{ t.settings_api_key_delete_confirm | tojson }},
+    api_key_deleted:        {{ t.settings_api_key_deleted | tojson }},
+    copied:                 {{ t.settings_copied | tojson }},
 };
 
 // ── System Configuration ─────────────────────────────────────────────────────
@@ -1109,101 +1132,156 @@ async function saveFacebookCookies() {
 })();
 
 // ── API Key management ───────────────────────────────────────────────────────
-let _currentApiKey = '';
 
-async function loadApiKey() {
-    const r = await fetch('/api/settings/api-key');
-    const d = await r.json();
-    if (d.has_key) {
-        document.getElementById('api-key-no-key').style.display = 'none';
-        document.getElementById('api-key-has-key').style.display = '';
-        document.getElementById('api-key-display').value = d.key_preview || '••••••••...';
-        _currentApiKey = '';
-        document.getElementById('api-key-qr-available').style.display = 'none';
-        document.getElementById('api-key-qr-unavailable').style.display = '';
-    } else {
-        document.getElementById('api-key-no-key').style.display = '';
-        document.getElementById('api-key-has-key').style.display = 'none';
-    }
+async function loadApiKeys() {
+    const r = await fetch('/api/settings/api-keys');
+    const keys = await r.json();
+    renderApiKeysList(keys);
 }
 
-async function generateApiKey() {
-    if (document.getElementById('api-key-has-key').style.display !== 'none') {
-        if (!confirm(_i18n.regenerate_confirm)) return;
+function renderApiKeysList(keys) {
+    const tbody = document.getElementById('api-keys-tbody');
+    const table = document.getElementById('api-keys-table');
+    const empty = document.getElementById('api-keys-empty');
+    tbody.innerHTML = '';
+    if (!keys.length) {
+        table.style.display = 'none';
+        empty.style.display = '';
+        return;
     }
-    const r = await fetch('/api/settings/api-key/generate', {method: 'POST'});
-    const d = await r.json();
-    if (d.success) {
-        _currentApiKey = d.key;
-        document.getElementById('api-key-no-key').style.display = 'none';
-        document.getElementById('api-key-has-key').style.display = '';
-        document.getElementById('api-key-display').type = 'text';
-        document.getElementById('api-key-display').value = d.key;
-        document.getElementById('api-key-eye-icon').className = 'bi bi-eye-slash';
-        showApiKeyResult('success', _i18n.key_generated);
-        renderQrCode(d.key);
-    }
+    table.style.display = '';
+    empty.style.display = 'none';
+    keys.forEach(k => {
+        const preview = k.key.slice(0, 8) + '...';
+        const date = k.created_at ? k.created_at.slice(0, 10) : '';
+        const tr = document.createElement('tr');
+        tr.dataset.id = k.id;
+        tr.dataset.key = k.key;
+        tr.innerHTML = `
+            <td class="fw-semibold">${escHtml(k.name)}</td>
+            <td>
+                <span class="font-monospace text-muted key-preview" data-visible="0">${escHtml(preview)}</span>
+                <button class="btn btn-sm btn-link p-0 ms-1 key-toggle-btn" onclick="toggleKeyVisibility(this)" title="{{ t.settings_toggle_visibility }}">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-link p-0 ms-1" onclick="copyKeyFromRow(this)" title="{{ t.settings_copy }}">
+                    <i class="bi bi-clipboard"></i>
+                </button>
+            </td>
+            <td class="text-muted small">${escHtml(date)}</td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-outline-secondary me-1" onclick="showQrForKey(this)" title="{{ t.settings_api_key_scan_title }}">
+                    <i class="bi bi-qr-code"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteApiKey(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
-function renderQrCode(key) {
-    try {
-        const payload = JSON.stringify({
-            url: window.location.origin,
-            api_key: key
-        });
-        const qr = qrcode(0, 'M');
-        qr.addData(payload);
-        qr.make();
-        const container = document.getElementById('api-key-qr-canvas');
-        container.innerHTML = qr.createImgTag(4, 8);
-        container.querySelector('img').style.cssText = 'width:176px;height:176px;display:block;border-radius:4px;';
-        document.getElementById('api-key-qr-available').style.display = '';
-        document.getElementById('api-key-qr-unavailable').style.display = 'none';
-    } catch(e) {
-        console.error('QR code error:', e);
-    }
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function revokeApiKey() {
-    if (!confirm(_i18n.revoke_confirm)) return;
-    const r = await fetch('/api/settings/api-key', {method: 'DELETE'});
-    const d = await r.json();
-    if (d.success) {
-        _currentApiKey = '';
-        document.getElementById('api-key-no-key').style.display = '';
-        document.getElementById('api-key-has-key').style.display = 'none';
-        document.getElementById('api-key-qr-available').style.display = 'none';
-        document.getElementById('api-key-qr-unavailable').style.display = 'none';
-        showApiKeyResult('warning', _i18n.key_revoked);
-    }
+function getRowData(btn) {
+    return btn.closest('tr[data-id]');
 }
 
-function toggleApiKeyVisibility() {
-    const input = document.getElementById('api-key-display');
-    const icon = document.getElementById('api-key-eye-icon');
-    if (input.type === 'password') {
-        if (_currentApiKey) {
-            input.value = _currentApiKey;
-        } else {
-            alert(_i18n.key_hidden_alert);
-            return;
-        }
-        input.type = 'text';
+function toggleKeyVisibility(btn) {
+    const tr = getRowData(btn);
+    const span = tr.querySelector('.key-preview');
+    const icon = btn.querySelector('i');
+    if (span.dataset.visible === '0') {
+        span.textContent = tr.dataset.key;
+        span.dataset.visible = '1';
         icon.className = 'bi bi-eye-slash';
     } else {
-        input.type = 'password';
-        input.value = _currentApiKey || '••••••••...';
+        span.textContent = tr.dataset.key.slice(0, 8) + '...';
+        span.dataset.visible = '0';
         icon.className = 'bi bi-eye';
     }
 }
 
-function copyApiKey() {
-    const val = _currentApiKey || document.getElementById('api-key-display').value;
-    if (!val || val.includes('•')) {
-        alert(_i18n.key_copy_alert);
-        return;
+function copyKeyFromRow(btn) {
+    const tr = getRowData(btn);
+    navigator.clipboard.writeText(tr.dataset.key).then(() => {
+        showApiKeyResult('success', _i18n.copied);
+    });
+}
+
+function showQrForKey(btn) {
+    const tr = getRowData(btn);
+    const key = tr.dataset.key;
+    const container = document.getElementById('api-key-qr-modal-canvas');
+    renderQrInto(container, key);
+    new bootstrap.Modal(document.getElementById('api-key-qr-modal')).show();
+}
+
+async function deleteApiKey(btn) {
+    if (!confirm(_i18n.api_key_delete_confirm)) return;
+    const tr = getRowData(btn);
+    const id = tr.dataset.id;
+    const r = await fetch(`/api/settings/api-keys/${id}`, {method: 'DELETE'});
+    const d = await r.json();
+    if (d.success) {
+        tr.remove();
+        const tbody = document.getElementById('api-keys-tbody');
+        if (!tbody.children.length) {
+            document.getElementById('api-keys-table').style.display = 'none';
+            document.getElementById('api-keys-empty').style.display = '';
+        }
+        showApiKeyResult('warning', _i18n.api_key_deleted);
     }
+}
+
+function showCreateKeyForm() {
+    document.getElementById('api-key-create-form').style.display = '';
+    document.getElementById('api-key-new-name').focus();
+}
+
+function hideCreateKeyForm() {
+    document.getElementById('api-key-create-form').style.display = 'none';
+    document.getElementById('api-key-new-name').value = '';
+}
+
+async function createApiKey() {
+    const nameInput = document.getElementById('api-key-new-name');
+    const name = nameInput.value.trim() || 'Unnamed';
+    const r = await fetch('/api/settings/api-keys', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    });
+    const d = await r.json();
+    if (!d.success) return;
+    hideCreateKeyForm();
+    document.getElementById('api-key-created-display').value = d.key;
+    const qrContainer = document.getElementById('api-key-created-qr');
+    renderQrInto(qrContainer, d.key);
+    new bootstrap.Modal(document.getElementById('api-key-created-modal')).show();
+    loadApiKeys();
+}
+
+function copyCreatedApiKey() {
+    const val = document.getElementById('api-key-created-display').value;
     navigator.clipboard.writeText(val).then(() => showApiKeyResult('success', _i18n.copied));
+}
+
+function renderQrInto(container, key) {
+    try {
+        const payload = JSON.stringify({url: window.location.origin, api_key: key});
+        const qr = qrcode(0, 'M');
+        qr.addData(payload);
+        qr.make();
+        container.innerHTML = qr.createImgTag(4, 8);
+        const img = container.querySelector('img');
+        if (img) img.style.cssText = 'width:176px;height:176px;display:block;border-radius:4px;';
+    } catch(e) {
+        console.error('QR code error:', e);
+    }
 }
 
 function showApiKeyResult(type, msg) {
