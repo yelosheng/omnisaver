@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniSaver Logo Exploration V3 - Semantic Focus</title>
+    <style>
+        :root {
+            --bg: #fdfdfd;
+            --text: #0f172a;
+            --tab-blue: #0ea5e9;   /* X / Twitter */
+            --tab-green: #10b981;  /* WeChat */
+            --tab-red: #ef4444;    /* YouTube / XHS */
+            --tab-yellow: #f59e0b; /* Reddit / Bilibili */
+            --vault-dark: #1e293b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+            font-weight: 800;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 35px;
+            border: 1px solid #eee;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .card:hover {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            transform: translateY(-2px);
+        }
+
+        .logo-container {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            font-size: 0.85rem;
+            color: #64748b;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>OmniSaver Logo Exploration V3</h1>
+    <p>核心语义：社交媒体内容捕捉与存档</p>
+</div>
+
+<div class="grid">
+    <!-- Variant 13: Media Sieve -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 25H80L60 60V85L40 85V60L20 25Z" stroke="var(--vault-dark)" stroke-width="6" stroke-linejoin="round"/>
+                <!-- Video Icon -->
+                <polygon points="35,35 45,40 35,45" fill="var(--tab-red)"/>
+                <!-- Image Icon -->
+                <circle cx="65" cy="40" r="6" fill="var(--tab-blue)"/>
+                <!-- Text Lines -->
+                <rect x="42" y="48" width="16" height="3" rx="1.5" fill="var(--tab-green)"/>
+            </svg>
+        </div>
+        <div class="title">13. Media Sieve (媒体筛)</div>
+        <div class="description">漏斗中包含视频播放、图片点和文本条，直观表达对不同媒体形式的提取与存档。</div>
+    </div>
+
+    <!-- Variant 14: Social Card Funnel -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Stack of social "posts" -->
+                <rect x="20" y="10" width="60" height="15" rx="3" fill="var(--tab-blue)" fill-opacity="0.8"/>
+                <rect x="30" y="30" width="40" height="15" rx="3" fill="var(--tab-red)" fill-opacity="0.8"/>
+                <rect x="40" y="50" width="20" height="15" rx="3" fill="var(--tab-green)" fill-opacity="0.8"/>
+                <!-- Final Storage Box -->
+                <path d="M35 75H65V90H35V75Z" fill="var(--vault-dark)"/>
+                <path d="M50 65V75" stroke="var(--vault-dark)" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="title">14. Post Stack (动态堆叠)</div>
+        <div class="description">不同颜色的卡片代表各社交平台的帖子，正在按顺序垂直落入底部的存储单元。</div>
+    </div>
+
+    <!-- Variant 15: The "O" Gatherer -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Specialized "O" acting as a collector -->
+                <path d="M20 40C20 23.4315 33.4315 10 50 10C66.5685 10 80 23.4315 80 40V80H20V40Z" stroke="var(--vault-dark)" stroke-width="8" stroke-linejoin="round"/>
+                <!-- Captured social signals -->
+                <rect x="35" y="30" width="12" height="12" rx="2" fill="var(--tab-red)"/>
+                <circle cx="60" cy="55" r="8" fill="var(--tab-blue)"/>
+                <path d="M40 70H60" stroke="var(--tab-green)" stroke-width="6" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="title">15. Omni-Collector (全能收集箱)</div>
+        <div class="description">字母 O 被重构为一个开口向上的收集箱，容纳着代表视频、图片和链接的各种彩色几何体。</div>
+    </div>
+
+    <!-- Variant 16: Feed Flow -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Phone-like feed representation -->
+                <rect x="30" y="10" width="40" height="80" rx="4" stroke="#ddd" stroke-width="2"/>
+                <rect x="35" y="20" width="30" height="12" rx="2" fill="var(--tab-blue)"/>
+                <rect x="35" y="38" width="30" height="12" rx="2" fill="var(--tab-red)"/>
+                <rect x="35" y="56" width="30" height="12" rx="2" fill="var(--tab-green)"/>
+                <!-- Archiving action -->
+                <path d="M15 75L50 85L85 75" stroke="var(--vault-dark)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <div class="title">16. Feed Archive (信息流归档)</div>
+        <div class="description">直观展示手机信息流（Feed）正在被从底部截获并存储。</div>
+    </div>
+
+    <!-- Variant 17: Link Funnel -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Link Symbol integrated with funnel -->
+                <path d="M30 30C30 20 40 20 40 20H60C60 20 70 20 70 30V40C70 50 60 50 60 50" stroke="var(--tab-blue)" stroke-width="6" stroke-linecap="round"/>
+                <path d="M70 50C70 60 60 60 60 60H40C40 60 30 60 30 50V40C30 30 40 30 40 30" stroke="var(--tab-red)" stroke-width="6" stroke-linecap="round"/>
+                <path d="M40 65L50 85L60 65" stroke="var(--vault-dark)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <div class="title">17. Link Capture (链接捕获)</div>
+        <div class="description">链接（Link）符号与向下的箭头结合，强调通过输入 URL 即可完成存档的核心交互。</div>
+    </div>
+
+    <!-- Variant 18: Bubble Vault -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Chat Bubbles falling into vault -->
+                <path d="M20 30Q20 15 35 15H55Q70 15 70 30V45Q70 60 55 60H40L25 70V60Q20 60 20 45V30Z" fill="var(--tab-blue)" fill-opacity="0.2" stroke="var(--tab-blue)" stroke-width="4"/>
+                <circle cx="45" cy="37" r="10" fill="var(--tab-red)"/>
+                <rect x="25" y="75" width="50" height="15" rx="2" fill="var(--vault-dark)"/>
+                <path d="M50 60V75" stroke="var(--vault-dark)" stroke-width="4" stroke-dasharray="4 4"/>
+            </svg>
+        </div>
+        <div class="title">18. Bubble Vault (动态金库)</div>
+        <div class="description">社交对话气泡中的精彩内容（红色核心）正在被精准存入底部的安全地带。</div>
+    </div>
+</div>
+
+</body>
+</html>

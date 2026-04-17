@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#0d0d1a"/>
+  <!-- 漩涡螺旋 -->
+  <path d="M64 64 Q90 40 100 64 Q110 90 64 100 Q18 110 20 64 Q22 20 64 28 Q100 36 104 64" fill="none" stroke="#e040fb" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M64 64 Q82 50 88 64 Q94 78 64 84 Q34 90 36 64 Q38 40 64 44 Q86 48 90 64" fill="none" stroke="#ce93d8" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <path d="M64 64 Q72 58 75 64 Q78 70 64 72 Q50 74 51 64 Q52 54 64 56 Q74 58 76 64" fill="none" stroke="#f3e5f5" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+  <!-- 中心点 -->
+  <circle cx="64" cy="64" r="6" fill="#e040fb"/>
+  <!-- 旋入箭头 -->
+  <path d="M64 14 Q112 14 112 64" fill="none" stroke="#ab47bc" stroke-width="3" stroke-linecap="round" stroke-dasharray="5,4"/>
+  <polyline points="106,58 112,65 118,58" fill="none" stroke="#ab47bc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

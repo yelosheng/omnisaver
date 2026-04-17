@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#1a1200"/>
+  <!-- 蜂巢格子，7个六边形 -->
+  <g fill="none" stroke="#ffb300" stroke-width="4">
+    <!-- 中心 -->
+    <polygon points="64,42 79,51 79,69 64,78 49,69 49,51" fill="#ff8f00" opacity="0.3"/>
+    <!-- 上 -->
+    <polygon points="64,8 79,17 79,35 64,44 49,35 49,17"/>
+    <!-- 右上 -->
+    <polygon points="94,25 109,34 109,52 94,61 79,52 79,34"/>
+    <!-- 右下 -->
+    <polygon points="94,61 109,70 109,88 94,97 79,88 79,70"/>
+    <!-- 下 -->
+    <polygon points="64,78 79,87 79,105 64,114 49,105 49,87"/>
+    <!-- 左下 -->
+    <polygon points="34,61 49,70 49,88 34,97 19,88 19,70"/>
+    <!-- 左上 -->
+    <polygon points="34,25 49,34 49,52 34,61 19,52 19,34"/>
+  </g>
+  <!-- 中心下载箭头 -->
+  <line x1="64" y1="52" x2="64" y2="68" stroke="#ffe082" stroke-width="4" stroke-linecap="round"/>
+  <polyline points="58,63 64,70 70,63" fill="none" stroke="#ffe082" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

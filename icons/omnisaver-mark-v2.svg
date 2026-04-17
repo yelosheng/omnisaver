@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">OmniSaver mark v2</title>
+  <desc id="desc">A clean archive icon with a rounded square, orbit ring and downward save arrow entering a tray.</desc>
+  <defs>
+    <linearGradient id="bg" x1="28" y1="24" x2="228" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="0.52" stop-color="#0f5f8a"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="tray" x1="82" y1="136" x2="174" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#bg)"/>
+
+  <circle cx="128" cy="96" r="46" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="12"/>
+  <path d="M79 92c8-18 26-30 49-30 17 0 31 6 42 18" fill="none" stroke="#ffffff" stroke-opacity="0.78" stroke-linecap="round" stroke-width="12"/>
+  <circle cx="84" cy="88" r="7" fill="#f8fafc"/>
+
+  <path d="M128 68v50" stroke="#f8fafc" stroke-linecap="round" stroke-width="14"/>
+  <path d="M104 103l24 24 24-24" fill="none" stroke="#f8fafc" stroke-linecap="round" stroke-linejoin="round" stroke-width="14"/>
+
+  <path d="M76 146c0-6.627 5.373-12 12-12h20.409c4.33 0 8.488-1.717 11.55-4.775l8.041-8.028 8.041 8.028A16.338 16.338 0 0 0 147.591 134H168c6.627 0 12 5.373 12 12v18c0 8.837-7.163 16-16 16H92c-8.837 0-16-7.163-16-16z" fill="url(#tray)"/>
+  <path d="M92 180h72" stroke="#0f172a" stroke-opacity="0.12" stroke-linecap="round" stroke-width="8"/>
+</svg>

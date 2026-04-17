@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#0a2342"/>
+  <!-- 收件箱托盘 -->
+  <path d="M16 72 L16 108 Q16 112 20 112 L108 112 Q112 112 112 108 L112 72 L84 72 Q80 88 64 88 Q48 88 44 72 Z" fill="none" stroke="#42a5f5" stroke-width="5" stroke-linejoin="round"/>
+  <!-- 多条下载线 -->
+  <line x1="64" y1="16" x2="64" y2="60" stroke="#90caf9" stroke-width="5" stroke-linecap="round"/>
+  <polyline points="50,48 64,64 78,48" fill="none" stroke="#42a5f5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 两侧装饰线（表示多来源） -->
+  <line x1="32" y1="24" x2="32" y2="50" stroke="#1e88e5" stroke-width="3" stroke-linecap="round" stroke-dasharray="4,4"/>
+  <line x1="96" y1="24" x2="96" y2="50" stroke="#1e88e5" stroke-width="3" stroke-linecap="round" stroke-dasharray="4,4"/>
+  <polyline points="26,44 32,51 38,44" fill="none" stroke="#1e88e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="90,44 96,51 102,44" fill="none" stroke="#1e88e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

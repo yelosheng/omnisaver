@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%">
+  <defs>
+    <!-- 卡片渐变：增加微弱的光影质感 -->
+    <linearGradient id="blackGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#27272A"/>
+      <stop offset="100%" stop-color="#09090B"/>
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#DB2777"/>
+    </linearGradient>
+    <!-- 文件夹与盒子渐变：增加立体感 -->
+    <linearGradient id="folderGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+    <!-- 通用投影 -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- 1. 内部白色文件夹层 -->
+  <g>
+    <!-- 彩色分类标签 (还原原图细节) -->
+    <rect x="12" y="24" width="10" height="6" rx="2" fill="#8B5CF6" />
+    <rect x="27" y="24" width="10" height="6" rx="2" fill="#0EA5E9" />
+    <rect x="42" y="24" width="10" height="6" rx="2" fill="#10B981" />
+    <!-- 文件夹主体 -->
+    <rect x="6" y="27" width="52" height="15" rx="2" fill="url(#folderGrad)" />
+    <!-- 文件夹内部暗角投影，增加深度 -->
+    <rect x="6" y="27" width="52" height="3" fill="#000000" opacity="0.05" />
+  </g>
+
+  <!-- 2. 后层卡片 (左侧 X，右侧 Video) -->
+  <!-- 左侧：X 图标 -->
+  <g transform="translate(8, 12) rotate(-12, 9, 14)" filter="url(#shadow)">
+    <rect x="0" y="0" width="18" height="28" rx="4" fill="url(#blackGrad)" />
+    <line x1="4" y1="8" x2="14" y2="18" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
+    <line x1="14" y1="8" x2="4" y2="18" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
+  </g>
+
+  <!-- 右侧：媒体/视频 图标 -->
+  <g transform="translate(38, 14) rotate(12, 9, 14)" filter="url(#shadow)">
+    <rect x="0" y="0" width="18" height="28" rx="4" fill="url(#blueGrad)" />
+    <polygon points="6,9 13,14 6,19" fill="#ffffff" />
+  </g>
+
+  <!-- 3. 前层卡片 (中心 Save) -->
+  <!-- 中心：下载/保存 -->
+  <g transform="translate(21, 5)" filter="url(#shadow)">
+    <rect x="0" y="0" width="22" height="34" rx="5" fill="url(#pinkGrad)" />
+    <!-- 下载箭头 -->
+    <path d="M 11 8 L 11 23 M 6 18 L 11 23 L 16 18" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  </g>
+
+  <!-- 4. 正面 3D 档案盒 -->
+  <g>
+    <!-- 盒子外壳正面 (带圆角和渐变) -->
+    <path d="M 2 36 L 62 36 L 62 52 A 8 8 0 0 1 54 60 L 10 60 A 8 8 0 0 1 2 52 Z" fill="url(#boxGrad)" />
+    
+    <!-- 盒子的顶部厚度 (高光边缘，增加厚重感) -->
+    <path d="M 2 36 L 62 36 L 62 38.5 L 2 38.5 Z" fill="#475569" />
+    <!-- 盒子顶部内侧的一道暗线，强化立体折角 -->
+    <path d="M 2 38.5 L 62 38.5 L 62 39.5 L 2 39.5 Z" fill="#0F172A" opacity="0.6" />
+
+    <!-- 凹陷的把手 (写实光影处理) -->
+    <!-- 凹槽暗部 -->
+    <rect x="24" y="46" width="16" height="4" rx="2" fill="#09090B" />
+    <!-- 凹槽底部的受光面高光 -->
+    <rect x="24" y="49" width="16" height="1" rx="0.5" fill="#64748B" />
+  </g>
+</svg>

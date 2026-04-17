@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- 背景 -->
+  <rect width="128" height="128" rx="24" fill="#1a1a2e"/>
+  <!-- 三条输入线 -->
+  <line x1="20" y1="28" x2="55" y2="52" stroke="#4fc3f7" stroke-width="5" stroke-linecap="round"/>
+  <line x1="64" y1="20" x2="64" y2="50" stroke="#81d4fa" stroke-width="5" stroke-linecap="round"/>
+  <line x1="108" y1="28" x2="73" y2="52" stroke="#4fc3f7" stroke-width="5" stroke-linecap="round"/>
+  <!-- 漏斗 -->
+  <path d="M30 52 L98 52 L76 82 L76 100 L52 100 L52 82 Z" fill="none" stroke="#29b6f6" stroke-width="5" stroke-linejoin="round"/>
+  <!-- 向下箭头 -->
+  <line x1="64" y1="100" x2="64" y2="112" stroke="#29b6f6" stroke-width="5" stroke-linecap="round"/>
+  <polyline points="56,106 64,114 72,106" fill="none" stroke="#29b6f6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

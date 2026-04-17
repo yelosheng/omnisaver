@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#1a0a00"/>
+  <!-- 档案盒主体 -->
+  <rect x="16" y="52" width="96" height="62" rx="6" fill="none" stroke="#ff7043" stroke-width="5"/>
+  <!-- 盒盖 -->
+  <rect x="12" y="38" width="104" height="20" rx="5" fill="none" stroke="#ff7043" stroke-width="5"/>
+  <!-- 盒盖拉手 -->
+  <rect x="48" y="32" width="32" height="12" rx="6" fill="none" stroke="#ff8a65" stroke-width="4"/>
+  <!-- 盒身中线装饰 -->
+  <line x1="64" y1="58" x2="64" y2="108" stroke="#bf360c" stroke-width="2" stroke-dasharray="4,4" opacity="0.5"/>
+  <!-- 内部内容堆叠线 -->
+  <line x1="30" y1="74" x2="98" y2="74" stroke="#ff8a65" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+  <line x1="30" y1="84" x2="98" y2="84" stroke="#ff8a65" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+  <line x1="30" y1="94" x2="98" y2="94" stroke="#ff8a65" stroke-width="3" stroke-linecap="round" opacity="0.2"/>
+  <!-- 顶部多来源箭头 -->
+  <line x1="40" y1="16" x2="40" y2="34" stroke="#ffccbc" stroke-width="3" stroke-linecap="round"/>
+  <line x1="64" y1="10" x2="64" y2="34" stroke="#ffccbc" stroke-width="3" stroke-linecap="round"/>
+  <line x1="88" y1="16" x2="88" y2="34" stroke="#ffccbc" stroke-width="3" stroke-linecap="round"/>
+  <polyline points="34,28 40,35 46,28" fill="none" stroke="#ffccbc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="58,28 64,35 70,28" fill="none" stroke="#ffccbc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="82,28 88,35 94,28" fill="none" stroke="#ffccbc" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

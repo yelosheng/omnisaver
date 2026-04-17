@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#0d1b2a"/>
+  <!-- 中心存储图标 -->
+  <circle cx="64" cy="64" r="18" fill="#26c6da"/>
+  <rect x="56" y="58" width="16" height="12" rx="2" fill="#0d1b2a"/>
+  <line x1="60" y1="61" x2="68" y2="61" stroke="#26c6da" stroke-width="2"/>
+  <line x1="60" y1="65" x2="68" y2="65" stroke="#26c6da" stroke-width="2"/>
+  <!-- 8方向汇入箭头 -->
+  <g stroke="#80deea" stroke-width="3.5" stroke-linecap="round" fill="none">
+    <line x1="64" y1="14" x2="64" y2="42"/>
+    <polyline points="58,36 64,43 70,36"/>
+    <line x1="14" y1="64" x2="42" y2="64"/>
+    <polyline points="36,58 43,64 36,70"/>
+    <line x1="64" y1="114" x2="64" y2="86"/>
+    <polyline points="58,92 64,85 70,92"/>
+    <line x1="114" y1="64" x2="86" y2="64"/>
+    <polyline points="92,58 85,64 92,70"/>
+  </g>
+  <g stroke="#4dd0e1" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.7">
+    <line x1="24" y1="24" x2="47" y2="47"/>
+    <line x1="104" y1="24" x2="81" y2="47"/>
+    <line x1="24" y1="104" x2="47" y2="81"/>
+    <line x1="104" y1="104" x2="81" y2="81"/>
+  </g>
+</svg>

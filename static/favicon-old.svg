@@ -1,0 +1,86 @@
+<svg width="256" height="256" viewBox="10 8 236 214" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="s">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.13"/>
+    </filter>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0f4ff"/>
+      <stop offset="100%" style="stop-color:#fafafa"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Cabinet Body -->
+  <g filter="url(#s)">
+    <rect x="18" y="118" width="220" height="96" rx="18" fill="#1e293b"/>
+  </g>
+
+  <!-- Card 4 (back, darkest) -->
+  <rect x="52" y="115" width="152" height="65" rx="5" fill="#64748b"/>
+
+  <!-- === 绿色文档：插在 card3 和 card2 之间（较深层）=== -->
+  <g filter="url(#s)">
+    <rect x="60" y="76" width="52" height="52" rx="13" fill="#10b981"/>
+  </g>
+  <rect x="70" y="85" width="32" height="34" rx="3" fill="white"/>
+  <rect x="75" y="91" width="22" height="4" rx="2" fill="#10b981"/>
+  <rect x="75" y="99" width="22" height="2.5" rx="1.2" fill="#10b981" opacity="0.5"/>
+  <rect x="75" y="105" width="22" height="2.5" rx="1.2" fill="#10b981" opacity="0.5"/>
+  <rect x="75" y="111" width="14" height="2.5" rx="1.2" fill="#10b981" opacity="0.5"/>
+
+  <!-- Card 3 -->
+  <rect x="45" y="118" width="166" height="64" rx="5" fill="#94a3b8"/>
+
+  <!-- Card 2 -->
+  <rect x="38" y="121" width="180" height="62" rx="5" fill="#cbd5e1"/>
+
+  <!-- === X 图标：插在 card2 和 card1 之间（较浅层）=== -->
+  <g filter="url(#s)">
+    <rect x="152" y="84" width="52" height="52" rx="13" fill="#0f172a"/>
+  </g>
+  <line x1="165" y1="97" x2="191" y2="123" stroke="white" stroke-width="6.5" stroke-linecap="round"/>
+  <line x1="191" y1="97" x2="165" y2="123" stroke="white" stroke-width="6.5" stroke-linecap="round"/>
+
+  <!-- Card 1 (front) -->
+  <rect x="36" y="124" width="184" height="56" rx="4" fill="#f1f5f9"/>
+
+  <!-- Folder Tabs -->
+  <rect x="50" y="113" width="22" height="13" rx="4" fill="#6366f1"/>
+  <rect x="117" y="113" width="22" height="13" rx="4" fill="#0ea5e9"/>
+  <rect x="184" y="113" width="22" height="13" rx="4" fill="#10b981"/>
+  <!-- Drawer Face -->
+  <rect x="18" y="156" width="220" height="58" rx="18" fill="#334155"/>
+  <!-- Handle -->
+  <rect x="108" y="181" width="40" height="7" rx="3.5" fill="#0f172a"/>
+
+  <!-- ===== 悬浮图标（完全在抽屉上方）===== -->
+
+  <!-- 1. VIDEO — clapperboard (top-left) -->
+  <g filter="url(#s)">
+    <rect x="36" y="28" width="52" height="52" rx="13" fill="#6366f1"/>
+  </g>
+  <rect x="45" y="42" width="34" height="26" rx="3" fill="white"/>
+  <rect x="45" y="36" width="34" height="9" rx="3" fill="white" opacity="0.85"/>
+  <line x1="51" y1="36" x2="48" y2="45" stroke="#6366f1" stroke-width="2.5"/>
+  <line x1="59" y1="36" x2="56" y2="45" stroke="#6366f1" stroke-width="2.5"/>
+  <line x1="67" y1="36" x2="64" y2="45" stroke="#6366f1" stroke-width="2.5"/>
+  <polygon points="54,49 54,62 67,55.5" fill="#6366f1"/>
+
+  <!-- 2. IMAGE — photo frame with mountain (top-right) -->
+  <g filter="url(#s)">
+    <rect x="150" y="16" width="52" height="52" rx="13" fill="#0ea5e9"/>
+  </g>
+  <rect x="159" y="25" width="34" height="26" rx="3" fill="white"/>
+  <circle cx="166" cy="32" r="3.5" fill="#fbbf24"/>
+  <polygon points="159,51 170,35 181,51" fill="#0ea5e9" opacity="0.7"/>
+  <polygon points="168,51 178,40 193,51" fill="#0ea5e9"/>
+  <rect x="159" y="47" width="34" height="4" fill="#bae6fd"/>
+
+  <!-- 5. AUDIO — microphone (top-center) -->
+  <g filter="url(#s)">
+    <rect x="108" y="48" width="52" height="52" rx="13" fill="#ec4899"/>
+  </g>
+  <rect x="127" y="57" width="14" height="20" rx="7" fill="white"/>
+  <path d="M121,73 Q121,84 134,84 Q147,84 147,73" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="134" y1="84" x2="134" y2="91" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="129" y1="91" x2="139" y2="91" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

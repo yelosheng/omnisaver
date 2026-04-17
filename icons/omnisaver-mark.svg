@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">OmniSaver mark</title>
+  <desc id="desc">A rounded square archive mark with three incoming content cards feeding into a central save tray.</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="0.55" stop-color="#155e75"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="tray" x1="72" y1="112" x2="184" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#bg)"/>
+
+  <g opacity="0.14" fill="#ffffff">
+    <circle cx="56" cy="54" r="10"/>
+    <circle cx="198" cy="62" r="8"/>
+    <circle cx="205" cy="198" r="7"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <path d="M64 120c0-9.941 8.059-18 18-18h92c9.941 0 18 8.059 18 18v12c0 4.418-3.582 8-8 8h-24.784c-4.275 0-8.376 1.706-11.387 4.737l-6.442 6.486A16 16 0 0 1 130.03 156h-4.06a16 16 0 0 1-11.357-4.777l-6.442-6.486A16 16 0 0 0 96.784 140H72c-4.418 0-8-3.582-8-8z" fill="url(#tray)"/>
+    <path d="M72 140h24.784a16 16 0 0 1 11.387 4.737l6.442 6.486A16 16 0 0 0 125.97 156h4.06a16 16 0 0 0 11.357-4.777l6.442-6.486A16 16 0 0 1 159.216 140H184c4.418 0 8 3.582 8 8v18c0 11.046-8.954 20-20 20H84c-11.046 0-20-8.954-20-20v-18c0-4.418 3.582-8 8-8z" fill="#f8fafc"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="79" y="60" width="34" height="52" rx="10" fill="#f97316" transform="rotate(-16 96 86)"/>
+    <rect x="111" y="46" width="34" height="56" rx="10" fill="#facc15"/>
+    <rect x="145" y="60" width="34" height="52" rx="10" fill="#22c55e" transform="rotate(16 162 86)"/>
+  </g>
+
+  <g fill="#0f172a" opacity="0.22">
+    <rect x="88" y="73" width="16" height="4" rx="2" transform="rotate(-16 96 75)"/>
+    <rect x="86" y="82" width="20" height="4" rx="2" transform="rotate(-16 96 84)"/>
+    <rect x="120" y="59" width="16" height="4" rx="2"/>
+    <rect x="118" y="68" width="20" height="4" rx="2"/>
+    <rect x="154" y="74" width="16" height="4" rx="2" transform="rotate(16 162 76)"/>
+    <rect x="152" y="83" width="20" height="4" rx="2" transform="rotate(16 162 85)"/>
+  </g>
+</svg>

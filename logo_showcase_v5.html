@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniSaver Logo Refinement - Evolution</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #0f172a;
+            --p-blue: #0ea5e9;   /* 原图标蓝 */
+            --p-green: #10b981;  /* 原图标绿 */
+            --p-red: #ef4444;    /* 原图标红 */
+            --p-dark: #1e293b;   /* 原图标深色底 */
+        }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 60px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header { text-align: center; margin-bottom: 60px; }
+        .header h1 { font-size: 2.2rem; font-weight: 850; letter-spacing: -1px; }
+        .header p { color: #64748b; font-size: 1rem; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            max-width: 1100px;
+            width: 100%;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 40px;
+            border: 1px solid #f1f5f9;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.04);
+            border-color: #e2e8f0;
+        }
+
+        .logo-container {
+            width: 130px;
+            height: 130px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-container svg { width: 100%; height: 100%; }
+
+        .title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+        .description { font-size: 0.85rem; color: #64748b; line-height: 1.5; max-width: 260px; text-align: center; }
+        
+        .source-ref {
+            margin-top: 15px;
+            padding: 4px 10px;
+            background: #f1f5f9;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #475569;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>OmniSaver Evolution</h1>
+    <p>基于原 Favicon 基因的现代化进化 / 比例重构 / 极简提升</p>
+</div>
+
+<div class="grid">
+    <!-- Variant 25: Refined Archive -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Cleaner Drawer Base -->
+                <path d="M15 50V75C15 80.5228 19.4772 85 25 85H75C80.5228 85 85 80.5228 85 75V50" stroke="var(--p-dark)" stroke-width="10" stroke-linecap="round"/>
+                <!-- Minimal Content Bars (Replacing complex icons) -->
+                <rect x="25" y="25" width="12" height="40" rx="6" fill="var(--p-red)"/>
+                <rect x="44" y="15" width="12" height="50" rx="6" fill="var(--p-blue)"/>
+                <rect x="63" y="25" width="12" height="40" rx="6" fill="var(--p-green)"/>
+                <!-- Simplified Handle -->
+                <rect x="40" y="72" width="20" height="4" rx="2" fill="var(--p-dark)"/>
+            </svg>
+        </div>
+        <div class="title">25. Modern Archive</div>
+        <div class="description">对原抽屉结构的直接简化。用比例匀称的色条取代凌乱的图标，保留了最核心的视觉结构。</div>
+        <span class="source-ref">REFINING NEW.SVG</span>
+    </div>
+
+    <!-- Variant 26: The "O" Vault -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- O Shape + Drawer hybrid -->
+                <path d="M50 10C27.9086 10 10 27.9086 10 50C10 72.0914 27.9086 90 50 90C72.0914 90 90 72.0914 90 50" stroke="var(--p-dark)" stroke-width="12" stroke-linecap="round"/>
+                <path d="M30 40H70V60H30V40Z" fill="var(--p-blue)"/>
+                <rect x="35" y="30" width="10" height="20" fill="var(--p-red)"/>
+                <rect x="55" y="30" width="10" height="20" fill="var(--p-green)"/>
+            </svg>
+        </div>
+        <div class="title">26. Omni Vault</div>
+        <div class="description">将品牌首字母 O 与存储抽屉结合。开口向上，正在收纳彩色的社交媒体数据块。</div>
+        <span class="source-ref">ICONIC COMBINATION</span>
+    </div>
+
+    <!-- Variant 27: Floating Tabs -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Bottom Slot -->
+                <rect x="15" y="70" width="70" height="12" rx="6" fill="var(--p-dark)"/>
+                <!-- Cascading Tabs from old.svg -->
+                <path d="M25 15V55" stroke="var(--p-red)" stroke-width="12" stroke-linecap="round"/>
+                <path d="M50 10V60" stroke="var(--p-blue)" stroke-width="12" stroke-linecap="round"/>
+                <path d="M75 15V55" stroke="var(--p-green)" stroke-width="12" stroke-linecap="round"/>
+                <!-- Convergence hints -->
+                <path d="M50 65V70" stroke="var(--p-dark)" stroke-width="4" stroke-dasharray="2 4"/>
+            </svg>
+        </div>
+        <div class="title">27. Floating Tabs</div>
+        <div class="description">提取 old.svg 的多色标签。通过错落的高度产生动感，强调内容正在被有序存入底座。</div>
+        <span class="source-ref">REFINING OLD.SVG</span>
+    </div>
+
+    <!-- Variant 28: Geometric Funnel -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Abstract Funnel using Drawer genes -->
+                <path d="M20 20L45 80H55L80 20H20Z" fill="var(--p-dark)" fill-opacity="0.1" stroke="var(--p-dark)" stroke-width="4" stroke-linejoin="round"/>
+                <circle cx="50" cy="35" r="10" fill="var(--p-red)"/>
+                <circle cx="35" cy="25" r="8" fill="var(--p-blue)"/>
+                <circle cx="65" cy="25" r="8" fill="var(--p-green)"/>
+                <path d="M50 85L40 75H60L50 85Z" fill="var(--p-dark)"/>
+            </svg>
+        </div>
+        <div class="title">28. Hybrid Funnel</div>
+        <div class="description">将您喜欢的“漏斗”概念与原图标的“圆形粒子”结合，展示了一种更现代的内容过滤流程。</div>
+        <span class="source-ref">SEMANTIC MERGE</span>
+    </div>
+
+    <!-- Variant 29: Minimal Slot -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="20" y="20" width="60" height="60" rx="12" stroke="var(--p-dark)" stroke-width="8"/>
+                <path d="M35 40L45 50L35 60" stroke="var(--p-red)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M50 40L60 50L50 60" stroke="var(--p-blue)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="30" y="70" width="40" height="4" fill="var(--p-dark)"/>
+            </svg>
+        </div>
+        <div class="title">29. Logic Archiver</div>
+        <div class="description">灵感来自编程中的“注入”与“存档”。用极简的箭头符号代表数据流向，外框代表安全的存储空间。</div>
+        <span class="source-ref">GEOMETRIC PURITY</span>
+    </div>
+
+    <!-- Variant 30: The Prism Stack -->
+    <div class="card">
+        <div class="logo-container">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Layered Cards with transparency -->
+                <rect x="20" y="20" width="50" height="50" rx="8" fill="var(--p-blue)" fill-opacity="0.7"/>
+                <rect x="30" y="30" width="50" height="50" rx="8" fill="var(--p-green)" fill-opacity="0.7"/>
+                <rect x="40" y="40" width="40" height="40" rx="8" fill="var(--p-red)" fill-opacity="0.7"/>
+                <!-- Bottom Edge Anchor -->
+                <path d="M20 85H80" stroke="var(--p-dark)" stroke-width="8" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="title">30. Prism Stack</div>
+        <div class="description">保留 new.svg 的层叠感，但使用半透明重叠产生丰富的色彩层次，底部线条作为“存入”的基准线。</div>
+        <span class="source-ref">LAYERED MODERNISM</span>
+    </div>
+</div>
+
+</body>
+</html>

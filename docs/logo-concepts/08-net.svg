@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#0a1628"/>
+  <!-- 网格 -->
+  <g stroke="#1565c0" stroke-width="2" opacity="0.6">
+    <line x1="22" y1="22" x2="106" y2="22"/>
+    <line x1="22" y1="44" x2="106" y2="44"/>
+    <line x1="22" y1="66" x2="106" y2="66"/>
+    <line x1="22" y1="88" x2="106" y2="88"/>
+    <line x1="22" y1="22" x2="22" y2="106"/>
+    <line x1="43" y1="22" x2="43" y2="106"/>
+    <line x1="64" y1="22" x2="64" y2="106"/>
+    <line x1="85" y1="22" x2="85" y2="106"/>
+    <line x1="106" y1="22" x2="106" y2="106"/>
+  </g>
+  <!-- 圆形高亮捕获区 -->
+  <circle cx="64" cy="64" r="32" fill="none" stroke="#1e88e5" stroke-width="4"/>
+  <!-- 内部填充 -->
+  <circle cx="64" cy="64" r="32" fill="#1e88e5" opacity="0.1"/>
+  <!-- 中心图标（存储） -->
+  <rect x="52" y="55" width="24" height="18" rx="3" fill="none" stroke="#42a5f5" stroke-width="3.5"/>
+  <line x1="58" y1="61" x2="70" y2="61" stroke="#42a5f5" stroke-width="2.5"/>
+  <line x1="58" y1="66" x2="70" y2="66" stroke="#42a5f5" stroke-width="2.5"/>
+  <!-- 角落的小内容点 -->
+  <circle cx="32" cy="32" r="4" fill="#64b5f6"/>
+  <circle cx="96" cy="32" r="4" fill="#64b5f6"/>
+  <circle cx="32" cy="96" r="4" fill="#64b5f6"/>
+  <circle cx="96" cy="96" r="4" fill="#64b5f6"/>
+</svg>
