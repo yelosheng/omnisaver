@@ -146,6 +146,25 @@
         <!-- ═══════════════════════════════════════════════════════════ -->
         <div id="tab-platforms" style="display:none">
 
+            <!-- Cookie-Editor Guide -->
+            <div class="alert alert-info d-flex gap-3 align-items-start mb-4" style="border-left:4px solid #0dcaf0;">
+                <div class="flex-shrink-0">
+                    <img src="{{ url_for('static', filename='cookie-editor-guide.png') }}"
+                         alt="Cookie-Editor export guide"
+                         onclick="document.getElementById('ce-lightbox').style.display='flex'"
+                         style="width:200px;border-radius:6px;border:1px solid #dee2e6;display:block;cursor:zoom-in;">
+                </div>
+                <div>
+                    <strong>How to export cookies with <a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Cookie-Editor</a></strong>
+                    <ol class="mb-0 mt-1 small">
+                        <li>Install <a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Cookie-Editor</a> from the Chrome Web Store.</li>
+                        <li>Log in to the target website in the same browser.</li>
+                        <li>Open Cookie-Editor, click <strong>Export</strong> → <strong>JSON</strong> (highlighted in the screenshot).</li>
+                        <li>Paste the copied JSON into the field below for the corresponding platform.</li>
+                    </ol>
+                </div>
+            </div>
+
             <!-- YouTube API Key -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -176,7 +195,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted small mb-2">{{ t.settings_twitter_cookie_desc }}</p>
+                    <p class="text-muted small mb-2">{{ t.settings_twitter_cookie_desc | safe }}</p>
                     <div id="twitter-cookie-status" class="mb-3"></div>
                     <div class="mb-3">
                         <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
@@ -201,7 +220,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted small mb-2">{{ t.settings_xhs_cookie_desc }}</p>
+                    <p class="text-muted small mb-2">{{ t.settings_xhs_cookie_desc | safe }}</p>
                     <div id="xhs-cookie-status" class="mb-3"></div>
                     <div class="mb-3">
                         <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
@@ -226,7 +245,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted small mb-2">{{ t.settings_reddit_cookie_desc }}</p>
+                    <p class="text-muted small mb-2">{{ t.settings_reddit_cookie_desc | safe }}</p>
                     <div id="reddit-cookie-status" class="mb-3"></div>
                     <div class="mb-3">
                         <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
@@ -251,7 +270,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted small mb-2">{{ t.settings_zhihu_cookie_desc }}</p>
+                    <p class="text-muted small mb-2">{{ t.settings_zhihu_cookie_desc | safe }}</p>
                     <div id="zhihu-cookie-status" class="mb-3"></div>
                     <div class="mb-3">
                         <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
@@ -1769,5 +1788,17 @@ window.addEventListener('beforeunload', () => {
     if (eventSource) eventSource.close();
     if (_telegramInterval) clearInterval(_telegramInterval);
 });
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.getElementById('ce-lightbox').style.display = 'none';
+});
 </script>
+
+<!-- Cookie-Editor image lightbox -->
+<div id="ce-lightbox"
+     onclick="this.style.display='none'"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out;">
+    <img src="{{ url_for('static', filename='cookie-editor-guide.png') }}"
+         alt="Cookie-Editor export guide"
+         style="max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);">
+</div>
 {% endblock %}
