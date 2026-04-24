@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 450" width="400" height="450">
+  <defs>
+    <filter id="drop-shadow" x="-20%" y="-20%" width="150%" height="150%">
+      <feDropShadow dx="8" dy="12" stdDeviation="10" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+
+    <linearGradient id="plastic-body" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a4a4a" />
+      <stop offset="50%" stop-color="#333333" />
+      <stop offset="100%" stop-color="#1a1a1a" />
+    </linearGradient>
+
+    <linearGradient id="brushed-metal" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#b0b0b0" />
+      <stop offset="15%" stop-color="#ffffff" />
+      <stop offset="30%" stop-color="#a0a0a0" />
+      <stop offset="50%" stop-color="#e0e0e0" />
+      <stop offset="80%" stop-color="#888888" />
+      <stop offset="100%" stop-color="#cccccc" />
+    </linearGradient>
+
+    <linearGradient id="label-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fdfdfd" />
+      <stop offset="100%" stop-color="#e6e6e6" />
+    </linearGradient>
+    
+    <linearGradient id="label-header" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e3c72" />
+      <stop offset="100%" stop-color="#2a5298" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(50, 40)" filter="url(#drop-shadow)">
+    
+    <rect x="0" y="0" width="300" height="320" rx="12" fill="url(#plastic-body)" />
+    
+    <path d="M 12 1 L 288 1 A 11 11 0 0 1 299 12" fill="none" stroke="#666666" stroke-width="2" />
+    <path d="M 1 288 L 1 12 A 11 11 0 0 1 12 1" fill="none" stroke="#555555" stroke-width="2" />
+    <path d="M 299 288 L 299 12" fill="none" stroke="#111111" stroke-width="2" />
+    <path d="M 12 319 L 288 319" fill="none" stroke="#0a0a0a" stroke-width="2" />
+
+    <rect x="30" y="0" width="160" height="90" fill="#222222" />
+    <rect x="30" y="0" width="160" height="3" fill="#111111" /> <rect x="50" y="0" width="150" height="90" rx="2" fill="url(#brushed-metal)" />
+    <rect x="50" y="88" width="150" height="2" fill="#555555" />
+    <rect x="50" y="0" width="1.5" height="90" fill="#ffffff" />
+    <rect x="155" y="20" width="20" height="50" rx="3" fill="#666666" />
+    <rect x="156" y="21" width="18" height="48" rx="2" fill="#333333" />
+    <rect x="75" y="10" width="25" height="40" rx="2" fill="#1a1a1a" />
+
+
+    <polygon points="18,15 26,27 10,27" fill="#222222" />
+    <polygon points="18,16 25,26 11,26" fill="#1a1a1a" />
+
+    <g transform="translate(260, 30)">
+      <text x="0" y="0" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="20" fill="#1f1f1f">HD</text>
+      <text x="0.5" y="1.5" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="20" fill="none" stroke="#5a5a5a" stroke-width="0.5">HD</text>
+    </g>
+
+    <rect x="260" y="285" width="20" height="20" rx="3" fill="#000000" />
+    <rect x="260" y="285" width="20" height="2" fill="#111111" />
+
+    <rect x="20" y="285" width="20" height="20" rx="3" fill="#000000" />
+    <rect x="22" y="287" width="16" height="8" rx="1.5" fill="#c02a2a" />
+    <rect x="22" y="287" width="16" height="2" fill="#ff5555" /> <rect x="25" y="145" width="250" height="175" rx="8" fill="#111111" />
+    
+    <rect x="28" y="148" width="244" height="169" rx="6" fill="url(#label-bg)" />
+    
+    <path d="M 28 154 A 6 6 0 0 1 34 148 L 266 148 A 6 6 0 0 1 272 154 L 272 185 L 28 185 Z" fill="url(#label-header)" />
+
+    <text x="38" y="173" font-family="'Trebuchet MS', Arial, sans-serif" font-weight="bold" font-size="22" fill="#ffffff" letter-spacing="1">2HD</text>
+    
+    <text x="180" y="173" font-family="Impact, sans-serif" font-weight="normal" font-size="24" fill="#ffffff" font-style="italic">Vertex</text>
+    <text x="252" y="160" font-family="Arial, sans-serif" font-size="8" fill="#ffffff">®</text>
+
+    <line x1="45" y1="210" x2="255" y2="210" stroke="#b0c4de" stroke-width="2" />
+    <line x1="45" y1="240" x2="255" y2="240" stroke="#b0c4de" stroke-width="2" />
+    <line x1="45" y1="270" x2="255" y2="270" stroke="#b0c4de" stroke-width="2" />
+
+    <text x="45" y="300" font-family="monospace" font-weight="bold" font-size="11" fill="#666666">IBM FORMATTED</text>
+    <text x="190" y="300" font-family="monospace" font-weight="bold" font-size="11" fill="#666666">1.44 MB</text>
+
+    <rect x="28" y="312" width="244" height="5" fill="#c02a2a" />
+    <rect x="28" y="312" width="50" height="5" fill="#ffaa00" />
+  </g>
+</svg>

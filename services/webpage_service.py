@@ -187,6 +187,9 @@ class WebpageService:
             json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf-8'
         )
 
+        # --- favicon as avatar ---
+        avatar_path = self._fetch_favicon(url, static_html, post_dir)
+
         success(f'[WebpageService] Saved "{title}" → {post_dir} ({image_count} images)')
         return {
             'page_id': page_id,
@@ -379,6 +382,63 @@ class WebpageService:
                 warning(f'[WebpageService] Image {idx} failed ({src[:60]}): {e}')
 
         return str(soup), count
+
+    def _fetch_favicon(self, url: str, static_html: str, post_dir: Path) -> str | None:
+        """
+        Download the site favicon and save as avatar.jpg.
+        Strategy:
+          1. Parse <link rel="icon"> / <link rel="apple-touch-icon"> from static_html
+          2. Fall back to /favicon.ico on the origin
+        Returns the saved file path string, or None if nothing could be fetched.
+        """
+        from bs4 import BeautifulSoup
+
+        parsed = urllib.parse.urlparse(url)
+        origin = f'{parsed.scheme}://{parsed.netloc}'
+
+        candidates = []
+        if static_html:
+            soup = BeautifulSoup(static_html, 'html.parser')
+            # Prefer apple-touch-icon (larger), then any icon link
+            for rel in ('apple-touch-icon', 'apple-touch-icon-precomposed', 'icon', 'shortcut icon'):
+                for tag in soup.find_all('link', rel=lambda r: r and rel in [x.lower() for x in (r if isinstance(r, list) else [r])]):
+                    href = (tag.get('href') or '').strip()
+                    if not href or href.startswith('data:'):
+                        continue
+                    if href.startswith('//'):
+                        href = parsed.scheme + ':' + href
+                    elif href.startswith('/'):
+                        href = origin + href
+                    elif not href.startswith('http'):
+                        href = origin + '/' + href
+                    if href not in candidates:
+                        candidates.append(href)
+
+        # Always add /favicon.ico as final fallback
+        candidates.append(origin + '/favicon.ico')
+
+        for favicon_url in candidates:
+            try:
+                req = urllib.request.Request(
+                    favicon_url,
+                    headers={'User-Agent': 'Mozilla/5.0', 'Referer': url}
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = resp.read()
+                    if len(data) < 100:
+                        continue
+                    ct = resp.headers.get('Content-Type', '')
+                    # Accept image types; skip HTML error pages
+                    if 'text/html' in ct:
+                        continue
+                    dest = post_dir / 'avatar.jpg'
+                    dest.write_bytes(data)
+                    info(f'[WebpageService] Favicon saved from {favicon_url}')
+                    return str(dest)
+            except Exception as e:
+                warning(f'[WebpageService] Favicon fetch failed ({favicon_url[:60]}): {e}')
+
+        return None
 
     def _build_reader_html(self, title: str, author: str, sitename: str,
                            published_date: str, url: str, body_html: str) -> str:

@@ -1495,12 +1495,12 @@ def debug_page():
 def help_page():
     return redirect(url_for('settings_page') + '#extension')
 
-@app.route('/tampermonkey/twitter-saver.user.js')
+@app.route('/tampermonkey/omni-saver.user.js')
 def serve_userscript():
     """Serve the Tampermonkey userscript file directly."""
     return send_from_directory(
         os.path.join(os.path.dirname(__file__), 'tampermonkey'),
-        'twitter-saver.user.js',
+        'omni-saver.user.js',
         mimetype='application/javascript'
     )
 
