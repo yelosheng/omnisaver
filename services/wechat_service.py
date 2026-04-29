@@ -18,6 +18,26 @@ _WECHAT_TOOL_PATH = os.path.expanduser('~/.agent-reach/tools/wechat-article-for-
 if _WECHAT_TOOL_PATH not in sys.path:
     sys.path.insert(0, _WECHAT_TOOL_PATH)
 
+# Disable camoufox auto-update: never delete existing binary or download a new one.
+# If the binary exists and runs, use it regardless of version.
+# If missing, fail fast with a clear message instead of attempting a download.
+try:
+    import camoufox.pkgman as _cfpkgman
+    from platformdirs import user_cache_dir as _user_cache_dir
+    _CF_INSTALL_DIR = Path(_user_cache_dir('camoufox'))
+
+    def _camoufox_path_no_autoupdate(download_if_missing=True):
+        if _CF_INSTALL_DIR.exists() and any(_CF_INSTALL_DIR.iterdir()):
+            return _CF_INSTALL_DIR
+        raise FileNotFoundError(
+            f'Camoufox browser not installed at {_CF_INSTALL_DIR}. '
+            'Run: venv/bin/python -m camoufox fetch'
+        )
+
+    _cfpkgman.camoufox_path = _camoufox_path_no_autoupdate
+except Exception:
+    pass
+
 
 class WechatServiceError(Exception):
     pass

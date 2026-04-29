@@ -286,6 +286,31 @@
                 </div>
             </div>
 
+            <!-- Bilibili Cookie -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" style="vertical-align:-2px;" class="me-2" fill="#00A1D6"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.658.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/></svg>
+                        哔哩哔哩 (Bilibili) Cookie
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-2">用 <a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank">Cookie-Editor</a> 登录 B站后导出 Cookie JSON，粘贴到此处。Cookie 有效可解决 412 反爬问题。</p>
+                    <div id="bilibili-cookie-status" class="mb-3"></div>
+                    <div class="mb-3">
+                        <label class="form-label"><strong>{{ t.settings_cookie_json_label }}</strong></label>
+                        <textarea class="form-control font-monospace" id="bilibili-cookie-json" rows="5"
+                                  placeholder="Paste Cookie-Editor JSON export here..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" onclick="saveBilibiliCookies()">
+                            <i class="bi bi-check-lg"></i> {{ t.settings_save_cookies_btn }}
+                        </button>
+                    </div>
+                    <div id="bilibili-cookie-result" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- Facebook Cookie -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -1138,6 +1163,56 @@ async function saveFacebookCookies() {
     }
 }
 
+// ── Bilibili Cookie ───────────────────────────────────────────────────────────
+async function loadBilibiliCookieStatus() {
+    const el = document.getElementById('bilibili-cookie-status');
+    try {
+        const resp = await fetch('/api/bilibili/cookie-status');
+        const d = await resp.json();
+        if (d.exists) {
+            el.innerHTML = `<span class="badge bg-success">Configured</span> <span class="text-muted small ms-2">${d.count} cookies · updated ${d.modified}</span>`;
+        } else {
+            el.innerHTML = `<span class="badge bg-warning text-dark">Not configured</span>`;
+        }
+    } catch (e) {
+        el.innerHTML = `<span class="text-danger small">Failed to check: ${e.message}</span>`;
+    }
+}
+
+async function saveBilibiliCookies() {
+    const jsonStr = document.getElementById('bilibili-cookie-json').value.trim();
+    const result = document.getElementById('bilibili-cookie-result');
+    if (!jsonStr) {
+        result.style.display = 'block';
+        result.innerHTML = '<span class="text-danger">Please paste Cookie-Editor JSON first.</span>';
+        return;
+    }
+    try { JSON.parse(jsonStr); } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = '<span class="text-danger">Invalid JSON format. Please export from Cookie-Editor as JSON.</span>';
+        return;
+    }
+    try {
+        const resp = await fetch('/api/bilibili/cookies', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: jsonStr})
+        });
+        const data = await resp.json();
+        result.style.display = 'block';
+        if (data.success) {
+            result.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${data.message}</span>`;
+            document.getElementById('bilibili-cookie-json').value = '';
+            loadBilibiliCookieStatus();
+        } else {
+            result.innerHTML = `<span class="text-danger">${data.message}</span>`;
+        }
+    } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
+    }
+}
+
 // Platforms tab: load cookie statuses when tab is first activated
 (function() {
     // Load platform statuses on page load (they're cheap fetches)
@@ -1145,6 +1220,7 @@ async function saveFacebookCookies() {
     loadXhsCookieStatus();
     loadRedditCookieStatus();
     loadZhihuCookieStatus();
+    loadBilibiliCookieStatus();
     loadFacebookCookieStatus();
     // Load general config on page load for General tab (default)
     loadSystemConfig();

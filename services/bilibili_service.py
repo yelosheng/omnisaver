@@ -31,6 +31,9 @@ class BilibiliServiceError(Exception):
 class BilibiliService:
     """Bilibili (哔哩哔哩) video downloader service."""
 
+    _COOKIES_PATH = os.path.expanduser('~/.agent-reach/bilibili/cookies.json')
+    _COOKIES_NETSCAPE_PATH = os.path.expanduser('~/.agent-reach/bilibili/cookies.txt')
+
     _URL_RE = re.compile(
         r'https?://(?:www\.|m\.)?bilibili\.com/video/(BV[A-Za-z0-9]+|av\d+)'
         r'|https?://b23\.tv/[A-Za-z0-9]+'
@@ -121,6 +124,36 @@ class BilibiliService:
         with urllib.request.urlopen(req, timeout=60) as response, open(dest_path, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
 
+    @classmethod
+    def get_cookies_path(cls) -> str:
+        return cls._COOKIES_PATH
+
+    @classmethod
+    def _ensure_netscape_cookies(cls) -> str | None:
+        """Convert ~/.agent-reach/bilibili/cookies.json to Netscape format for yt-dlp."""
+        src = cls._COOKIES_PATH
+        dst = cls._COOKIES_NETSCAPE_PATH
+        if not os.path.exists(src):
+            return None
+        try:
+            cookies = json.loads(open(src).read())
+            lines = ['# Netscape HTTP Cookie File']
+            for c in cookies:
+                domain = c.get('domain', '')
+                flag = 'TRUE' if domain.startswith('.') else 'FALSE'
+                path = c.get('path', '/')
+                secure = 'TRUE' if c.get('secure') in (True, 'True', 'true') else 'FALSE'
+                exp = str(int(float(c.get('expirationDate', 0))))
+                name = c.get('name', '')
+                value = c.get('value', '')
+                lines.append(f'{domain}\t{flag}\t{path}\t{secure}\t{exp}\t{name}\t{value}')
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            open(dst, 'w').write('\n'.join(lines) + '\n')
+            return dst
+        except Exception as e:
+            warning(f'Failed to convert Bilibili cookies for yt-dlp: {e}')
+            return None
+
     # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------
@@ -136,15 +169,18 @@ class BilibiliService:
         info(f'Fetching Bilibili metadata: {url}')
 
         # --- metadata ---
+        cookies_file = self._ensure_netscape_cookies()
         meta_cmd = [
             'yt-dlp', '--dump-json', '--no-playlist',
             '--no-check-certificate',
             '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             '--add-header', 'Referer:https://www.bilibili.com/',
-            url
         ]
+        if cookies_file:
+            meta_cmd += ['--cookies', cookies_file]
+        meta_cmd.append(url)
         meta_result = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=60)
-        
+
         if meta_result.returncode != 0:
             err = meta_result.stderr.strip()[:300]
             warning(f"yt-dlp metadata failed with headers, retrying simple: {err}")
@@ -194,8 +230,10 @@ class BilibiliService:
                 'yt-dlp', '--no-playlist', '--no-check-certificate',
                 '--merge-output-format', 'mp4',
                 '-o', tmp_out,
-                url
             ]
+            if cookies_file:
+                dl_cmd += ['--cookies', cookies_file]
+            dl_cmd.append(url)
             dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=600)
             if dl_result.returncode != 0:
                 raise BilibiliServiceError(f'yt-dlp download failed: {dl_result.stderr[-500:]}')
@@ -204,11 +242,12 @@ class BilibiliService:
         # --- thumbnail ---
         thumb_dir = post_dir / 'thumbnails'
         thumb_dir.mkdir(exist_ok=True)
-        subprocess.run(
-            ['yt-dlp', '--skip-download', '--write-thumbnail', '--no-check-certificate',
-             '-o', str(thumb_dir / 'cover'), url],
-            capture_output=True, timeout=30
-        )
+        thumb_cmd = ['yt-dlp', '--skip-download', '--write-thumbnail', '--no-check-certificate',
+                     '-o', str(thumb_dir / 'cover')]
+        if cookies_file:
+            thumb_cmd += ['--cookies', cookies_file]
+        thumb_cmd.append(url)
+        subprocess.run(thumb_cmd, capture_output=True, timeout=30)
         
         # --- avatar ---
         try:

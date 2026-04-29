@@ -2536,6 +2536,48 @@ def api_zhihu_cookie_post():
         return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
 
 
+@app.route('/api/bilibili/cookie-status')
+@login_required
+def api_bilibili_cookie_status():
+    """Check Bilibili cookie file status."""
+    from services.bilibili_service import BilibiliService
+    cookies_path = BilibiliService.get_cookies_path()
+    if os.path.exists(cookies_path):
+        mtime = os.path.getmtime(cookies_path)
+        modified = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+        try:
+            with open(cookies_path, 'r', encoding='utf-8') as f:
+                cookies = json.load(f)
+            count = len(cookies) if isinstance(cookies, list) else 0
+        except Exception:
+            count = 0
+        return jsonify({'exists': True, 'modified': modified, 'count': count})
+    return jsonify({'exists': False})
+
+
+@app.route('/api/bilibili/cookies', methods=['POST'])
+@login_required
+def api_bilibili_save_cookies():
+    """Save Bilibili cookies from Cookie-Editor JSON export."""
+    from services.bilibili_service import BilibiliService
+    data = request.get_json()
+    if not data or not data.get('cookies'):
+        return jsonify({'success': False, 'message': 'No cookie data provided'}), 400
+    try:
+        cookies = json.loads(data['cookies'])
+        if not isinstance(cookies, list):
+            return jsonify({'success': False, 'message': 'Expected a JSON array of cookies'}), 400
+        cookies_path = BilibiliService.get_cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        with open(cookies_path, 'w', encoding='utf-8') as f:
+            json.dump(cookies, f, ensure_ascii=False, indent=2)
+        return jsonify({'success': True, 'message': f'Saved {len(cookies)} cookies.'})
+    except json.JSONDecodeError:
+        return jsonify({'success': False, 'message': 'Invalid JSON format'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @app.route('/api/status/<int:task_id>')
 def api_task_status(task_id):
     """获取任务状态"""
