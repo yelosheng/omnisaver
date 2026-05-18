@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install xreach-cli (Twitter thread fetching) and mcporter (XiaoHongShu)
-RUN npm install -g xreach-cli mcporter
+RUN npm install -g xreach-cli mcporter --legacy-peer-deps
 
 # Configure mcporter to use the xiaohongshu-mcp sidecar service
 RUN mkdir -p /root/.mcporter && \
