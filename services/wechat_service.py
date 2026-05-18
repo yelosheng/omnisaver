@@ -34,7 +34,14 @@ try:
             'Run: venv/bin/python -m camoufox fetch'
         )
 
+    def _camoufox_cleanup_noop():
+        # Never delete the installed binary. Update attempts are disabled.
+        return False
+
     _cfpkgman.camoufox_path = _camoufox_path_no_autoupdate
+    # Patch CamoufoxFetcher.cleanup so install() can never wipe the binary,
+    # even if called via `camoufox fetch` CLI or any other path.
+    _cfpkgman.CamoufoxFetcher.cleanup = staticmethod(_camoufox_cleanup_noop)
 except Exception:
     pass
 

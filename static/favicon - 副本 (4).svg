@@ -5,12 +5,12 @@
       <stop offset="0%" stop-color="#27272A"/>
       <stop offset="100%" stop-color="#09090B"/>
     </linearGradient>
-    <!-- 仅替换右侧卡片背景为稍深的紫色 -->
-    <linearGradient id="lightPurpleCardGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#C084FC"/>
-      <stop offset="100%" stop-color="#9333EA"/>
+    <!-- 替换原有的卡片底色：使用紫罗兰色，彻底解决白底隐形问题 -->
+    <linearGradient id="purpleCardGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
     </linearGradient>
-    <!-- 恢复卡片内蓝色的播放按钮底色 -->
+    <!-- 恢复蓝色药丸的渐变 -->
     <linearGradient id="bluePillGrad" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#38BDF8"/>
       <stop offset="100%" stop-color="#0284C7"/>
@@ -24,15 +24,14 @@
       <stop offset="0%" stop-color="#FFFFFF"/>
       <stop offset="100%" stop-color="#CBD5E1"/>
     </linearGradient>
-    <!-- 将托盘主体的颜色提亮，还原为你原图中的灰蓝色 -->
     <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#52647C"/>
-      <stop offset="100%" stop-color="#35465C"/>
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1E293B"/>
     </linearGradient>
-    <!-- 将托盘顶部边缘的颜色同步提亮 -->
+    <!-- 新增：边缘专用的更明亮的渐变 -->
     <linearGradient id="rimGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#7387A1"/>
-      <stop offset="100%" stop-color="#52647C"/>
+      <stop offset="0%" stop-color="#64748B"/>
+      <stop offset="100%" stop-color="#334155"/>
     </linearGradient>
     <!-- 通用投影 -->
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -42,7 +41,7 @@
 
   <!-- 1. 内部白色文件夹层 -->
   <g>
-    <!-- 彩色分类标签 -->
+    <!-- 彩色分类标签 (还原原图细节) -->
     <rect x="12" y="24" width="10" height="6" rx="2" fill="#8B5CF6" />
     <rect x="27" y="24" width="10" height="6" rx="2" fill="#0EA5E9" />
     <rect x="42" y="24" width="10" height="6" rx="2" fill="#10B981" />
@@ -53,21 +52,21 @@
   </g>
 
   <!-- 2. 后层卡片 (左侧 X，右侧 Video) -->
-  <!-- 左侧：X 图标 -->
+  <!-- 左侧：X 图标 (作为通用字母符号/极简线条，相对安全) -->
   <g transform="translate(8, 12) rotate(-12, 9, 14)" filter="url(#shadow)">
     <rect x="0" y="0" width="18" height="28" rx="4" fill="url(#blackGrad)" />
     <line x1="4" y1="8" x2="14" y2="18" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
     <line x1="14" y1="8" x2="4" y2="18" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
   </g>
 
-  <!-- 右侧：媒体/视频 图标 -->
+  <!-- 右侧：媒体/视频 图标 (紫底卡片 + 蓝色YouTube药丸 + 白色播放键，绝对不用白底！) -->
   <g transform="translate(38, 14) rotate(12, 9, 14)" filter="url(#shadow)">
-    <!-- 替换为淡紫色背景 -->
-    <rect x="0" y="0" width="18" height="28" rx="4" fill="url(#lightPurpleCardGrad)" />
+    <!-- 紫色卡片底色，绝不用白色 -->
+    <rect x="0" y="0" width="18" height="28" rx="4" fill="url(#purpleCardGrad)" />
     
-    <!-- 蓝色的播放按钮 (药丸) -->
+    <!-- 蓝色 YouTube 药丸底色 -->
     <rect x="2" y="9" width="14" height="10" rx="3" fill="url(#bluePillGrad)" />
-    <!-- 白色播放键 -->
+    <!-- 居中的白色大播放键 -->
     <polygon points="7,11.5 12,14 7,16.5" fill="#ffffff" />
   </g>
 
@@ -75,7 +74,7 @@
   <!-- 中心：图片/图像 -->
   <g transform="translate(21, 5)" filter="url(#shadow)">
     <rect x="0" y="0" width="22" height="34" rx="5" fill="url(#pinkGrad)" />
-    <!-- 简化的图片图标 -->
+    <!-- 简化的图片图标 (相框、太阳、山峰) -->
     <rect x="4" y="10" width="14" height="12" rx="2" stroke="#ffffff" stroke-width="2" fill="none" />
     <circle cx="13.5" cy="13.5" r="1.5" fill="#ffffff" />
     <path d="M 4 20 L 8.5 15 L 12.5 19 L 15 16.5 L 18 19.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
@@ -83,7 +82,7 @@
 
   <!-- 4. 正面 3D 档案盒 -->
   <g>
-    <!-- 盒子主体 -->
+    <!-- 盒子主体 (比顶部边缘稍窄，产生向内收缩的层次感) -->
     <path d="M 4 38 L 60 38 L 60 52 A 8 8 0 0 1 52 60 L 12 60 A 8 8 0 0 1 4 52 Z" fill="url(#boxGrad)" />
     
     <!-- 边缘在盒子主体上投下的微弱阴影 -->
@@ -95,9 +94,12 @@
     <!-- 宽边顶部的一道细高光，增强厚度与塑料/金属质感 -->
     <rect x="1.5" y="34.5" width="61" height="1" rx="0.5" fill="#94A3B8" opacity="0.8" />
     
-    <!-- 凹陷的把手 (完美还原你图中的样式：深黑外框 + 亮银金属内芯，绝不乱改！) -->
+    <!-- 凹陷的把手 (完美还原你图片中的样式：深色厚边框 + 亮色内嵌把手) -->
+    <!-- 深色凹槽外沿 (模拟厚实的深度) -->
     <rect x="21" y="46" width="22" height="8" rx="4" fill="#0F172A" />
+    <!-- 亮银色金属把手内芯 -->
     <rect x="24" y="48" width="16" height="4" rx="2" fill="#E2E8F0" />
+    <!-- 内芯顶部纯白高光，增强圆润的反光质感 -->
     <rect x="24" y="48" width="16" height="1.5" rx="0.75" fill="#FFFFFF" />
   </g>
 </svg>
