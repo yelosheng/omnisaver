@@ -23,10 +23,13 @@ class DouyinService:
         r'https?://(?:'
         r'(?:www\.|m\.)?douyin\.com/video/\d+'
         r'|v\.douyin\.com/[\w/-]+'
+        r'|(?:www\.)?iesdouyin\.com/share/video/\d+'
         r'|(?:www\.)?tiktok\.com/@[^/]+/video/\d+'
         r'|vm\.tiktok\.com/[\w/-]+'
         r')'
     )
+
+    _IESDOUYIN_RE = re.compile(r'iesdouyin\.com/share/video/(\d+)')
 
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
         if base_path is None:
@@ -39,6 +42,14 @@ class DouyinService:
     @classmethod
     def is_valid_douyin_url(cls, url: str) -> bool:
         return bool(cls._URL_RE.search(url))
+
+    @classmethod
+    def normalize_url(cls, url: str) -> str:
+        """Convert iesdouyin.com share URLs to canonical douyin.com/video/<id> form."""
+        m = cls._IESDOUYIN_RE.search(url)
+        if m:
+            return f'https://www.douyin.com/video/{m.group(1)}'
+        return url
 
     @classmethod
     def extract_url_from_share_text(cls, text: str) -> str:
@@ -111,6 +122,7 @@ class DouyinService:
         if not self.is_valid_douyin_url(url):
             raise DouyinServiceError(f'Invalid Douyin/TikTok URL: {url}')
 
+        url = self.normalize_url(url)
         info(f'Fetching Douyin/TikTok metadata via Playwright: {url}')
 
         # Run async metadata extraction
