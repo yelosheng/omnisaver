@@ -30,6 +30,10 @@ class XHSServiceError(Exception):
 class XHSService:
     """XiaoHongShu post downloader service."""
 
+    # Host pattern for XHS share short links. XHS rotates the TLD (.com → .cn),
+    # so match any TLD rather than hardcoding one.
+    SHORTLINK_HOST_PATTERN = r'(?:[\w-]+\.)*xhslink\.[a-z]{2,6}'
+
     def __init__(self, base_path: str = None, create_date_folders: bool = True):
         if base_path is None:
             data_dir = os.environ.get('DATA_DIR', str(Path(__file__).parent.parent))
@@ -43,31 +47,37 @@ class XHSService:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def is_xhslink(url: str) -> bool:
+        """True if the URL is a XHS share short link.
+
+        The TLD is deliberately not pinned: XHS has shipped both xhslink.com
+        and xhslink.cn, and swaps it without notice.
+        """
+        return bool(re.search(XHSService.SHORTLINK_HOST_PATTERN, url, re.I))
+
+    @staticmethod
     def extract_url_from_share_text(text: str) -> str:
         """Extract a XHS or xhslink URL from mobile app share text.
 
         The share text format looks like:
-            放只龟进去，就变龟缸了~ http://xhslink.com/o/37WXzj3a3B 复制后打开【小红书】查看笔记！
+            放只龟进去，就变龟缸了~ http://xhslink.cn/o/37WXzj3a3B 复制后打开【小红书】查看笔记！
 
-        Returns the first xhslink.com or xiaohongshu.com URL found, or the
+        Returns the first xhslink or xiaohongshu.com URL found, or the
         original text stripped if no match (so callers can still try validation).
         """
-        m = re.search(r'https?://(?:xhslink\.com|(?:www\.)?xiaohongshu\.com)/\S+', text)
+        m = re.search(
+            r'https?://(?:' + XHSService.SHORTLINK_HOST_PATTERN +
+            r'|(?:www\.)?xiaohongshu\.com)/\S+',
+            text, re.I,
+        )
         return m.group(0).rstrip('，。！,.') if m else text.strip()
 
     @staticmethod
     def resolve_xhslink(url: str) -> str:
-        """Follow xhslink.com short URL redirects and return the final URL."""
-        if 'xhslink.com' not in url:
+        """Follow xhslink short URL redirects and return the final URL."""
+        if not XHSService.is_xhslink(url):
             return url
-        req = urllib.request.Request(
-            url,
-            headers={'User-Agent': 'Mozilla/5.0'},
-            method='HEAD',
-        )
-        # Don't follow — capture Location header manually so we get the real URL
-        opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
-        # Use a simple approach: follow up to 5 redirects manually
+        # Follow up to 5 redirects manually so we end up with the real note URL
         current = url
         for _ in range(5):
             try:
@@ -82,6 +92,11 @@ class XHSService:
             except Exception as e:
                 warning(f'resolve_xhslink failed for {current}: {e}')
                 break
+        if current == url:
+            warning(f'URL_FORMAT_WATCH: xhslink did not redirect, still {current} '
+                    f'— XHS may have changed its share-link format')
+        else:
+            info(f'Resolved xhslink {url} -> {current}')
         return current
 
     @staticmethod
@@ -342,6 +357,9 @@ class XHSService:
             dict with keys: feed_id, title, type, save_path, image_count,
                             author_username, author_name, tweet_text
         """
+        # Short links can reach here unresolved (e.g. submitted via /api/submit,
+        # or when the resolver was unreachable at submit time)
+        url = self.resolve_xhslink(url)
         url = self.normalize_xhs_url(url)
 
         if not self.is_valid_xhs_url(url):

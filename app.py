@@ -377,6 +377,28 @@ def status_page():
     """状态页面 - 显示系统状态和提交界面"""
     return render_template('status.html')
 
+def log_unsupported_url(raw: str):
+    """Log an unrecognized submission with enough detail to spot format changes.
+
+    Platforms rotate their share-link domains without notice (XHS went from
+    xhslink.com to xhslink.cn), which silently breaks share-text detection.
+    Every rejected submission is logged with the hosts it contained under the
+    greppable marker URL_FORMAT_WATCH so a new domain shows up as a pattern
+    rather than a one-off user complaint.
+    """
+    hosts = []
+    for m in re.finditer(r'https?://([^/\s]+)', raw):
+        host = m.group(1).lower()
+        if host not in hosts:
+            hosts.append(host)
+    if hosts:
+        warning(f'URL_FORMAT_WATCH: unsupported submission, unrecognized host(s): '
+                f'{", ".join(hosts)} | raw={raw[:200]}')
+    else:
+        warning(f'URL_FORMAT_WATCH: unsupported submission with no URL in it '
+                f'| raw={raw[:200]}')
+
+
 @app.route('/submit', methods=['POST'])
 @login_required
 def submit_url():
@@ -451,7 +473,7 @@ def submit_url():
     elif TwitterURLParser.is_valid_twitter_url(url):
         content_type = 'tweet'
     else:
-        # Try XHS share text extraction (handles xhslink.com short URLs too)
+        # Try XHS share text extraction (handles xhslink short URLs too)
         extracted = XHSService.extract_url_from_share_text(url)
         if extracted and extracted != url:
             extracted = XHSService.resolve_xhslink(extracted)
@@ -459,9 +481,14 @@ def submit_url():
         if extracted and XHSService.is_valid_xhs_url(extracted):
             url = extracted
             content_type = 'xhs'
+        elif extracted and XHSService.is_xhslink(extracted):
+            # resolve_xhslink failed (SSL/network), but it's a known XHS short link
+            url = extracted
+            content_type = 'xhs'
         elif WebpageService.is_valid_webpage_url(url):
             content_type = 'webpage'
         else:
+            log_unsupported_url(url)
             return jsonify({'success': False, 'message': 'Unsupported URL. Please enter a valid http/https URL.'})
 
     # Normalize XHS URL
@@ -2118,13 +2145,14 @@ def api_submit():
             if extracted and XHSService.is_valid_xhs_url(extracted):
                 url = extracted
                 _ct = 'xhs'
-            elif extracted and re.search(r'https?://xhslink\.com/', extracted):
+            elif extracted and XHSService.is_xhslink(extracted):
                 # resolve_xhslink failed (SSL/network), but it's a known XHS short link
                 url = extracted
                 _ct = 'xhs'
             elif WebpageService.is_valid_webpage_url(url):
                 _ct = 'webpage'
             else:
+                log_unsupported_url(url)
                 error(f'Cannot process URL: {url}')
                 return jsonify({
                     'success': False,

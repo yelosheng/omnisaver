@@ -223,3 +223,4 @@ article_debug*.html
 
 # Empty/temporary databases
 tweets.db
+zhihu_profile/

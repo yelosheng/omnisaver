@@ -18,18 +18,23 @@ from utils.realtime_logger import info, error, warning, success, debug
 class TwitterPlaywrightScraper:
     """Playwright-based Twitter web scraper"""
     
-    def __init__(self, headless: bool = True, timeout: int = 60, debug: bool = False):
+    def __init__(self, headless: bool = True, timeout: int = 60, debug: bool = False,
+                 auth_token: Optional[str] = None, ct0: Optional[str] = None):
         """
         Initialize Playwright scraper
-        
+
         Args:
             headless: Whether to run browser in headless mode
             timeout: Page load timeout (seconds)
             debug: Whether to enable debug mode (will save screenshots, etc.)
+            auth_token: Twitter auth_token cookie for logged-in scraping (needed for long-form Articles)
+            ct0: Twitter ct0 cookie for logged-in scraping
         """
         self.headless = headless
         self.timeout = timeout * 1000  # Playwright uses milliseconds
         self.debug = debug
+        self.auth_token = auth_token
+        self.ct0 = ct0
         self.browser = None
         self.context = None
         
@@ -162,7 +167,28 @@ class TwitterPlaywrightScraper:
                 };
             }
         """)
-    
+
+        # Inject Twitter login cookies so logged-in-only content (e.g. long-form
+        # Articles) renders. Without these, X shows only the card preview + login wall.
+        if self.auth_token and self.ct0:
+            cookies = []
+            for domain in ('.x.com', '.twitter.com'):
+                cookies.append({
+                    'name': 'auth_token', 'value': self.auth_token,
+                    'domain': domain, 'path': '/',
+                    'httpOnly': True, 'secure': True, 'sameSite': 'None',
+                })
+                cookies.append({
+                    'name': 'ct0', 'value': self.ct0,
+                    'domain': domain, 'path': '/',
+                    'httpOnly': False, 'secure': True, 'sameSite': 'Lax',
+                })
+            try:
+                await self.context.add_cookies(cookies)
+                info("[PlaywrightScraper] Injected Twitter login cookies (auth_token, ct0)")
+            except Exception as e:
+                warning(f"[PlaywrightScraper] Failed to inject login cookies: {e}")
+
     async def _cleanup_browser(self):
         """Clean up browser resources"""
         if self.context:
@@ -1726,11 +1752,14 @@ class TwitterPlaywrightScraper:
 class TwitterPlaywrightScraperSync:
     """Synchronous version of Playwright scraper for compatibility with existing code"""
     
-    def __init__(self, headless: bool = True, timeout: int = 60, debug: bool = False):
+    def __init__(self, headless: bool = True, timeout: int = 60, debug: bool = False,
+                 auth_token: Optional[str] = None, ct0: Optional[str] = None):
         self.headless = headless
         self.timeout = timeout
         self.debug = debug
-    
+        self.auth_token = auth_token
+        self.ct0 = ct0
+
     def extract_tweet_id(self, url: str) -> str:
         """Extract tweet ID from URL"""
         scraper = TwitterPlaywrightScraper(self.headless, self.timeout, self.debug)
@@ -1742,7 +1771,8 @@ class TwitterPlaywrightScraperSync:
     
     async def _async_get_tweet_data(self, url: str) -> Dict:
         """Internal method for asynchronously getting tweet data"""
-        async with TwitterPlaywrightScraper(self.headless, self.timeout, self.debug) as scraper:
+        async with TwitterPlaywrightScraper(self.headless, self.timeout, self.debug,
+                                            self.auth_token, self.ct0) as scraper:
             return await scraper.get_tweet_data(url)
     
     def get_tweet_content(self, url: str) -> Dict:

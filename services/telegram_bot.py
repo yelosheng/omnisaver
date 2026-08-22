@@ -18,6 +18,8 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, filters, ContextTypes
 )
 
+from services.xhs_service import XHSService
+
 logger = logging.getLogger(__name__)
 
 OWNER_FILE = os.path.join(os.environ.get('DATA_DIR', os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'telegram_owner.json')
@@ -80,7 +82,9 @@ _TWEET_URL_RE = re.compile(
 )
 
 _XHS_URL_RE = re.compile(
-    r'https?://(?:xhslink\.com|(?:www\.)?xiaohongshu\.com/explore/[a-f0-9]+)[^\s]*'
+    r'https?://(?:' + XHSService.SHORTLINK_HOST_PATTERN +
+    r'|(?:www\.)?xiaohongshu\.com/explore/[a-f0-9]+)[^\s]*',
+    re.I,
 )
 
 _WECHAT_URL_RE = re.compile(

@@ -47,8 +47,13 @@ class TwitterService:
         # Initialize web scraper (fallback)
         if self.use_playwright:
             try:
-                self.web_scraper = TwitterPlaywrightScraperSync(headless=True, timeout=timeout, debug=False)
-                info("[TwitterService] Using Playwright browser automation scraping")
+                self.web_scraper = TwitterPlaywrightScraperSync(
+                    headless=True, timeout=timeout, debug=False,
+                    auth_token=xreach_auth_token, ct0=xreach_ct0)
+                if xreach_auth_token and xreach_ct0:
+                    info("[TwitterService] Using Playwright browser automation scraping (logged in)")
+                else:
+                    info("[TwitterService] Using Playwright browser automation scraping")
             except ImportError as e:
                 warning(f"[TwitterService] Playwright unavailable, falling back to traditional web scraping: {e}")
                 self.web_scraper = TwitterWebScraper(timeout=timeout)
