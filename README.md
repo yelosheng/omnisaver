@@ -150,6 +150,7 @@ By default, the tool uses Playwright browser automation for scraping. Configurin
 - Full thread fetching — entire self-reply chains saved as a single archive
 - Authenticated video downloads via yt-dlp
 - Faster scraping for single tweets
+- Long-form Articles — without cookies X serves only a card preview behind a login wall
 
 **Setup (via web UI):**
 1. Log in to [x.com](https://x.com) in your browser
@@ -270,7 +271,11 @@ mcporter call 'xiaohongshu.search_feeds(keyword: "test")'
 
 ### Saving XHS Posts
 
-**Via Telegram bot** — forward or paste any `xiaohongshu.com/explore/...?xsec_token=...` URL. The bot replies with the title, type, file count, and a `/view/<slug>` link.
+**Via Telegram bot** — forward or paste any XiaoHongShu link. Supported formats:
+- Full URL: `https://www.xiaohongshu.com/explore/<id>?xsec_token=...`
+- App share text: `Title~ http://xhslink.cn/xxx Copy and open in XiaoHongShu!` (the short link is extracted and resolved automatically; both `xhslink.cn` and the older `xhslink.com` work)
+
+The bot replies with the title, type, file count, and a `/view/<slug>` link.
 
 **Via REST API:**
 
@@ -407,7 +412,7 @@ Copy `config.ini.example` to `config.ini` and edit as needed.
 | `[scraper] use_playwright` | Use Playwright browser automation (recommended) | `true` |
 | `[scraper] headless` | Run browser in headless mode | `true` |
 | `[scraper] debug_mode` | Save screenshots on errors | `false` |
-| `[twitter] auth_token` | Twitter `auth_token` cookie (optional, enables xreach thread fetching) | unset |
+| `[twitter] auth_token` | Twitter `auth_token` cookie (optional, enables xreach thread fetching and long-form Articles) | unset |
 | `[twitter] ct0` | Twitter `ct0` cookie (required together with `auth_token`) | unset |
 | `[ai] gemini_api_key` | Gemini API key (optional, for AI tags) | unset |
 | `[ai] youtube_api_key` | YouTube Data API v3 key (optional, for channel avatars) | unset |

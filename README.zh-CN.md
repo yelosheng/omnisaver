@@ -148,6 +148,7 @@ volumes:
 - 完整串推抓取——将整条自回复链存为单一存档（含所有内联媒体）
 - 通过 yt-dlp 的登录态视频下载
 - 单条推文抓取速度提升
+- 长文 Article——未登录时 X 只返回卡片预览和登录墙，正文抓不到
 
 **配置步骤（通过 Web 界面）：**
 1. 在浏览器中登录 [x.com](https://x.com)
@@ -248,7 +249,7 @@ mcporter call 'xiaohongshu.list_feeds()'
 
 **通过 Telegram 机器人** —— 转发或粘贴任意小红书链接，支持以下格式：
 - 完整链接：`https://www.xiaohongshu.com/explore/<id>?xsec_token=...`
-- App 分享文本：`标题~ http://xhslink.com/xxx 复制后打开【小红书】查看笔记！`（自动提取短链并跳转）
+- App 分享文本：`标题~ http://xhslink.cn/xxx 复制后打开【小红书】查看笔记！`（自动提取短链并跳转；`xhslink.cn` 与旧的 `xhslink.com` 均支持）
 
 机器人会回复标题、类型、文件数量和 `/view/<slug>` 分享链接。
 
@@ -424,7 +425,7 @@ saved_wechat/
 | `[scraper] use_playwright` | 使用 Playwright 浏览器自动化（推荐） | `true` |
 | `[scraper] headless` | 无头模式运行浏览器 | `true` |
 | `[scraper] debug_mode` | 调试模式，出错时保存截图 | `false` |
-| `[twitter] auth_token` | Twitter `auth_token` Cookie（可选，启用 xreach 串推抓取） | 未设置 |
+| `[twitter] auth_token` | Twitter `auth_token` Cookie（可选，启用 xreach 串推抓取与长文 Article） | 未设置 |
 | `[twitter] ct0` | Twitter `ct0` Cookie（需与 `auth_token` 同时设置） | 未设置 |
 | `[ai] gemini_api_key` | Gemini API 密钥（可选，用于 AI 标签） | 未设置 |
 | `[ai] youtube_api_key` | YouTube Data API v3 密钥（可选，用于频道头像） | 未设置 |
