@@ -45,6 +45,7 @@ A self-hosted content saver for your NAS, home server, or Raspberry Pi. Archive 
 - Supports infinite scroll and pagination (toggle per preference)
 - Each archived post gets a unique public share link (`/view/<slug>`)
 - Change password via the in-app user menu
+- Optional: Android App — native companion client for one-tap sharing via Android share menu ([omnisaver-android](https://github.com/yelosheng/omnisaver-android))
 - Optional: Telegram bot — save content from any supported platform by forwarding links
 - Optional: AI-powered tag generation via Gemini API
 - Optional: video thumbnails via FFmpeg
@@ -208,6 +209,18 @@ The most convenient way to save tweets on a phone or tablet. Share any tweet dir
 - Any message containing a XiaoHongShu URL → saved immediately (see XHS section below)
 - Any message containing a WeChat article URL → queued for archiving
 - `/status` — shows current queue size
+
+---
+
+## 📱 Android App — Mobile Companion Client
+
+For Android users, a dedicated companion mobile application is available:
+
+- **Repository**: [https://github.com/yelosheng/omnisaver-android](https://github.com/yelosheng/omnisaver-android)
+- **Highlights**:
+  - One-tap sharing from any app (Twitter/X, YouTube, Bilibili, 小红书, WeChat, Chrome, etc.) directly into your OmniSaver instance via the system **Share** sheet
+  - Real-time task progress tracking and saved archives browsing
+  - Configurable server address and API Key authentication
 
 ---
 

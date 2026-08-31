@@ -43,6 +43,7 @@
 - 支持瀑布加载和分页两种浏览模式（可切换）
 - 每条归档内容可生成唯一分享链接
 - 支持在 Web UI 用户菜单直接修改密码
+- 可选：安卓配套 App——通过系统分享菜单快速保存内容（[omnisaver-android](https://github.com/yelosheng/omnisaver-android)）
 - 可选：Telegram 机器人——向私人 Bot 发送链接即可触发保存（支持所有平台）
 - 可选：基于 Gemini API 的 AI 智能标签生成
 - 可选：通过 FFmpeg 生成视频缩略图
@@ -409,6 +410,18 @@ saved_wechat/
 - 包含微信文章链接的消息 → 加入保存队列
 - 其他任意 `http/https` 链接 → 作为网页稍后阅读任务加入队列
 - `/status` — 显示当前队列大小
+
+---
+
+## 📱 安卓客户端（Android App）
+
+对于安卓手机/平板用户，可搭配专用的开源安卓配套应用使用：
+
+- **项目仓库**：[https://github.com/yelosheng/omnisaver-android](https://github.com/yelosheng/omnisaver-android)
+- **功能亮点**：
+  - 支持在任意 App（Twitter/X、YouTube、B站、小红书、微信、浏览器等）中点击「系统分享」一键将内容提交至 OmniSaver 保存
+  - 任务处理进度实时监控与历史归档浏览
+  - 支持配置自定义服务器地址与 API Key 鉴权
 
 ---
 
