@@ -12,16 +12,9 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 from utils.realtime_logger import info, warning, success
+from utils.ytdlp_helper import run_ytdlp, ensure_ytdlp_path
 
-# Ensure pyenv yt-dlp is on PATH
-_EXTRA_PATH_DIRS = [
-    os.path.expanduser('~/.pyenv/shims'),
-    os.path.expanduser('~/.pyenv/versions/3.11.9/bin'),
-    os.path.expanduser('~/.npm-global/bin'),
-]
-for _p in _EXTRA_PATH_DIRS:
-    if _p not in os.environ.get('PATH', ''):
-        os.environ['PATH'] = _p + ':' + os.environ.get('PATH', '')
+ensure_ytdlp_path()
 
 
 class InstagramServiceError(Exception):
@@ -217,7 +210,7 @@ class InstagramService:
         meta = {}
         try:
             cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--referer', 'https://www.instagram.com/', clean_url]
-            meta_result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            meta_result = run_ytdlp(cmd, auto_retry_on_upgrade=True, capture_output=True, text=True, timeout=60)
             if meta_result.returncode == 0:
                 meta = json.loads(meta_result.stdout)
         except Exception as e:
@@ -255,9 +248,10 @@ class InstagramService:
             info(f'Downloading Instagram video: {uploader}')
             with tempfile.TemporaryDirectory(prefix='ig_') as tmp_dir:
                 tmp_out = os.path.join(tmp_dir, 'video.mp4')
-                dl_result = subprocess.run(
+                dl_result = run_ytdlp(
                     ['yt-dlp', '--no-playlist', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                      '--merge-output-format', 'mp4', '-o', tmp_out, clean_url],
+                    auto_retry_on_upgrade=True,
                     capture_output=True, timeout=300
                 )
                 if dl_result.returncode == 0 and os.path.exists(tmp_out):

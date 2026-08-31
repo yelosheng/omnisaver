@@ -9,6 +9,9 @@ from models.media_file import MediaFile
 import subprocess
 import shutil
 from utils.realtime_logger import info, error, warning, success, debug
+from utils.ytdlp_helper import run_ytdlp, ensure_ytdlp_path
+
+ensure_ytdlp_path()
 
 
 class MediaDownloadError(Exception):
@@ -147,7 +150,7 @@ class MediaDownloader:
                 cmd.append(tweet_url)
 
                 info(f"[MediaDownloader] yt-dlp download for tweet (slots {indices}): {tweet_url}")
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                result = run_ytdlp(cmd, auto_retry_on_upgrade=True, capture_output=True, text=True)
                 if cookies_file:
                     try:
                         os.unlink(cookies_file.name)

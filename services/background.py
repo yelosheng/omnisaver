@@ -80,7 +80,13 @@ def _build_task_error_details(exc: Exception, *, task_id: int, url: str = '', st
         'code":10003',
         "code':10003",
     ))
-    if any(token in lowered for token in (
+    is_ytdlp_issue = ('yt-dlp' in lowered or 'youtube' in stage.lower()) and any(t in lowered for t in (
+        'older than', '403', 'forbidden', 'unable to download video data',
+        'signature extraction failed', 'n challenge', 'nsig'
+    ))
+    if is_ytdlp_issue:
+        lines.append('Diagnosis: yt-dlp parser issue or platform CDN token rejected. Auto-upgrade and retry was attempted.')
+    elif any(token in lowered for token in (
         'cookie', 'cookies', 'auth_token', 'ct0', 'z_c0', 'web_session',
         'reddit_session', 'expired', 'invalid or expired', 'login page',
         'please refresh your cookie', 'require a valid login cookie',

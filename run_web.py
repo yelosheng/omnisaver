@@ -134,6 +134,14 @@ def main():
             print("XHS auto-save not enabled (configure at /xhs)")
     except Exception as e:
         print(f"XHS auto-save startup failed (non-fatal): {e}")
+
+    # Start periodic yt-dlp auto-updater
+    try:
+        from utils.ytdlp_helper import start_periodic_ytdlp_updater
+        start_periodic_ytdlp_updater(interval_hours=24)
+        print("yt-dlp periodic auto-updater started (every 24h)")
+    except Exception as e:
+        print(f"yt-dlp auto-updater startup failed (non-fatal): {e}")
     
     # Start browser
     if '--no-browser' not in sys.argv:

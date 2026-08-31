@@ -8,16 +8,9 @@ from datetime import datetime
 from pathlib import Path
 
 from utils.realtime_logger import info, warning, success
+from utils.ytdlp_helper import run_ytdlp, ensure_ytdlp_path
 
-# Ensure pyenv yt-dlp is on PATH
-_EXTRA_PATH_DIRS = [
-    os.path.expanduser('~/.pyenv/shims'),
-    os.path.expanduser('~/.pyenv/versions/3.11.9/bin'),
-    os.path.expanduser('~/.npm-global/bin'),
-]
-for _p in _EXTRA_PATH_DIRS:
-    if _p not in os.environ.get('PATH', ''):
-        os.environ['PATH'] = _p + ':' + os.environ.get('PATH', '')
+ensure_ytdlp_path()
 
 
 class YoutubeServiceError(Exception):
@@ -164,9 +157,10 @@ class YoutubeService:
         info(f'Fetching YouTube metadata: {url}')
 
         # --- metadata ---
-        meta_result = subprocess.run(
+        meta_result = run_ytdlp(
             ['yt-dlp', '--dump-json', '--no-playlist',
              '--remote-components', 'ejs:github', url],
+            auto_retry_on_upgrade=True,
             capture_output=True, text=True, timeout=60
         )
         if meta_result.returncode != 0:
@@ -209,16 +203,18 @@ class YoutubeService:
             tmp_out = os.path.join(tmp_dir, 'video.mp4')
             err_log = os.path.join(tmp_dir, 'stderr.txt')
             with open(err_log, 'w') as _ef:
-                dl_result = subprocess.run(
+                dl_result = run_ytdlp(
                     ['yt-dlp', '--no-playlist',
                      '--remote-components', 'ejs:github',
-                     '--no-continue', '--no-part',
+                     '-N', '8',
                      '--retries', '10', '--fragment-retries', '10',
                      '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                      '--merge-output-format', 'mp4',
                      '-o', tmp_out,
                      url],
-                    stdout=subprocess.DEVNULL, stderr=_ef, timeout=600
+                    auto_retry_on_upgrade=True,
+                    err_log_path=err_log,
+                    stdout=subprocess.DEVNULL, stderr=_ef, timeout=1800
                 )
             if dl_result.returncode != 0:
                 err_text = Path(err_log).read_text(encoding='utf-8', errors='replace')[-500:]
@@ -228,11 +224,12 @@ class YoutubeService:
         # --- thumbnail ---
         thumb_dir = post_dir / 'thumbnails'
         thumb_dir.mkdir(exist_ok=True)
-        subprocess.run(
+        run_ytdlp(
             ['yt-dlp', '--skip-download', '--write-thumbnail',
              '--convert-thumbnails', 'jpg',
              '-o', str(thumb_dir / 'cover'),
              url],
+            auto_retry_on_upgrade=False,
             capture_output=True, timeout=30
         )
         # yt-dlp may add extension; find the file
@@ -255,13 +252,14 @@ class YoutubeService:
 
         sub_dir = post_dir / 'subtitles'
         sub_dir.mkdir(exist_ok=True)
-        subprocess.run(
+        run_ytdlp(
             ['yt-dlp', '--skip-download',
              '--write-sub', '--write-auto-sub',
              '--sub-lang', sub_langs,
              '--convert-subs', 'vtt',
              '-o', str(sub_dir / '%(id)s'),
              url],
+            auto_retry_on_upgrade=False,
             capture_output=True, timeout=60
         )
         sub_files = list(sub_dir.glob('*.vtt'))

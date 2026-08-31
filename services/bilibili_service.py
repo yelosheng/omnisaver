@@ -12,16 +12,9 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 from utils.realtime_logger import info, warning, success
+from utils.ytdlp_helper import run_ytdlp, ensure_ytdlp_path
 
-# Ensure pyenv yt-dlp is on PATH
-_EXTRA_PATH_DIRS = [
-    os.path.expanduser('~/.pyenv/shims'),
-    os.path.expanduser('~/.pyenv/versions/3.11.9/bin'),
-    os.path.expanduser('~/.npm-global/bin'),
-]
-for _p in _EXTRA_PATH_DIRS:
-    if _p not in os.environ.get('PATH', ''):
-        os.environ['PATH'] = _p + ':' + os.environ.get('PATH', '')
+ensure_ytdlp_path()
 
 
 class BilibiliServiceError(Exception):
@@ -179,12 +172,12 @@ class BilibiliService:
         if cookies_file:
             meta_cmd += ['--cookies', cookies_file]
         meta_cmd.append(url)
-        meta_result = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=60)
+        meta_result = run_ytdlp(meta_cmd, auto_retry_on_upgrade=True, capture_output=True, text=True, timeout=60)
 
         if meta_result.returncode != 0:
             err = meta_result.stderr.strip()[:300]
             warning(f"yt-dlp metadata failed with headers, retrying simple: {err}")
-            meta_result = subprocess.run(['yt-dlp', '--dump-json', '--no-playlist', url], capture_output=True, text=True, timeout=60)
+            meta_result = run_ytdlp(['yt-dlp', '--dump-json', '--no-playlist', url], auto_retry_on_upgrade=True, capture_output=True, text=True, timeout=60)
             
         if meta_result.returncode != 0:
             raise BilibiliServiceError(f'yt-dlp metadata failed: {meta_result.stderr.strip()[:300]}')
@@ -228,13 +221,14 @@ class BilibiliService:
             tmp_out = os.path.join(tmp_dir, 'video.mp4')
             dl_cmd = [
                 'yt-dlp', '--no-playlist', '--no-check-certificate',
+                '-N', '8',
                 '--merge-output-format', 'mp4',
                 '-o', tmp_out,
             ]
             if cookies_file:
                 dl_cmd += ['--cookies', cookies_file]
             dl_cmd.append(url)
-            dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=600)
+            dl_result = run_ytdlp(dl_cmd, auto_retry_on_upgrade=True, capture_output=True, text=True, timeout=1800)
             if dl_result.returncode != 0:
                 raise BilibiliServiceError(f'yt-dlp download failed: {dl_result.stderr[-500:]}')
             shutil.move(tmp_out, str(video_file))
@@ -247,7 +241,7 @@ class BilibiliService:
         if cookies_file:
             thumb_cmd += ['--cookies', cookies_file]
         thumb_cmd.append(url)
-        subprocess.run(thumb_cmd, capture_output=True, timeout=30)
+        run_ytdlp(thumb_cmd, auto_retry_on_upgrade=False, capture_output=True, timeout=30)
         
         # --- avatar ---
         try:
