@@ -476,8 +476,9 @@ def submit_url():
     else:
         # Try XHS share text extraction (handles xhslink short URLs too)
         extracted = XHSService.extract_url_from_share_text(url)
-        if extracted and extracted != url:
-            extracted = XHSService.resolve_xhslink(extracted)
+        if extracted:
+            if XHSService.is_xhslink(extracted):
+                extracted = XHSService.resolve_xhslink(extracted)
             extracted = XHSService.normalize_xhs_url(extracted)
         if extracted and XHSService.is_valid_xhs_url(extracted):
             url = extracted
@@ -494,7 +495,8 @@ def submit_url():
 
     # Normalize XHS URL
     if content_type == 'xhs':
-        url = XHSService.resolve_xhslink(url)
+        if XHSService.is_xhslink(url):
+            url = XHSService.resolve_xhslink(url)
         url = XHSService.normalize_xhs_url(url)
 
     # 检查是否已经存在相同的URL
@@ -2140,8 +2142,9 @@ def api_submit():
             _ct = 'tweet'
         else:
             extracted = XHSService.extract_url_from_share_text(url)
-            if extracted and extracted != url:
-                extracted = XHSService.resolve_xhslink(extracted)
+            if extracted:
+                if XHSService.is_xhslink(extracted):
+                    extracted = XHSService.resolve_xhslink(extracted)
                 extracted = XHSService.normalize_xhs_url(extracted)
             if extracted and XHSService.is_valid_xhs_url(extracted):
                 url = extracted
@@ -2161,6 +2164,12 @@ def api_submit():
                     'message': f'Cannot process URL: {url}',
                     'url': url
                 }), 400
+
+        # Normalize XHS URL if needed
+        if _ct == 'xhs':
+            if XHSService.is_xhslink(url):
+                url = XHSService.resolve_xhslink(url)
+            url = XHSService.normalize_xhs_url(url)
 
         # 检查URL是否已存在
         conn = get_db_connection()

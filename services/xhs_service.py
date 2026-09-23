@@ -6,6 +6,7 @@ import ssl
 import subprocess
 import tempfile
 import time
+import requests
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -77,18 +78,38 @@ class XHSService:
         """Follow xhslink short URL redirects and return the final URL."""
         if not XHSService.is_xhslink(url):
             return url
-        # Follow up to 5 redirects manually so we end up with the real note URL
+        # Follow redirects step-by-step so we get the real note URL,
+        # stopping before unauthenticated redirects to /login.
         current = url
+        session = requests.Session()
         for _ in range(5):
             try:
-                r = urllib.request.urlopen(
-                    urllib.request.Request(current, headers={'User-Agent': 'Mozilla/5.0'}),
+                resp = session.get(
+                    current,
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+                    allow_redirects=False,
                     timeout=10,
                 )
-                final = r.url
-                if final and final != current:
-                    current = final
-                break
+                if resp.status_code in (301, 302, 303, 307, 308):
+                    loc = resp.headers.get('Location')
+                    if not loc:
+                        break
+                    next_url = urllib.parse.urljoin(current, loc)
+                    # If redirected to /login, extract target from redirectPath instead of landing on login page
+                    if '/login' in next_url:
+                        parsed = urllib.parse.urlparse(next_url)
+                        params = urllib.parse.parse_qs(parsed.query)
+                        target = params.get('redirectPath', [''])[0]
+                        if target:
+                            current = urllib.parse.unquote(target)
+                            if not current.startswith('http'):
+                                current = urllib.parse.urljoin('https://www.xiaohongshu.com', current)
+                        break
+                    current = next_url
+                    if XHSService.is_valid_xhs_url(current):
+                        break
+                else:
+                    break
             except Exception as e:
                 warning(f'resolve_xhslink failed for {current}: {e}')
                 break
@@ -110,15 +131,16 @@ class XHSService:
     def normalize_xhs_url(url: str) -> str:
         """Convert /discovery/item/<id> to /explore/<id> keeping query params.
 
-        Also handles xiaohongshu.com/404?noteId=<id> redirects produced by the
-        share-link resolver, extracting the noteId to rebuild a proper explore URL.
+        Also handles xiaohongshu.com/404?noteId=<id> and /login?redirectPath=...
+        redirects produced by the share-link resolver, extracting the target
+        to rebuild a proper explore URL.
         """
         parsed = urllib.parse.urlparse(url)
         path = parsed.path.rstrip('/')
         if '/discovery/item/' in path:
             feed_id = path.split('/')[-1]
             path = f'/explore/{feed_id}'
-            parsed = parsed._replace(path=path)
+            parsed = parsed._replace(scheme='https', path=path)
             url = urllib.parse.urlunparse(parsed)
         elif path == '/404' and 'xiaohongshu.com' in parsed.netloc:
             params = urllib.parse.parse_qs(parsed.query)
@@ -129,6 +151,14 @@ class XHSService:
                     url = f'https://www.xiaohongshu.com/explore/{note_id}?xsec_token={urllib.parse.quote(xsec_token, safe="")}&xsec_source=app_share'
                 else:
                     url = f'https://www.xiaohongshu.com/explore/{note_id}'
+        elif path == '/login' and 'xiaohongshu.com' in parsed.netloc:
+            params = urllib.parse.parse_qs(parsed.query)
+            redirect_path = params.get('redirectPath', [''])[0]
+            if redirect_path:
+                target = urllib.parse.unquote(redirect_path)
+                if not target.startswith('http'):
+                    target = urllib.parse.urljoin('https://www.xiaohongshu.com', target)
+                return XHSService.normalize_xhs_url(target)
         return url
 
     @staticmethod
