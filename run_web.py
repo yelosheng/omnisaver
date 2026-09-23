@@ -9,6 +9,7 @@ import webbrowser
 import time
 import threading
 import logging
+from datetime import timedelta
 from app import app, init_db, init_services, start_background_thread, load_pending_tasks, start_xhs_autosave, get_setting, get_db_connection, rebuild_fts_index
 
 
@@ -45,6 +46,8 @@ def main():
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['SESSION_COOKIE_SECURE'] = False
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
+    app.permanent_session_lifetime = timedelta(days=365)
     print("HTTP mode enabled")
     
     # Check configuration

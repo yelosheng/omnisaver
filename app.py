@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, Response, session, flash
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 from services.config_manager import ConfigManager
 from services.twitter_service import TwitterService, TwitterScrapingError
 from services.media_downloader import MediaDownloader
@@ -53,6 +54,8 @@ _SUPPORTED_LANGS = list(_TRANSLATIONS.keys())  # ['en', 'zh_CN']
 # ──────────────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
+# 适配反向代理 (Nginx) 下的 HTTPS 与真实客户端 IP
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 # Data directory — override with DATA_DIR env var (used by Docker)
 DATA_DIR = os.environ.get('DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
@@ -69,9 +72,10 @@ else:
     with open(SECRET_KEY_FILE, 'w') as f:
         f.write(app.secret_key)
 
-app.permanent_session_lifetime = timedelta(days=1)  # Default 24 hours
+app.permanent_session_lifetime = timedelta(days=365)  # 默认 365 天长期持久化
 
-# Session 配置 - 确保在 HTTPS 环境下正常工作
+# Session 配置 - 确保在 HTTPS 和 HTTP 环境下正常工作
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 app.config['SESSION_COOKIE_SECURE'] = False  # 允许 HTTP 和 HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # 防止 XSS
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF 保护
@@ -294,20 +298,17 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        remember_days = int(request.form.get('remember_days') or 1)
+        remember = bool(request.form.get('remember_days'))
 
         if not username or not password:
             return render_template('login.html', error='Username and password are required')
 
         # 验证用户
         if user_manager.authenticate(username, password):
-            # 设置session
-            session.permanent = True
+            # 设置session (勾选“记住我”则持久化为 365 天长期会话，未勾选则为浏览器会话 cookie)
+            session.permanent = remember
             session['logged_in'] = True
             session['username'] = username
-
-            # 设置session有效期
-            app.permanent_session_lifetime = timedelta(days=remember_days)
 
             # 重定向到原页面或主页
             next_page = request.args.get('next')
